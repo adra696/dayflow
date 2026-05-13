@@ -2624,28 +2624,27 @@
       if (curUser && curUser.id === user.id) return;
       curUser = user;
       load();
-      setSS('sd-oggi', 'st-oggi-sync', 'syncing', 'caricamento...');
+      document.getElementById('auth-screen').classList.add('hidden');
+      document.getElementById('shell').style.display = 'flex';
+      if (window.innerWidth >= 768) {
+        const saved = localStorage.getItem('sidebarExpanded');
+        if (saved === 'true') document.getElementById('nav').classList.add('expanded');
+      }
+      goScreen('oggi');
+      setSS('sd-oggi', 'st-oggi-sync', 'syncing', 'sincronizzazione...');
       await withTimeout(sbLoadHabits(), 8000);
       const allDays = await withTimeout(sbLoadAllDays(), 8000);
       if (allDays) {
         for (const [ds, remote] of Object.entries(allDays)) {
           const local = S.days[ds];
-          if (!local || (remote.timestamp > (local.timestamp || 0))) { S.days[ds] = remote; }
+          if (!local || (remote.timestamp > (local.timestamp || 0))) S.days[ds] = remote;
         }
         persist();
+        if (curScreen === 'oggi') renderOggi();
+        else if (curScreen === 'plan') renderPlan();
+        else if (curScreen === 'recap') renderRecap();
       }
-      document.getElementById('auth-screen').classList.add('hidden');
-      document.getElementById('shell').style.display = 'flex';
-
-      // Ripristina stato sidebar desktop
-      if (window.innerWidth >= 768) {
-        const saved = localStorage.getItem('sidebarExpanded');
-        if (saved === 'true') {
-          document.getElementById('nav').classList.add('expanded');
-        }
-      }
-
-      goScreen('oggi');
+      setSS('sd-oggi', 'st-oggi-sync', allDays ? 'ok' : 'err', allDays ? 'sincronizzato' : 'locale — nessuna rete');
     }
 
     // ── AUTH LISTENER ─────────────────────────────────────────
@@ -2676,9 +2675,6 @@
           await initApp(session.user);
         }
       } catch (e) {
-        // Errore di rete o token corrotto: pulisci silenziosamente
-        try { await sb.auth.signOut(); } catch (e2) { }
-        localStorage.removeItem(SK);
         console.error('getSession error', e);
       }
     })();
@@ -2860,6 +2856,7 @@
     // ── ANALYTICS ─────────────────────────────────────────────
     async function renderAnalytics() {
       document.getElementById('an-date').textContent = new Date().toLocaleDateString('it-IT', { year: 'numeric', month: 'long' }).toLowerCase();
+      renderHeatmap(); renderWeeklyHabits();
       setSS('sd-an', 'st-an-sync', 'syncing', 'caricamento storico...');
       const allDays = await sbLoadAllDays();
       if (allDays) {
