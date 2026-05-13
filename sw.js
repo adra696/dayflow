@@ -1,4 +1,4 @@
-const CACHE = 'dayflow-v1';
+const CACHE = 'dayflow-v2';
 const STATIC = [
   './dayflow1_0.html',
   './manifest.json',
@@ -45,7 +45,19 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // Tutto il resto (HTML, manifest, icone) → cache-first
+  // HTML → network-first (sempre versione fresca, fallback cache offline)
+  if (e.request.mode === 'navigate' || url.pathname.endsWith('.html')) {
+    e.respondWith(
+      fetch(e.request).then(r => {
+        const copy = r.clone();
+        caches.open(CACHE).then(c => c.put(e.request, copy));
+        return r;
+      }).catch(() => caches.match(e.request))
+    );
+    return;
+  }
+
+  // Manifest e icone → cache-first
   e.respondWith(
     caches.match(e.request).then(cached => cached || fetch(e.request))
   );
