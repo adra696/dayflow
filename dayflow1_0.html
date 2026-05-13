@@ -88,7 +88,10 @@
       border-radius: 16px;
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
       backdrop-filter: var(--glass-blur);
-      -webkit-backdrop-filter: var(--glass-blur)
+      -webkit-backdrop-filter: var(--glass-blur);
+      max-height: 90vh;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch
     }
 
     .auth-logo {
@@ -579,6 +582,21 @@
       color: var(--text3);
       letter-spacing: .05em;
       flex-shrink: 0
+    }
+
+    /* prog-head/prog-pct used by recap + storico screens */
+    .prog-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 12px
+    }
+
+    .prog-pct {
+      font-size: 38px;
+      font-weight: 700;
+      letter-spacing: -.04em;
+      transition: color .5s ease
     }
 
     /* STATS */
@@ -1811,14 +1829,15 @@
     /* PASSWORD RESET LINK */
     .auth-link {
       font-family: var(--mono);
-      font-size: 9px;
-      color: var(--text3);
+      font-size: 11px;
+      color: var(--text2);
       letter-spacing: .08em;
       background: none;
       border: none;
       cursor: pointer;
-      margin-top: 12px;
+      margin-top: 14px;
       display: block;
+      padding: 4px 0;
       transition: color .2s
     }
 
@@ -2588,6 +2607,7 @@
     }
 
     async function initApp(user) {
+      if (curUser && curUser.id === user.id) return;
       curUser = user;
       load();
       setSS('sd-oggi', 'st-oggi-sync', 'syncing', 'caricamento...');
