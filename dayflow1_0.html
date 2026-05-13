@@ -1914,6 +1914,58 @@
       line-height: 1.5
     }
 
+    .dp-check {
+      width: 16px;
+      height: 16px;
+      border-radius: 4px;
+      border: 1.5px solid var(--border3);
+      cursor: pointer;
+      flex-shrink: 0
+    }
+
+    .dp-check.done {
+      background: var(--green);
+      border-color: var(--green)
+    }
+
+    .plan-impegni-sep {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--text3);
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      padding: 16px 20px 8px;
+      border-bottom: 1px solid var(--border)
+    }
+
+    .plan-impegno {
+      background: rgba(16, 185, 129, 0.04)
+    }
+
+    .plan-impegno-lbl {
+      flex: 1;
+      font-family: var(--sans);
+      font-size: 15px;
+      color: var(--text2)
+    }
+
+    .impegno-row {
+      background: linear-gradient(to right, rgba(16, 185, 129, 0.04), transparent)
+    }
+
+    .impegno-badge {
+      font-size: 11px;
+      margin-left: auto;
+      opacity: 0.7
+    }
+
+    .impegno-ora {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--text3);
+      margin-left: 8px
+    }
+
     .evento-badge {
       position: absolute;
       top: 3px;
@@ -2760,8 +2812,11 @@
     function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2) }
     function load() { try { const r = localStorage.getItem(SK); if (r) S = JSON.parse(r) } catch (e) { } if (!Array.isArray(S.impegniRicorrenti)) S.impegniRicorrenti = []; }
     function persist() { try { localStorage.setItem(SK, JSON.stringify(S)) } catch (e) { } }
-    function getDay(ds) { if (!S.days[ds]) S.days[ds] = { data: ds, abitudini: {}, attivitaDelGiorno: { compiti: ['', '', ''], altaPriorita: [false, false, false], completatiTask: [false, false, false], completato: false, completatiCount: 0 }, note: '', timestamp: Date.now(), eventi: [] }; ensureSlotArrays(S.days[ds]); return S.days[ds]; }
+    function getDay(ds) { if (!S.days[ds]) S.days[ds] = { data: ds, abitudini: {}, attivitaDelGiorno: { compiti: ['', '', ''], altaPriorita: [false, false, false], completatiTask: [false, false, false], completato: false, completatiCount: 0 }, note: '', timestamp: Date.now(), eventi: [], impegniRicorrentiCompletati: {} }; ensureSlotArrays(S.days[ds]); return S.days[ds]; }
     function ensureSlotArrays(day) {
+      if (!day.impegniRicorrentiCompletati || typeof day.impegniRicorrentiCompletati !== 'object') {
+        day.impegniRicorrentiCompletati = {};
+      }
       const atd = day.attivitaDelGiorno;
       if (!Array.isArray(atd.compiti)) atd.compiti = ['', '', ''];
       if (!Array.isArray(atd.altaPriorita)) atd.altaPriorita = [];
@@ -2788,7 +2843,19 @@
       return n;
     }
     function activeHabits() { return S.habits.filter(h => h.attiva).sort((a, b) => a.ordine - b.ordine) }
-    function calcPct(ds) { const day = S.days[ds]; if (!day) return null; ensureSlotArrays(day); const habits = activeHabits(); let total = 1, done = 0; habits.forEach(h => { const r = day.abitudini[h.id] || {}; if (!r.saltato) total++; if (!r.saltato && r.completato) done++; }); const atd = day.attivitaDelGiorno; const nonEmpty = atd.compiti.filter(t => t.trim()).length; done += nonEmpty > 0 ? atdDoneCount(day) / nonEmpty : 0; return Math.round((done / total) * 100); }
+    function isoDow(ds) {
+      const d = new Date(ds + 'T12:00:00');
+      const js = d.getDay();
+      return js === 0 ? 7 : js;
+    }
+    function getImpegniDelGiorno(ds) {
+      const dow = isoDow(ds);
+      return (S.impegniRicorrenti || [])
+        .filter(r => r.attivo !== false && Array.isArray(r.giorniSettimana) && r.giorniSettimana.includes(dow))
+        .slice()
+        .sort((a, b) => (a.ordine || 0) - (b.ordine || 0));
+    }
+    function calcPct(ds) { const day = S.days[ds]; if (!day) return null; ensureSlotArrays(day); const habits = activeHabits(); let total = 1, done = 0; habits.forEach(h => { const r = day.abitudini[h.id] || {}; if (!r.saltato) total++; if (!r.saltato && r.completato) done++; }); const atd = day.attivitaDelGiorno; const nonEmpty = atd.compiti.filter(t => t.trim()).length; done += nonEmpty > 0 ? atdDoneCount(day) / nonEmpty : 0; const imp = getImpegniDelGiorno(ds); total += imp.length; imp.forEach(r => { if (day.impegniRicorrentiCompletati[r.id]) done++; }); return Math.round((done / total) * 100); }
     function pctColor(p) { return p <= 25 ? '#f87171' : p <= 50 ? '#fb923c' : p <= 75 ? '#facc15' : '#4ade80' }
     function heatColor(p) { if (p === null) return null; if (p === 0) return '#181818'; if (p <= 25) return '#3d1515'; if (p <= 50) return '#3d2510'; if (p <= 75) return '#352e08'; return '#163316'; }
     function fmtDate(ds) { const d = new Date(ds + 'T12:00:00'); return d.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).toLowerCase() }
@@ -2905,6 +2972,7 @@
           data: ds,
           abitudini: day.abitudini,
           attivita_del_giorno: day.attivitaDelGiorno,
+          impegni_ricorrenti_completati: day.impegniRicorrentiCompletati || {},
           note: day.note || '',
           timestamp: day.timestamp || Date.now()
         }, { onConflict: 'user_id,data' });
@@ -2921,7 +2989,7 @@
       try {
         const { data } = await sb.from('days').select('*').eq('user_id', curUser.id).eq('data', ds).single();
         if (!data) return null;
-        return { data: ds, abitudini: data.abitudini || {}, attivitaDelGiorno: data.attivita_del_giorno || { compiti: ['', '', ''], altaPriorita: [false, false, false], completato: false }, note: data.note || '', timestamp: data.timestamp || Date.now() };
+        return { data: ds, abitudini: data.abitudini || {}, attivitaDelGiorno: data.attivita_del_giorno || { compiti: ['', '', ''], altaPriorita: [false, false, false], completato: false }, impegniRicorrentiCompletati: data.impegni_ricorrenti_completati || {}, note: data.note || '', timestamp: data.timestamp || Date.now() };
       } catch (e) { return null; }
     }
     async function sbLoadAllDays() {
@@ -2931,7 +2999,7 @@
         if (!data) return null;
         const result = {};
         for (const row of data) {
-          result[row.data] = { data: row.data, abitudini: row.abitudini || {}, attivitaDelGiorno: row.attivita_del_giorno || { compiti: ['', '', ''], altaPriorita: [false, false, false], completato: false }, note: row.note || '', timestamp: row.timestamp || Date.now() };
+          result[row.data] = { data: row.data, abitudini: row.abitudini || {}, attivitaDelGiorno: row.attivita_del_giorno || { compiti: ['', '', ''], altaPriorita: [false, false, false], completato: false }, impegniRicorrentiCompletati: row.impegni_ricorrenti_completati || {}, note: row.note || '', timestamp: row.timestamp || Date.now() };
         }
         return result;
       } catch (e) { console.error('sbLoadAllDays', e); return null; }
@@ -3138,6 +3206,22 @@
         renderTaskInputs(d, today);
       };
       c.appendChild(addRow);
+      const impegni = getImpegniDelGiorno(today);
+      if (impegni.length) {
+        const sep = document.createElement('div');
+        sep.className = 'plan-impegni-sep';
+        sep.textContent = '— Impegni ricorrenti di oggi —';
+        c.appendChild(sep);
+        impegni.forEach(r => {
+          const row = document.createElement('div');
+          row.className = 'plan-task plan-impegno';
+          const num = document.createElement('span'); num.className = 'plan-num'; num.textContent = '🔁';
+          const lbl = document.createElement('div'); lbl.className = 'plan-impegno-lbl';
+          lbl.textContent = r.titolo + (r.ora ? ` · ${r.ora}` : '');
+          row.appendChild(num); row.appendChild(lbl);
+          c.appendChild(row);
+        });
+      }
     }
     function checkPriBanner(day) { const has = day.attivitaDelGiorno.altaPriorita.some(v => v); document.getElementById('pri-banner').style.display = has ? 'flex' : 'none'; }
     function savePlan() {
@@ -3205,9 +3289,12 @@
     }
     function renderHOggiList(day, today) {
       const c = document.getElementById('hoggi-list'); c.innerHTML = '';
+      ensureSlotArrays(day);
       const habits = activeHabits();
-      const done = habits.filter(h => day.abitudini[h.id] && day.abitudini[h.id].completato).length;
-      document.getElementById('habit-count-lbl').textContent = `Abitudini — ${done}/${habits.length}`;
+      const impegni = getImpegniDelGiorno(today);
+      const doneHab = habits.filter(h => day.abitudini[h.id] && day.abitudini[h.id].completato).length;
+      const doneImp = impegni.filter(r => day.impegniRicorrentiCompletati[r.id]).length;
+      document.getElementById('habit-count-lbl').textContent = `Abitudini — ${doneHab + doneImp}/${habits.length + impegni.length}`;
       const focusBtn = document.getElementById('focus-toggle-btn');
       if (focusBtn) { focusBtn.classList.toggle('active', focusMode); focusBtn.textContent = focusMode ? '🎯 focus' : 'focus'; }
       habits.forEach(h => {
@@ -3237,7 +3324,37 @@
         }
         c.appendChild(row);
       });
-      ensureSlotArrays(day);
+      impegni.forEach(r => {
+        const completato = !!day.impegniRicorrentiCompletati[r.id];
+        const row = document.createElement('div');
+        row.className = 'habit-row impegno-row' + (focusMode && completato ? ' done-hidden' : '');
+        const toggle = () => {
+          const d = getDay(today);
+          d.impegniRicorrentiCompletati[r.id] = !d.impegniRicorrentiCompletati[r.id];
+          if (!d.impegniRicorrentiCompletati[r.id]) delete d.impegniRicorrentiCompletati[r.id];
+          scheduleSync(today, 'sd-oggi', 'st-oggi-sync');
+          renderHOggiList(getDay(today), today);
+          updateOggiStats(today);
+        };
+        row.onclick = e => {
+          if (e.pointerType === 'touch') return;
+          addRipple(row, e);
+          toggle();
+        };
+        const fill = document.createElement('div'); fill.className = 'hold-fill'; row.prepend(fill);
+        setupRowGestures(row, toggle, null);
+        const chk = document.createElement('div'); chk.className = 'hcheck' + (completato ? ' done' : '');
+        chk.innerHTML = '<svg viewBox="0 0 11 11" fill="none" stroke="#080808" stroke-width="2.5" stroke-linecap="round"><polyline points="1.5,5.5 4.5,8.5 9.5,2.5"/></svg>';
+        const nm = document.createElement('span'); nm.className = 'hname' + (completato ? ' done' : '');
+        nm.textContent = r.titolo;
+        const badge = document.createElement('span'); badge.className = 'impegno-badge'; badge.textContent = '🔁';
+        row.appendChild(chk); row.appendChild(nm); row.appendChild(badge);
+        if (r.ora) {
+          const ora = document.createElement('span'); ora.className = 'impegno-ora'; ora.textContent = r.ora;
+          row.appendChild(ora);
+        }
+        c.appendChild(row);
+      });
       const hasP = day.attivitaDelGiorno.altaPriorita.some(v => v);
       const atdNE = day.attivitaDelGiorno.compiti.filter(t => t.trim()).length;
       const atdCount = atdDoneCount(day);
@@ -3284,6 +3401,20 @@
       const list = document.getElementById('sum-list'); list.innerHTML = '';
       activeHabits().forEach(h => { const rec = day.abitudini[h.id] || {}; const row = document.createElement('div'); row.className = 'sum-row'; const icon = document.createElement('div'); icon.className = 'sum-icon ' + (rec.saltato ? 'sk' : rec.completato ? 'ok' : 'ko'); icon.innerHTML = rec.saltato ? '—' : rec.completato ? '<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="3" fill="none"><polyline points="20 6 9 17 4 12"/></svg>' : '<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="3" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'; const nm = document.createElement('span'); nm.className = 'sum-name'; nm.textContent = h.nome; const badge = document.createElement('span'); badge.className = 'sum-badge ' + (rec.saltato ? 'bs' : rec.completato ? 'bd' : 'bm'); badge.textContent = rec.saltato ? 'saltata' : rec.completato ? 'completata' : 'mancata'; row.appendChild(icon); row.appendChild(nm); row.appendChild(badge); list.appendChild(row); });
       ensureSlotArrays(day);
+      getImpegniDelGiorno(selectedDate).forEach(r => {
+        const completato = !!day.impegniRicorrentiCompletati[r.id];
+        const row = document.createElement('div'); row.className = 'sum-row';
+        const icon = document.createElement('div'); icon.className = 'sum-icon ' + (completato ? 'ok' : 'ko');
+        icon.innerHTML = completato
+          ? '<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="3" fill="none"><polyline points="20 6 9 17 4 12"/></svg>'
+          : '<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="3" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+        const nm = document.createElement('span'); nm.className = 'sum-name';
+        nm.textContent = '🔁 ' + r.titolo + (r.ora ? ` · ${r.ora}` : '');
+        const badge = document.createElement('span'); badge.className = 'sum-badge ' + (completato ? 'bd' : 'bm');
+        badge.textContent = completato ? 'completato' : 'mancato';
+        row.appendChild(icon); row.appendChild(nm); row.appendChild(badge);
+        list.appendChild(row);
+      });
       const tr = document.createElement('div'); tr.className = 'sum-row'; const ti = document.createElement('div'); const rAtdNE = day.attivitaDelGiorno.compiti.filter(t => t.trim()).length; const rAtdCnt = atdDoneCount(day); const rAtdFull = rAtdNE > 0 && rAtdCnt >= rAtdNE; ti.className = 'sum-icon ' + (rAtdFull ? 'ok' : 'ko'); ti.innerHTML = rAtdFull ? '<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="3" fill="none"><polyline points="20 6 9 17 4 12"/></svg>' : '<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="3" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'; const tn = document.createElement('span'); tn.className = 'sum-name'; tn.textContent = 'Attività del giorno'; const tb = document.createElement('span'); tb.className = 'sum-badge ' + (rAtdFull ? 'bd' : 'bm'); tb.textContent = rAtdFull ? 'completata' : rAtdCnt > 0 && rAtdNE > 0 ? `${rAtdCnt}/${rAtdNE} completate` : 'mancata'; tr.appendChild(ti); tr.appendChild(tn); tr.appendChild(tb); list.appendChild(tr);
       document.getElementById('notes-ta').value = day.note || '';
       // Motivational phrase
@@ -3366,6 +3497,32 @@
           const dot = document.createElement('div'); dot.className = 'dp-dot'; dot.style.background = 'var(--text3)';
           const nameSpan = document.createElement('span'); nameSpan.textContent = c;
           item.appendChild(dot); item.appendChild(nameSpan);
+          popup.appendChild(item);
+        });
+      }
+
+      const impegniPop = getImpegniDelGiorno(ds);
+      if (impegniPop.length) {
+        const iTitle = document.createElement('div'); iTitle.className = 'dp-sec-title';
+        iTitle.textContent = 'Impegni ricorrenti:';
+        popup.appendChild(iTitle);
+        impegniPop.forEach(r => {
+          const item = document.createElement('div'); item.className = 'dp-item';
+          const completato = !!(day.impegniRicorrentiCompletati && day.impegniRicorrentiCompletati[r.id]);
+          const chk = document.createElement('div');
+          chk.className = 'dp-check' + (completato ? ' done' : '');
+          chk.onclick = (e) => {
+            e.stopPropagation();
+            const d = getDay(ds);
+            d.impegniRicorrentiCompletati[r.id] = !d.impegniRicorrentiCompletati[r.id];
+            if (!d.impegniRicorrentiCompletati[r.id]) delete d.impegniRicorrentiCompletati[r.id];
+            scheduleSync(ds, 'sd-an', 'st-an-sync');
+            showPopup(ds, cell, ev);
+            renderHeatmap();
+          };
+          const txt = document.createElement('span');
+          txt.textContent = '🔁 ' + r.titolo + (r.ora ? ` · ${r.ora}` : '');
+          item.appendChild(chk); item.appendChild(txt);
           popup.appendChild(item);
         });
       }

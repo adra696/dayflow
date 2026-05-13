@@ -1,4 +1,4 @@
-const CACHE = 'dayflow-v2';
+const CACHE = 'dayflow-v3';
 const STATIC = [
   './dayflow1_0.html',
   './manifest.json',
