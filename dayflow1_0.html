@@ -622,6 +622,27 @@
       filter: grayscale(100%)
     }
 
+    .habit-row .hold-fill {
+      position: absolute;
+      top: 0; left: 0;
+      height: 100%; width: 0;
+      background: rgba(16, 185, 129, 0.15);
+      pointer-events: none;
+      z-index: 0;
+      transition: width 0s linear;
+    }
+    .habit-row.holding .hold-fill {
+      width: 100%;
+      transition: width 0.7s linear;
+    }
+    .habit-row .hcheck,
+    .habit-row .hname,
+    .habit-row .hfreq,
+    .habit-row .skip-btn {
+      position: relative;
+      z-index: 1;
+    }
+
     .hcheck {
       width: 22px;
       height: 22px;
@@ -2261,9 +2282,9 @@
     function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2) }
     function load() { try { const r = localStorage.getItem(SK); if (r) S = JSON.parse(r) } catch (e) { } }
     function persist() { try { localStorage.setItem(SK, JSON.stringify(S)) } catch (e) { } }
-    function getDay(ds) { if (!S.days[ds]) S.days[ds] = { data: ds, abitudini: {}, attivitaDelGiorno: { compiti: ['', '', ''], altaPriorita: [false, false, false], completato: false }, note: '', timestamp: Date.now() }; return S.days[ds]; }
+    function getDay(ds) { if (!S.days[ds]) S.days[ds] = { data: ds, abitudini: {}, attivitaDelGiorno: { compiti: ['', '', ''], altaPriorita: [false, false, false], completato: false, completatiCount: 0 }, note: '', timestamp: Date.now() }; return S.days[ds]; }
     function activeHabits() { return S.habits.filter(h => h.attiva).sort((a, b) => a.ordine - b.ordine) }
-    function calcPct(ds) { const day = S.days[ds]; if (!day) return null; const habits = activeHabits(); let total = 1, done = 0; habits.forEach(h => { const r = day.abitudini[h.id] || {}; if (!r.saltato) total++; if (!r.saltato && r.completato) done++; }); if (day.attivitaDelGiorno.completato) done++; return Math.round((done / total) * 100); }
+    function calcPct(ds) { const day = S.days[ds]; if (!day) return null; const habits = activeHabits(); let total = 1, done = 0; habits.forEach(h => { const r = day.abitudini[h.id] || {}; if (!r.saltato) total++; if (!r.saltato && r.completato) done++; }); const atd = day.attivitaDelGiorno; const nonEmpty = atd.compiti.filter(t => t.trim()).length; done += nonEmpty > 0 ? (atd.completatiCount || 0) / nonEmpty : (atd.completato ? 1 : 0); return Math.round((done / total) * 100); }
     function pctColor(p) { return p <= 25 ? '#f87171' : p <= 50 ? '#fb923c' : p <= 75 ? '#facc15' : '#4ade80' }
     function heatColor(p) { if (p === null) return null; if (p === 0) return '#181818'; if (p <= 25) return '#3d1515'; if (p <= 50) return '#3d2510'; if (p <= 75) return '#352e08'; return '#163316'; }
     function fmtDate(ds) { const d = new Date(ds + 'T12:00:00'); return d.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).toLowerCase() }
@@ -2613,6 +2634,21 @@
       if (streak > 0 && streak % 7 === 0) { shootConfetti(); showToast(`🔥 ${streak} giorni di streak! Fantastico!`, 'info'); }
       renderHOggiList(day, today);
     }
+    function setupHoldAction(row, onComplete) {
+      const HOLD_MS = 700, MAX_DRIFT = 10;
+      let timer = null, startX = 0, startY = 0;
+      function cancel() { clearTimeout(timer); timer = null; row.classList.remove('holding'); }
+      row.addEventListener('pointerdown', e => {
+        if (e.pointerType !== 'touch') return;
+        if (e.target.closest('.skip-btn')) return;
+        startX = e.clientX; startY = e.clientY;
+        row.classList.add('holding');
+        timer = setTimeout(() => { row.classList.remove('holding'); if (navigator.vibrate) navigator.vibrate([40]); onComplete(); }, HOLD_MS);
+      });
+      row.addEventListener('pointermove', e => { if (!timer) return; if (Math.abs(e.clientX - startX) > MAX_DRIFT || Math.abs(e.clientY - startY) > MAX_DRIFT) cancel(); });
+      row.addEventListener('pointerup', cancel);
+      row.addEventListener('pointercancel', cancel);
+    }
     function renderHOggiList(day, today) {
       const c = document.getElementById('hoggi-list'); c.innerHTML = '';
       const habits = activeHabits();
@@ -2622,10 +2658,13 @@
         const rec = day.abitudini[h.id] || {};
         const row = document.createElement('div'); row.className = 'habit-row' + (rec.saltato ? ' skipped' : '');
         row.onclick = e => {
+          if (e.pointerType === 'touch') return;
           if (e.target.closest('.skip-btn')) return; addRipple(row, e);
           const d = getDay(today); if (!d.abitudini[h.id]) d.abitudini[h.id] = {};
           if (!d.abitudini[h.id].saltato) { d.abitudini[h.id].completato = !d.abitudini[h.id].completato; scheduleSync(today, 'sd-oggi', 'st-oggi-sync'); renderHOggiList(getDay(today), today); updateOggiStats(today); }
         };
+        const fill = document.createElement('div'); fill.className = 'hold-fill'; row.prepend(fill);
+        setupHoldAction(row, () => { const d = getDay(today); if (!d.abitudini[h.id]) d.abitudini[h.id] = {}; if (!d.abitudini[h.id].saltato) { d.abitudini[h.id].completato = !d.abitudini[h.id].completato; scheduleSync(today, 'sd-oggi', 'st-oggi-sync'); renderHOggiList(getDay(today), today); updateOggiStats(today); } });
         const chk = document.createElement('div'); chk.className = 'hcheck' + (rec.completato ? ' done' : ''); chk.innerHTML = '<svg viewBox="0 0 11 11" fill="none" stroke="#080808" stroke-width="2.5" stroke-linecap="round"><polyline points="1.5,5.5 4.5,8.5 9.5,2.5"/></svg>';
         const nm = document.createElement('span'); nm.className = 'hname' + (rec.completato ? ' done' : ''); nm.textContent = h.nome;
         row.appendChild(chk); row.appendChild(nm);
@@ -2639,13 +2678,17 @@
         c.appendChild(row);
       });
       const hasP = day.attivitaDelGiorno.altaPriorita.some(v => v);
+      const atdNE = day.attivitaDelGiorno.compiti.filter(t => t.trim()).length;
+      const atdCount = day.attivitaDelGiorno.completatiCount || 0;
+      const atdDone = atdNE > 0 ? atdCount >= atdNE : day.attivitaDelGiorno.completato;
       const tr = document.createElement('div'); tr.className = 'tasks-row' + (hasP ? ' priority-on' : '');
-      tr.onclick = () => { const d = getDay(today); d.attivitaDelGiorno.completato = !d.attivitaDelGiorno.completato; scheduleSync(today, 'sd-oggi', 'st-oggi-sync'); renderHOggiList(getDay(today), today); updateOggiStats(today); };
+      tr.onclick = () => { const d = getDay(today); const ne = d.attivitaDelGiorno.compiti.filter(t => t.trim()).length; const max = ne || 1; const cur = d.attivitaDelGiorno.completatiCount || 0; d.attivitaDelGiorno.completatiCount = (cur + 1) % (max + 1); d.attivitaDelGiorno.completato = d.attivitaDelGiorno.completatiCount >= max; scheduleSync(today, 'sd-oggi', 'st-oggi-sync'); renderHOggiList(getDay(today), today); updateOggiStats(today); };
       const th = document.createElement('div'); th.className = 'tasks-head';
-      const tc = document.createElement('div'); tc.className = 'hcheck' + (day.attivitaDelGiorno.completato ? ' done' : ''); tc.innerHTML = '<svg viewBox="0 0 11 11" fill="none" stroke="#080808" stroke-width="2.5" stroke-linecap="round"><polyline points="1.5,5.5 4.5,8.5 9.5,2.5"/></svg>';
-      const tl = document.createElement('span'); tl.className = 'hname' + (day.attivitaDelGiorno.completato ? ' done' : ''); tl.textContent = 'Attività del giorno';
+      const tc = document.createElement('div'); tc.className = 'hcheck' + (atdDone ? ' done' : ''); tc.innerHTML = '<svg viewBox="0 0 11 11" fill="none" stroke="#080808" stroke-width="2.5" stroke-linecap="round"><polyline points="1.5,5.5 4.5,8.5 9.5,2.5"/></svg>';
+      const tl = document.createElement('span'); tl.className = 'hname' + (atdDone ? ' done' : ''); tl.textContent = 'Attività del giorno';
       th.appendChild(tc); th.appendChild(tl);
-      if (hasP) { const pb = document.createElement('span'); pb.style.cssText = 'font-family:var(--mono);font-size:8px;color:var(--red);margin-left:auto'; pb.textContent = '⚠ priorità'; th.appendChild(pb); }
+      if (atdCount > 0 && atdNE > 0 && !atdDone) { const cb = document.createElement('span'); cb.style.cssText = 'font-family:var(--mono);font-size:9px;color:var(--green);margin-left:auto'; cb.textContent = `${atdCount}/${atdNE}`; th.appendChild(cb); }
+      if (hasP) { const pb = document.createElement('span'); pb.style.cssText = 'font-family:var(--mono);font-size:8px;color:var(--red);' + (atdCount > 0 && atdNE > 0 && !atdDone ? 'margin-left:4px' : 'margin-left:auto'); pb.textContent = '⚠ priorità'; th.appendChild(pb); }
       tr.appendChild(th);
       const tlist = document.createElement('div'); tlist.className = 'tasks-list';
       day.attivitaDelGiorno.compiti.forEach((t, i) => { if (!t.trim()) return; const it = document.createElement('div'); it.className = 'task-item' + (day.attivitaDelGiorno.altaPriorita[i] ? ' hi' : ''); const dot = document.createElement('div'); dot.className = 'task-dot'; it.appendChild(dot); it.appendChild(document.createTextNode(t)); tlist.appendChild(it); });
@@ -2665,7 +2708,7 @@
       const day = getDay(today); const pct = calcPct(today) || 0; setBar('fill-recap', 'pct-recap', pct);
       const list = document.getElementById('sum-list'); list.innerHTML = '';
       activeHabits().forEach(h => { const rec = day.abitudini[h.id] || {}; const row = document.createElement('div'); row.className = 'sum-row'; const icon = document.createElement('div'); icon.className = 'sum-icon ' + (rec.saltato ? 'sk' : rec.completato ? 'ok' : 'ko'); icon.innerHTML = rec.saltato ? '—' : rec.completato ? '<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="3" fill="none"><polyline points="20 6 9 17 4 12"/></svg>' : '<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="3" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'; const nm = document.createElement('span'); nm.className = 'sum-name'; nm.textContent = h.nome; const badge = document.createElement('span'); badge.className = 'sum-badge ' + (rec.saltato ? 'bs' : rec.completato ? 'bd' : 'bm'); badge.textContent = rec.saltato ? 'saltata' : rec.completato ? 'completata' : 'mancata'; row.appendChild(icon); row.appendChild(nm); row.appendChild(badge); list.appendChild(row); });
-      const tr = document.createElement('div'); tr.className = 'sum-row'; const ti = document.createElement('div'); ti.className = 'sum-icon ' + (day.attivitaDelGiorno.completato ? 'ok' : 'ko'); ti.innerHTML = day.attivitaDelGiorno.completato ? '<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="3" fill="none"><polyline points="20 6 9 17 4 12"/></svg>' : '<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="3" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'; const tn = document.createElement('span'); tn.className = 'sum-name'; tn.textContent = 'Attività del giorno'; const tb = document.createElement('span'); tb.className = 'sum-badge ' + (day.attivitaDelGiorno.completato ? 'bd' : 'bm'); tb.textContent = day.attivitaDelGiorno.completato ? 'completata' : 'mancata'; tr.appendChild(ti); tr.appendChild(tn); tr.appendChild(tb); list.appendChild(tr);
+      const tr = document.createElement('div'); tr.className = 'sum-row'; const ti = document.createElement('div'); const rAtdNE = day.attivitaDelGiorno.compiti.filter(t => t.trim()).length; const rAtdCnt = day.attivitaDelGiorno.completatiCount || 0; const rAtdFull = rAtdNE > 0 ? rAtdCnt >= rAtdNE : day.attivitaDelGiorno.completato; ti.className = 'sum-icon ' + (rAtdFull ? 'ok' : 'ko'); ti.innerHTML = rAtdFull ? '<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="3" fill="none"><polyline points="20 6 9 17 4 12"/></svg>' : '<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="3" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'; const tn = document.createElement('span'); tn.className = 'sum-name'; tn.textContent = 'Attività del giorno'; const tb = document.createElement('span'); tb.className = 'sum-badge ' + (rAtdFull ? 'bd' : 'bm'); tb.textContent = rAtdFull ? 'completata' : rAtdCnt > 0 && rAtdNE > 0 ? `${rAtdCnt}/${rAtdNE} completate` : 'mancata'; tr.appendChild(ti); tr.appendChild(tn); tr.appendChild(tb); list.appendChild(tr);
       document.getElementById('notes-ta').value = day.note || '';
       // Motivational phrase
       const motivEl = document.getElementById('ai-motiv-txt');
