@@ -1,0 +1,214 @@
+
+```markdown
+# Specifiche dell'App DayFlow v1.0
+
+## 1. Visione e obiettivi
+**DayFlow** è un’applicazione web per il tracciamento di abitudini e attività giornaliere, progettata per una persona con ADHD. L’obiettivo primario è fornire **consapevolezza senza giudizio**, riducendo il carico cognitivo e la pressione.
+
+**Principi guida:**
+- Semplicità radicale: interfaccia immediata, poche voci.
+- Nessuna colpa: i progressi sono mostrati in modo neutro, senza punizioni.
+- Flessibilità: supporto sia per abitudini quotidiane sia per obiettivi a frequenza settimanale.
+- Bassa frizione: accesso rapido, feedback visivo chiaro.
+
+---
+
+## 2. Flusso d’uso giornaliero
+1. **Mattina** → Schermata **Pianificazione**: definire le 3 attività importanti del giorno (con eventuale flag di alta priorità) e rivedere la lista delle abitudini.
+2. **Durante il giorno** → Schermata **Dashboard**: spuntare le abitudini man mano che vengono svolte; quando tutte le 3 attività del giorno sono completate, spuntare l’unica voce “Attività del giorno”. La barra di progresso si aggiorna dinamicamente.
+3. **Sera** → Schermata **Riepilogo**: vedere l’elenco di ciò che è stato fatto e non fatto, scrivere note libere e, in futuro, dialogare con un assistente AI per riflettere sulla giornata (per ora area “work in progress”).
+4. **Consultazione storico** → Schermata **Analytics**: heatmap annuale, medie settimanali e mensili.
+
+---
+
+## 3. Entità dati
+
+### 3.1 Abitudine
+| Proprietà | Descrizione |
+|-----------|--------------|
+| `id` | Identificativo univoco |
+| `nome` | Testo breve (es. “Bere acqua”) |
+| `frequenza` | “giornaliera” (default) o “settimanale” |
+| `targetSettimanale` | Intero, valido solo se frequenza = “settimanale” (es. 3) |
+| `ordine` | Posizione nella lista (trascinabile) |
+| `attiva` | Booleano, per disabilitare temporaneamente un’abitudine senza cancellarla |
+
+### 3.2 Attività del giorno
+- Un array di 3 stringhe (testo libero, modifica mattutina).
+- Per ogni slot: booleano `altaPriorità` (false di default).
+- Lo stato di completamento è unico: `attivitaCompletate` (booleano) – l’utente lo spunta solo quando tutte e tre sono state portate a termine.
+
+### 3.3 Record giornaliero
+| Campo | Tipo |
+|-------|------|
+| `data` | stringa YYYY-MM-DD |
+| `abitudini` | `{ [habitId]: { completato: boolean, saltato?: boolean } }` |
+| `attivitaDelGiorno` | `{ compiti: string[3], altaPriorita: boolean[3], completato: boolean }` |
+| `note` | stringa (testo libero) |
+| `timestamp` | ultima modifica |
+
+---
+
+## 4. Gestione della frequenza settimanale e skip
+**Obiettivo**: permettere obiettivi come “palestra 3 volte a settimana” senza che i giorni di riposo penalizzino la percentuale giornaliera.
+
+**Regole:**
+- Le abitudini con frequenza **giornaliera** appaiono sempre nella Dashboard; su di esse non è possibile fare “skip”.
+- Le abitudini con frequenza **settimanale** appaiono ogni giorno. L’utente può segnarle come completate solo nei giorni in cui le ha effettivamente svolte. **Per i giorni in cui non le esegue (es. riposo) può flaggare l’opzione “salta”**, che le esclude dal calcolo della percentuale del giorno.
+- Lo skip è un tap su un’icona (es. occhio barrato) accanto all’abitudine; ripremendola si ripristina lo stato di “da fare”.
+- Nella vista Analytics, il conteggio settimanale delle abitudini settimanali viene confrontato con il target (es. palestra 3/3), senza considerare i giorni saltati.
+- La modifica dello skip è possibile in qualsiasi momento della giornata.
+
+**Impatto sul calcolo del progresso giornaliero:**
+```
+totaleVoci = numero di abitudini NON saltate + 1 (attività del giorno)
+vociCompletate = abitudini completate (tra le non saltate) + (attivitaCompletate ? 1 : 0)
+percentuale = (vociCompletate / totaleVoci) * 100
+```
+I giorni senza dati (non aperti) **non contribuiscono** alle medie settimanali/mensili.
+
+---
+
+## 5. Schermate nel dettaglio
+
+### 5.1 Pianificazione (mattina)
+- **Testata**: “Buongiorno! Oggi è [data]”
+- **Sezione “Attività importanti”**:
+  - 3 input di testo, ognuno con interruttore “Alta priorità” (icona fiamma o bandierina).
+  - Se almeno una priorità è attiva, l’area viene evidenziata con bordo rosso e compare un badge “⚠️ Priorità”.
+  - Bottone “Salva” (il contenuto viene anche salvato automaticamente all’uscita dalla schermata).
+- **Sezione “Le tue abitudini”**: lista delle abitudini configurate (solo nomi, in ordine). Un pulsante ingranaggio apre la modale di **Gestione Abitudini**.
+- **Modale Gestione Abitudini**:
+  - Aggiungi nuovo (con scelta frequenza e target settimanale).
+  - Modifica nome, frequenza, target.
+  - Rimuovi (con conferma).
+  - Riordina tramite drag & drop o frecce su/giù.
+  - Le modifiche salvate si applicano dal giorno successivo (per il giorno corrente la lista rimane invariata, a meno di refresh manuale).
+
+### 5.2 Dashboard (oggi)
+- **Barra del progresso**: orizzontale, colore da rosso (0%) a verde (100%) passando per arancione/giallo. Al centro o sotto la percentuale numerica.
+- **Tre card statistiche** in riga:
+  - **Oggi**: X% (icona cerchio)
+  - **Settimana**: media %, calcolata solo sui giorni con dati.
+  - **Mese**: media %, idem.
+- **Lista interattiva** (scroll verticale):
+  - **Righe delle abitudini**:
+    - Checkbox grande (toggle completato/non).
+    - Etichetta dell’abitudine.
+    - Per abitudini settimanali: icona “skip” (ad esempio un occhio barrato) per escluderla dalla percentuale di oggi.
+    - Al tocco: animazione ripple + spunta grafica (checkmark). L’elemento non si sposta ma rimane con effetto di transizione colore (leggero scurimento/grigio).
+  - **Riga “Attività del giorno”**:
+    - Checkbox unico per segnare tutte e 3 come completate.
+    - Mostra sotto i tre compiti in formato testo (se alta priorità, testo rosso o pallino rosso accanto).
+    - Se attivata alta priorità, la riga ha un bordo o background leggermente rosso.
+  - Al completamento di una voce, la barra superiore si aggiorna con animazione fluida.
+- **Riferimenti visivi**:
+  - Le voci completate possono apparire con testo barrato e opacità ridotta.
+
+### 5.3 Riepilogo (sera)
+- Stessa barra di progresso (finale).
+- **Riepilogo visivo**:
+  - Lista delle abitudini con spunta verde se completate, croce rossa se non completate, “saltata” se saltata.
+  - Sezione “Attività del giorno”: mostra i tre compiti e un segno di spunta globale se completata, altrimenti croce.
+- **Area note**: textarea con placeholder “Cosa è successo oggi? Come ti senti?”. Salvataggio automatico o pulsante “Salva nota”.
+- **Box AI (futuro)**: rettangolo con testo “Work in progress – Qui in futuro potrai riflettere sulla tua giornata con un assistente AI.”
+
+### 5.4 Analytics (storico)
+- **Heatmap mensile/trimestrale**:
+  - Griglia 7 colonne (lunedì–domenica) × righe settimane.
+  - Ogni casella colorata dal rosso al verde in base alla % completamento di quel giorno.
+  - Cliccando su un giorno si apre un piccolo popup con dettaglio: elenco abitudini completate/non, note scritte, percentuale.
+  - Navigazione tra mesi con frecce.
+- **Sintesi numerica**:
+  - Media % settimana corrente.
+  - Media % mese corrente.
+  - Se attive abitudini settimanali, mostra per ognuna l’andamento: “Palestra: 2/3 questa settimana” (calcolato dai giorni con completamento o skip).
+
+---
+
+## 6. Calcolo del progresso
+
+### 6.1 Percentuale giornaliera
+Per un dato giorno con dati:
+```
+totaleVoci = numero di abitudini NON saltate (cioè abitudini attive e non marcate skip) + 1 (le attività del giorno)
+vociCompletate = numero di abitudini completate tra quelle non saltate + (attivitaCompletate ? 1 : 0)
+percentuale = (vociCompletate / totaleVoci) * 100
+```
+Se un giorno non ha dati (mai aperto o nessun salvataggio), viene **escluso** dalle medie periodiche.
+
+### 6.2 Medie periodiche
+- **Media settimanale**: somma delle percentuali dei giorni con dati nella settimana corrente (lun–dom), diviso il numero di giorni con dati.
+- **Media mensile**: analoga, sul mese corrente.
+
+### 6.3 Colore barra
+- Gradiente lineare:
+  - 0%–25%: rosso (#FF4D4D)
+  - 26%–50%: arancione (#FF9800)
+  - 51%–75%: giallo (#FFC107)
+  - 76%–100%: verde (#4CAF50)
+- La transizione cromatica segue proporzionalmente la percentuale; opzionalmente si può usare una funzione HSL per una transizione più fluida.
+
+---
+
+## 7. Design e UX
+
+### 7.1 Aspetto generale
+- **Tema**: dark, con sfondo principale #121212, card #1E1E1E, bordi arrotondati (12px), ombreggiature morbide.
+- **Tipografia**: “Inter” o system-ui, peso regolare, dimensioni minime 16px per una buona leggibilità.
+- **Iconografia**: emoji o icone SVG lineali semplici. Inizialmente bastano caratteri Unicode (✓, ✗, ⚡, 🔥).
+
+### 7.2 Layout
+- **Approccio mobile-first**: colonna singola centrata, larghezza massima 600px su desktop.
+- **Navigazione**: barra inferiore fissa (stile mobile) con quattro icone+etichette: 📅 Pianifica, 📋 Oggi, 🌙 Riepilogo, 📊 Storico.
+- Su desktop: la stessa barra può diventare una sidebar laterale o rimanere in basso centrata.
+- **Animazioni**:
+  - Ripple touch sulle voci della dashboard (CSS/JS).
+  - Transizione fluida della barra avanzamento (transition: width 0.5s ease-in-out, background-color 0.5s).
+  - Fade-in delle card (opacity + translateY) all’apertura delle schermate.
+  - Hover sugli elementi interattivi: sollevamento leggero (transform: scale(1.02)).
+
+### 7.3 Accessibilità e comfort ADHD
+- Nessun popup improvviso, nessun suono.
+- Conferma prima di cancellare elementi.
+- Tempo per annullare uno skip? Non necessario, lo skip è reversibile.
+- I colori non sono l’unico mezzo per comprendere lo stato (testo e icone affiancano).
+
+---
+
+## 8. Stack tecnologico previsto
+- **Tecnologia di base**: singolo file HTML5 + CSS3 + JavaScript vanilla (ES6+).
+- **Persistenza**: `localStorage`, chiave `dayflow_data`. Dati in JSON; per ottimizzare, si può usare `JSON.stringify`/`parse` con caching in memoria.
+- **Nessuna dipendenza esterna** (salvo eventuale font Google importato).
+- **Offline-first**: funzionamento garantito senza rete.
+- **Formato deploy**: artifact Claude, cioè un unico file HTML autosufficiente.
+
+---
+
+## 9. Piano di rilascio
+
+### 9.1 MVP (Minimum Viable Product)
+- [ ] Pianificazione giornaliera (3 compiti, priorità).
+- [ ] Dashboard con lista abitudini (giornaliere/settimanali), skip, barra progresso.
+- [ ] Riepilogo serale con note.
+- [ ] Gestione abitudini (CRUD, ordine, frequenza).
+- [ ] Card statistiche Oggi/Settimana/Mese.
+- [ ] Calcolo percentuale dinamico.
+- [ ] Persistenza su localStorage.
+- [ ] Design dark, mobile-friendly.
+
+### 9.2 Iterazioni successive
+- [ ] Heatmap analytics e vista storico.
+- [ ] Possibilità di navigare tra i giorni passati.
+- [ ] Esportazione dati (JSON/CSV).
+- [ ] Sezione AI (dialogo serale).
+- [ ] Integrazione Telegram per notifiche e tracking rapido.
+- [ ] Sincronizzazione multi-dispositivo (valutare backend minimo).
+
+---
+
+## 10. Considerazioni finali per lo sviluppo
+- **User testing**: la prima settimana di utilizzo potrebbe suggerire regolazioni sulla gestione dello skip e della frequenza.
+- **Salvataggio automatico**: ogni modifica deve essere persistita immediatamente per evitare perdite di dati dovute a chiusura improvvisa.
+- **Mancata apertura dell’app**: se un giorno non viene aperto, i giorni successivi non devono risentirne in termini di medie.
+```
