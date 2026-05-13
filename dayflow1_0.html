@@ -1629,6 +1629,115 @@
       text-transform: uppercase
     }
 
+    /* TOAST */
+    .toast-container {
+      position: fixed;
+      top: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      pointer-events: none
+    }
+
+    .toast {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: .08em;
+      padding: 10px 18px;
+      border-radius: 10px;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+      animation: toastIn .3s ease forwards;
+      pointer-events: auto;
+      white-space: nowrap
+    }
+
+    .toast.warn {
+      background: rgba(245, 158, 11, 0.15);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      color: var(--orange)
+    }
+
+    .toast.info {
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: var(--green)
+    }
+
+    .toast.error {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: var(--red)
+    }
+
+    .toast.out {
+      animation: toastOut .3s ease forwards
+    }
+
+    @keyframes toastIn {
+      from { opacity: 0; transform: translateY(-12px) }
+      to   { opacity: 1; transform: translateY(0) }
+    }
+
+    @keyframes toastOut {
+      from { opacity: 1; transform: translateY(0) }
+      to   { opacity: 0; transform: translateY(-12px) }
+    }
+
+    /* STREAK BADGE */
+    .streak-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--orange);
+      background: rgba(245, 158, 11, 0.1);
+      border: 1px solid rgba(245, 158, 11, 0.25);
+      padding: 4px 12px;
+      border-radius: 20px;
+      letter-spacing: .04em
+    }
+
+    .streak-badge.none {
+      color: var(--text3);
+      background: rgba(255,255,255,0.03);
+      border-color: var(--border)
+    }
+
+    /* TREND ARROW */
+    .trend-arrow {
+      font-size: 14px;
+      margin-left: 4px
+    }
+
+    .trend-arrow.up { color: var(--green) }
+    .trend-arrow.down { color: var(--red) }
+    .trend-arrow.flat { color: var(--text3) }
+
+    /* PASSWORD RESET LINK */
+    .auth-link {
+      font-family: var(--mono);
+      font-size: 9px;
+      color: var(--text3);
+      letter-spacing: .08em;
+      background: none;
+      border: none;
+      cursor: pointer;
+      margin-top: 12px;
+      display: block;
+      transition: color .2s
+    }
+
+    .auth-link:hover {
+      color: var(--green)
+    }
+
     /* =========================================
    DESKTOP RESPONSIVE LAYOUT 
    ========================================= */
@@ -1890,6 +1999,7 @@
 </head>
 
 <body>
+  <div class="toast-container" id="toast-container"></div>
 
   <!-- AUTH SCREEN -->
   <div id="auth-screen">
@@ -1908,7 +2018,9 @@
             type="password" placeholder="••••••••" autocomplete="current-password"
             onkeydown="if(event.key==='Enter') doLogin()"></div>
         <button class="auth-btn" id="login-btn" onclick="doLogin()">Accedi</button>
+        <button class="auth-link" onclick="doResetPwd()">Password dimenticata?</button>
         <div class="auth-err" id="login-err"></div>
+        <div class="auth-ok" id="login-ok"></div>
       </div>
       <div id="auth-signup-form" style="display:none">
         <div class="auth-field"><label class="auth-label">Email</label><input class="auth-input" id="signup-email"
@@ -1967,7 +2079,7 @@
           <div class="sync-dot offline" id="sd-oggi"></div><span class="sync-txt" id="st-oggi-sync">—</span>
         </div>
         <div class="prog-wrap">
-          <div class="prog-head"><span class="prog-label">Progresso</span><span class="prog-pct" id="pct-oggi">0%</span>
+          <div class="prog-head"><span class="prog-label">Progresso</span><span class="streak-badge none" id="streak-oggi">🔥 0</span><span class="prog-pct" id="pct-oggi">0%</span>
           </div>
           <div class="prog-track">
             <div class="prog-fill" id="fill-oggi" style="width:0%"></div>
@@ -2018,9 +2130,8 @@
           <div class="ai-lbl"><svg viewBox="0 0 24 24">
               <path
                 d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
-            </svg> AI — Work in progress</div>
-          <div class="ai-txt">Qui in futuro potrai riflettere sulla tua giornata con un assistente AI intelligente.
-          </div>
+            </svg> Motivazione del giorno</div>
+          <div class="ai-txt" id="ai-motiv-txt"></div>
         </div>
       </div>
 
@@ -2035,14 +2146,18 @@
         <div class="sync-bar">
           <div class="sync-dot offline" id="sd-an"></div><span class="sync-txt" id="st-an-sync">—</span>
         </div>
-        <div class="an-stats">
+        <div class="an-stats" style="grid-template-columns:1fr 1fr 1fr">
           <div class="an-stat">
-            <div class="an-val" id="an-sett">—</div>
+            <div class="an-val" id="an-sett">—<span class="trend-arrow" id="an-trend"></span></div>
             <div class="an-lbl">Media settimana</div>
           </div>
-          <div class="an-stat">
+          <div class="an-stat" style="border-right:1px solid var(--border)">
             <div class="an-val" id="an-mese">—</div>
             <div class="an-lbl">Media mese</div>
+          </div>
+          <div class="an-stat">
+            <div class="an-val" id="an-streak" style="color:var(--orange)">—</div>
+            <div class="an-lbl">🔥 Streak</div>
           </div>
         </div>
         <div class="heatmap-wrap">
@@ -2223,6 +2338,16 @@
       if (msg.includes('Password should')) return 'Password troppo corta (min. 6 caratteri)';
       return msg;
     }
+    async function doResetPwd() {
+      const email = document.getElementById('login-email').value.trim();
+      const err = document.getElementById('login-err');
+      const ok = document.getElementById('login-ok');
+      if (!email) { err.textContent = 'Inserisci la tua email prima'; ok.textContent = ''; return; }
+      err.textContent = ''; ok.textContent = '';
+      const { error } = await sb.auth.resetPasswordForEmail(email);
+      if (error) { err.textContent = translateAuthError(error.message); }
+      else { ok.textContent = 'Email di recupero inviata! Controlla la tua casella.'; }
+    }
 
     // ── SUPABASE SYNC ─────────────────────────────────────────
     async function sbSaveHabits() {
@@ -2295,9 +2420,56 @@
     });
 
     // ── INIT ──────────────────────────────────────────────────
-    function withTimeout(promise, ms) {
-      return Promise.race([promise, new Promise(res => setTimeout(res, ms))]);
+    function showToast(msg, type = 'warn', duration = 3500) {
+      const container = document.getElementById('toast-container');
+      const el = document.createElement('div');
+      el.className = 'toast ' + type;
+      el.textContent = msg;
+      container.appendChild(el);
+      setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 350); }, duration);
     }
+    function withTimeout(promise, ms) {
+      let timedOut = false;
+      return Promise.race([
+        promise,
+        new Promise(res => setTimeout(() => { timedOut = true; res(); }, ms))
+      ]).then(result => {
+        if (timedOut) showToast('Sync fallito, riprovo…', 'warn');
+        return result;
+      });
+    }
+    // ── STREAK ────────────────────────────────────────────────
+    function calcStreak() {
+      let streak = 0;
+      const d = new Date();
+      // start from yesterday (today is still in progress)
+      d.setDate(d.getDate() - 1);
+      while (true) {
+        const ds = `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
+        const pct = calcPct(ds);
+        if (pct !== null && pct >= 1) { streak++; d.setDate(d.getDate() - 1); }
+        else break;
+      }
+      // Check if today also qualifies
+      const todayPct = calcPct(todayStr());
+      if (todayPct !== null && todayPct >= 1) streak++;
+      return streak;
+    }
+    // ── MOTIVATIONAL PHRASES ──────────────────────────────────
+    const motivPhrases = [
+      'Ogni giorno è un passo avanti. Continua così! 💪',
+      'La costanza batte il talento quando il talento non è costante.',
+      'Non contare i giorni, fai che i giorni contino. ✨',
+      'Piccoli passi ogni giorno portano a grandi risultati.',
+      'Il segreto del successo è la costanza dello scopo.',
+      'Sei più forte di quanto pensi. Domani ti ringrazierai. 🌟',
+      'Le abitudini definiscono chi siamo. Tu stai scegliendo bene.',
+      'Un giorno alla volta. Un\'abitudine alla volta. Avanti! 🔥',
+      'Il cambiamento non avviene tutto insieme, avviene un giorno alla volta.',
+      'Credi nel processo. I risultati arriveranno. 🎯',
+      'Non devi essere perfetto, devi solo essere presente.',
+      'Ogni check completato è una vittoria su te stesso. 🏆'
+    ];
     function toggleSidebar() {
       const nav = document.getElementById('nav');
       nav.classList.toggle('expanded');
@@ -2425,12 +2597,20 @@
       }
       setSS('sd-oggi', 'st-oggi-sync', 'ok', 'sincronizzato');
       const day = getDay(today); persist();
+      const habits = activeHabits();
       const pct = calcPct(today) || 0;
       setBar('fill-oggi', 'pct-oggi', pct);
       const so = document.getElementById('st-oggi'); so.textContent = pct + '%'; so.style.color = pctColor(pct);
       const wa = calcAvg(weekDays()), ma = calcAvg(monthDays(new Date().getFullYear(), new Date().getMonth()));
       document.getElementById('st-sett').textContent = wa !== null ? wa + '%' : '—';
       document.getElementById('st-mese').textContent = ma !== null ? ma + '%' : '—';
+      // Streak
+      const streak = calcStreak();
+      const streakEl = document.getElementById('streak-oggi');
+      streakEl.textContent = '🔥 ' + streak;
+      streakEl.className = 'streak-badge' + (streak === 0 ? ' none' : '');
+      // Streak milestone confetti
+      if (streak > 0 && streak % 7 === 0) { shootConfetti(); showToast(`🔥 ${streak} giorni di streak! Fantastico!`, 'info'); }
       renderHOggiList(day, today);
     }
     function renderHOggiList(day, today) {
@@ -2487,6 +2667,9 @@
       activeHabits().forEach(h => { const rec = day.abitudini[h.id] || {}; const row = document.createElement('div'); row.className = 'sum-row'; const icon = document.createElement('div'); icon.className = 'sum-icon ' + (rec.saltato ? 'sk' : rec.completato ? 'ok' : 'ko'); icon.innerHTML = rec.saltato ? '—' : rec.completato ? '<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="3" fill="none"><polyline points="20 6 9 17 4 12"/></svg>' : '<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="3" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'; const nm = document.createElement('span'); nm.className = 'sum-name'; nm.textContent = h.nome; const badge = document.createElement('span'); badge.className = 'sum-badge ' + (rec.saltato ? 'bs' : rec.completato ? 'bd' : 'bm'); badge.textContent = rec.saltato ? 'saltata' : rec.completato ? 'completata' : 'mancata'; row.appendChild(icon); row.appendChild(nm); row.appendChild(badge); list.appendChild(row); });
       const tr = document.createElement('div'); tr.className = 'sum-row'; const ti = document.createElement('div'); ti.className = 'sum-icon ' + (day.attivitaDelGiorno.completato ? 'ok' : 'ko'); ti.innerHTML = day.attivitaDelGiorno.completato ? '<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="3" fill="none"><polyline points="20 6 9 17 4 12"/></svg>' : '<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="3" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'; const tn = document.createElement('span'); tn.className = 'sum-name'; tn.textContent = 'Attività del giorno'; const tb = document.createElement('span'); tb.className = 'sum-badge ' + (day.attivitaDelGiorno.completato ? 'bd' : 'bm'); tb.textContent = day.attivitaDelGiorno.completato ? 'completata' : 'mancata'; tr.appendChild(ti); tr.appendChild(tn); tr.appendChild(tb); list.appendChild(tr);
       document.getElementById('notes-ta').value = day.note || '';
+      // Motivational phrase
+      const motivEl = document.getElementById('ai-motiv-txt');
+      if (motivEl) motivEl.textContent = motivPhrases[Math.floor(Math.random() * motivPhrases.length)];
     }
     function saveNotes() { const d = getDay(todayStr()); d.note = document.getElementById('notes-ta').value; scheduleSync(todayStr(), 'sd-recap', 'st-recap-sync'); }
 
@@ -2503,6 +2686,19 @@
       const wa = calcAvg(weekDays()), ma = calcAvg(monthDays(new Date().getFullYear(), new Date().getMonth()));
       document.getElementById('an-sett').textContent = wa !== null ? wa + '%' : '—';
       document.getElementById('an-mese').textContent = ma !== null ? ma + '%' : '—';
+      // Streak
+      const streak = calcStreak();
+      document.getElementById('an-streak').textContent = streak;
+      // Trend: confronta settimana corrente vs precedente
+      const now = new Date();
+      const prevWeekDays = (() => { const dow = now.getDay(); const diff = dow === 0 ? 6 : dow - 1; const mon = new Date(now); mon.setDate(now.getDate() - diff - 7); return Array.from({ length: 7 }, (_, i) => { const d = new Date(mon); d.setDate(mon.getDate() + i); return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`; }); })();
+      const prevWa = calcAvg(prevWeekDays);
+      const trendEl = document.getElementById('an-trend');
+      if (wa !== null && prevWa !== null) {
+        if (wa > prevWa) { trendEl.textContent = ' ↑'; trendEl.className = 'trend-arrow up'; }
+        else if (wa < prevWa) { trendEl.textContent = ' ↓'; trendEl.className = 'trend-arrow down'; }
+        else { trendEl.textContent = ' →'; trendEl.className = 'trend-arrow flat'; }
+      } else { trendEl.textContent = ''; }
       renderHeatmap(); renderWeeklyHabits();
     }
     function changeMonth(delta) { hmMonth += delta; if (hmMonth > 11) { hmMonth = 0; hmYear++; } if (hmMonth < 0) { hmMonth = 11; hmYear--; } renderHeatmap(); }
