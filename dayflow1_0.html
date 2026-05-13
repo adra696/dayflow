@@ -564,6 +564,13 @@ function shootConfetti(){
 
 
 // ── AUTH ───────────────────────────────────────────────────
+function translateAuthError(msg){
+  if(msg.includes('Invalid login credentials')) return 'Email o password errati.';
+  if(msg.includes('Email not confirmed')) return 'Conferma l\\'email.';
+  if(msg.includes('already registered')) return 'Utente già registrato.';
+  return msg;
+}
+
 function switchTab(tab){
   document.getElementById('tab-login').classList.toggle('active',tab==='login');
   document.getElementById('tab-signup').classList.toggle('active',tab==='signup');
