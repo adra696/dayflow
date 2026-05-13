@@ -4,11 +4,19 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net;
+    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+    font-src https://fonts.gstatic.com;
+    connect-src https://iqlxjazrshqzqrltkjoz.supabase.co;
+    img-src 'self' data:;
+  ">
   <title>DayFlow</title>
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,700;1,300&display=swap"
     rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4/dist/umd/supabase.min.js" integrity="sha384-4eCDoMN/7A46qQ5Tj0rZ/D2VEolFGNIINDTLAcWZcvhkRSsvTfqNfaBMlRRoGEZ5" crossorigin="anonymous"></script>
   <style>
     *,
     *::before,
@@ -2888,10 +2896,22 @@
     function showPopup(ds, cell, ev) {
       ev.stopPropagation(); const popup = document.getElementById('day-popup'); const day = S.days[ds]; if (!day) { popup.style.display = 'none'; return; }
       const pct = calcPct(ds) || 0; const habits = activeHabits();
-      let html = `<div class="dp-date">${fmtShort(ds)}</div><div class="dp-pct" style="color:${pctColor(pct)}">${pct}%</div>`;
-      habits.forEach(h => { const r = day.abitudini[h.id] || {}; const c = r.saltato ? 'var(--text3)' : r.completato ? 'var(--green)' : 'var(--red)'; html += `<div class="dp-item"><div class="dp-dot" style="background:${c}"></div><span>${h.nome}</span></div>`; });
-      if (day.note && day.note.trim()) html += `<div class="dp-note">${day.note.slice(0, 80)}${day.note.length > 80 ? '…' : ''}</div>`;
-      popup.innerHTML = html;
+      popup.innerHTML = '';
+      const headDate = document.createElement('div'); headDate.className = 'dp-date'; headDate.textContent = fmtShort(ds);
+      const headPct = document.createElement('div'); headPct.className = 'dp-pct'; headPct.style.color = pctColor(pct); headPct.textContent = pct + '%';
+      popup.appendChild(headDate); popup.appendChild(headPct);
+      habits.forEach(h => {
+        const r = day.abitudini[h.id] || {}; const c = r.saltato ? 'var(--text3)' : r.completato ? 'var(--green)' : 'var(--red)';
+        const item = document.createElement('div'); item.className = 'dp-item';
+        const dot = document.createElement('div'); dot.className = 'dp-dot'; dot.style.background = c;
+        const nameSpan = document.createElement('span'); nameSpan.textContent = h.nome;
+        item.appendChild(dot); item.appendChild(nameSpan);
+        popup.appendChild(item);
+      });
+      if (day.note && day.note.trim()) {
+        const noteEl = document.createElement('div'); noteEl.className = 'dp-note'; noteEl.textContent = day.note.slice(0, 80) + (day.note.length > 80 ? '…' : '');
+        popup.appendChild(noteEl);
+      }
       const rect = cell.getBoundingClientRect(); const wrap = document.getElementById('shell').getBoundingClientRect();
       let left = rect.right - wrap.left + 4; let top = rect.top - wrap.top;
       if (left + 200 > wrap.width) left = rect.left - wrap.left - 200; if (top + 150 > wrap.height) top = wrap.height - 160;
@@ -2948,13 +2968,16 @@
     function renderModalForm(habit) {
       document.getElementById('modal-title').textContent = habit ? 'Modifica abitudine' : 'Nuova abitudine';
       const body = document.getElementById('modal-body'); body.innerHTML = ''; const form = document.createElement('div'); form.className = 'modal-form'; const isSett = habit && habit.frequenza === 'settimanale';
-      form.innerHTML = `<div class="form-row"><label class="form-label">Nome</label><input class="form-input" id="f-nome" type="text" placeholder="Es. Bere acqua" value="${habit ? habit.nome : ''}"></div><div class="form-row"><label class="form-label">Frequenza</label><select class="form-select" id="f-freq" onchange="document.getElementById('f-trow').style.display=this.value==='settimanale'?'block':'none'"><option value="giornaliera"${!isSett ? ' selected' : ''}>Giornaliera</option><option value="settimanale"${isSett ? ' selected' : ''}>Settimanale</option></select></div><div class="form-row" id="f-trow" style="display:${isSett ? 'block' : 'none'}"><label class="form-label">Obiettivo settimanale (volte)</label><input class="form-input" id="f-target" type="number" min="1" max="7" value="${habit ? habit.targetSettimanale || 3 : 3}"></div>`;
+      form.innerHTML = `<div class="form-row"><label class="form-label">Nome</label><input class="form-input" id="f-nome" type="text" placeholder="Es. Bere acqua"></div><div class="form-row"><label class="form-label">Frequenza</label><select class="form-select" id="f-freq" onchange="document.getElementById('f-trow').style.display=this.value==='settimanale'?'block':'none'"><option value="giornaliera"${!isSett ? ' selected' : ''}>Giornaliera</option><option value="settimanale"${isSett ? ' selected' : ''}>Settimanale</option></select></div><div class="form-row" id="f-trow" style="display:${isSett ? 'block' : 'none'}"><label class="form-label">Obiettivo settimanale (volte)</label><input class="form-input" id="f-target" type="number" min="1" max="7" value="${habit ? habit.targetSettimanale || 3 : 3}"></div>`;
       const btns = document.createElement('div'); btns.className = 'form-btns';
       const sv = document.createElement('button'); sv.className = 'btn-pri'; sv.textContent = habit ? 'Salva' : 'Aggiungi'; sv.onclick = () => submitForm(habit ? habit.id : null);
       const bk = document.createElement('button'); bk.className = 'btn-sec'; bk.textContent = 'Indietro'; bk.onclick = () => { mMode = 'list'; renderModal(); };
       btns.appendChild(sv); btns.appendChild(bk);
       if (habit) { const dl = document.createElement('button'); dl.className = 'btn-del'; dl.textContent = 'Elimina'; dl.onclick = () => deleteHabit(habit.id); btns.appendChild(dl); }
-      form.appendChild(btns); body.appendChild(form); document.getElementById('f-nome').focus();
+      form.appendChild(btns); body.appendChild(form);
+      const nomeInput = document.getElementById('f-nome');
+      if (habit) nomeInput.value = habit.nome;
+      nomeInput.focus();
     }
     function submitForm(id) {
       const nome = document.getElementById('f-nome').value.trim(); if (!nome) return;
