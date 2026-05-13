@@ -375,6 +375,62 @@
       text-transform: uppercase
     }
 
+    .date-nav {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 6px;
+    }
+
+    .date-nav-arrow {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border2);
+      border-radius: 6px;
+      color: var(--text2);
+      cursor: pointer;
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all .2s;
+    }
+
+    .date-nav-arrow:hover:not(:disabled) {
+      border-color: var(--text);
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .date-nav-arrow svg {
+      width: 14px;
+      height: 14px;
+      stroke-width: 2;
+      stroke: currentColor;
+      fill: none;
+    }
+
+    .date-nav-label {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--text2);
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .today-badge {
+      background: var(--green);
+      color: #000;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 8px;
+      font-weight: bold;
+      letter-spacing: .1em;
+    }
+
     .topbar-title {
       font-size: 32px;
       font-weight: 700;
@@ -1599,6 +1655,7 @@
     }
 
     .hm-cell {
+      position: relative;
       aspect-ratio: 1;
       cursor: pointer;
       transition: all .2s;
@@ -1639,7 +1696,7 @@
       z-index: 50;
       min-width: 180px;
       box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
-      pointer-events: none;
+      pointer-events: auto; /* changed from none to auto to allow clicks */
       font-size: 13px;
       transform: translateY(5px);
       transition: opacity .2s, transform .2s;
@@ -1686,6 +1743,107 @@
       padding-top: 10px;
       line-height: 1.5
     }
+
+    .evento-badge {
+      position: absolute;
+      top: 3px;
+      right: 3px;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      box-shadow: 0 0 4px rgba(0,0,0,0.5);
+    }
+    
+    .dp-sec-title {
+      font-family: var(--mono);
+      font-size: 9px;
+      color: var(--text3);
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      margin: 10px 0 6px 0;
+    }
+    
+    .dp-goto-btn {
+      width: 100%;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--border2);
+      color: var(--text2);
+      padding: 6px;
+      border-radius: 6px;
+      font-size: 10px;
+      cursor: pointer;
+      margin-top: 8px;
+      transition: all .2s;
+    }
+    
+    .dp-goto-btn:hover { background: rgba(255,255,255,0.1); color: var(--text); }
+    
+    .dp-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+    
+    .evento-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      background: rgba(24,24,27,0.5);
+      padding: 4px 6px;
+      border-radius: 6px;
+    }
+    
+    .evento-type-badge {
+      font-size: 8px;
+      font-weight: bold;
+      padding: 2px 4px;
+      border-radius: 4px;
+      color: #000;
+    }
+    
+    .evento-type-badge.impegno { background: var(--green); }
+    .evento-type-badge.scadenza { background: var(--orange); }
+    .evento-title { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .evento-ora { font-family: var(--mono); font-size: 9px; color: var(--text3); }
+    .evento-del { background: none; border: none; color: var(--text3); cursor: pointer; padding: 0 2px; }
+    .evento-del:hover { color: var(--red); }
+    
+    .evento-form {
+      display: flex;
+      gap: 4px;
+    }
+    
+    .evento-form input, .evento-form select {
+      background: rgba(0,0,0,0.3);
+      border: 1px solid var(--border2);
+      color: var(--text);
+      font-size: 10px;
+      padding: 4px;
+      border-radius: 4px;
+      outline: none;
+    }
+    
+    #ev-titolo { flex: 1; width: 0; }
+    #ev-tipo { width: 70px; }
+    #ev-ora { width: 50px; }
+    #ev-add { background: var(--green); border: none; color: #000; border-radius: 4px; width: 24px; cursor: pointer; }
+    
+    .prossimi-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 10px;
+      border-bottom: 1px dashed var(--border2);
+      cursor: pointer;
+      transition: all .2s;
+    }
+    
+    .prossimi-row:hover { background: rgba(255,255,255,0.02); }
+    .prossimi-date { width: 45px; font-family: var(--mono); font-size: 9px; color: var(--text3); text-transform: uppercase; }
+    .prossimi-title { flex: 1; font-size: 13px; }
+    .prossimi-ora { font-family: var(--mono); font-size: 10px; color: var(--text2); }
 
     .wh-section {
       padding: 16px 20px
@@ -2163,7 +2321,7 @@
       <div class="screen" id="screen-plan">
         <div class="topbar">
           <div class="topbar-left">
-            <div class="topbar-date" id="plan-date"></div>
+            <div id="plan-date-nav"></div>
             <div class="topbar-title">Pianifica.</div>
           </div>
           <button class="logout-btn" onclick="doLogout()">esci</button>
@@ -2191,7 +2349,7 @@
       <div class="screen" id="screen-oggi">
         <div class="topbar">
           <div class="topbar-left">
-            <div class="topbar-date" id="oggi-date"></div>
+            <div id="oggi-date-nav"></div>
             <div class="topbar-title">Oggi.</div>
           </div>
           <button class="logout-btn" onclick="doLogout()">esci</button>
@@ -2235,7 +2393,7 @@
       <div class="screen" id="screen-recap">
         <div class="topbar">
           <div class="topbar-left">
-            <div class="topbar-date" id="recap-date"></div>
+            <div id="recap-date-nav"></div>
             <div class="topbar-title">Riepilogo.</div>
           </div>
           <button class="logout-btn" onclick="doLogout()">esci</button>
@@ -2264,11 +2422,11 @@
         </div>
       </div>
 
-      <div class="screen" id="screen-analytics">
+      <div class="screen" id="screen-calendario">
         <div class="topbar">
           <div class="topbar-left">
             <div class="topbar-date" id="an-date"></div>
-            <div class="topbar-title">Storico.</div>
+            <div class="topbar-title">Calendario.</div>
           </div>
           <button class="logout-btn" onclick="doLogout()">esci</button>
         </div>
@@ -2346,13 +2504,13 @@
           <polyline points="12,7 12,12 15,15" />
         </svg><span class="nav-label">Riepilogo</span>
       </button>
-      <button class="nav-btn" onclick="goScreen('analytics')" id="nav-analytics" data-tooltip="Storico">
+      <button class="nav-btn" onclick="goScreen('calendario')" id="nav-calendario" data-tooltip="Calendario">
         <svg viewBox="0 0 24 24">
           <rect x="3" y="3" width="7" height="7" />
           <rect x="14" y="3" width="7" height="7" />
           <rect x="3" y="14" width="7" height="7" />
           <rect x="14" y="14" width="7" height="7" />
-        </svg><span class="nav-label">Storico</span>
+        </svg><span class="nav-label">Calendario</span>
       </button>
     </nav>
 
@@ -2379,6 +2537,7 @@
     let S = { habits: [], days: {} };
     let curUser = null;
     let curScreen = 'oggi';
+    let selectedDate = todayStr();
     let hmYear = new Date().getFullYear(), hmMonth = new Date().getMonth();
     let mMode = 'list', editId = null;
     let syncDebounce = null;
@@ -2386,11 +2545,40 @@
 
     // ── UTILS ──────────────────────────────────────────────────
     function todayStr() { const d = new Date(); return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}` }
+    function setSelectedDate(ds) {
+      selectedDate = ds;
+      if (curScreen === 'plan') renderPlan();
+      else if (curScreen === 'oggi') renderOggi();
+      else if (curScreen === 'recap') renderRecap();
+    }
+    function offsetDate(ds, giorni) {
+      const d = new Date(ds + 'T12:00:00');
+      d.setDate(d.getDate() + giorni);
+      return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
+    }
+    function renderDateNavHeader(ds, containerId) {
+      const c = document.getElementById(containerId);
+      if (!c) return;
+      const today = todayStr();
+      c.innerHTML = `
+        <div class="date-nav">
+          <button class="date-nav-arrow" onclick="setSelectedDate(offsetDate('${ds}', -1))">
+            <svg viewBox="0 0 24 24"><polyline points="15,18 9,12 15,6" /></svg>
+          </button>
+          <div class="date-nav-label">
+            ${fmtDate(ds)} ${ds === today ? '<span class="today-badge">Oggi</span>' : ''}
+          </div>
+          <button class="date-nav-arrow" ${ds >= today ? 'disabled style="opacity:0.3;cursor:not-allowed"' : ''} onclick="${ds < today ? `setSelectedDate(offsetDate('${ds}', 1))` : ''}">
+            <svg viewBox="0 0 24 24"><polyline points="9,18 15,12 9,6" /></svg>
+          </button>
+        </div>
+      `;
+    }
     function p2(n) { return String(n).padStart(2, '0') }
     function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2) }
     function load() { try { const r = localStorage.getItem(SK); if (r) S = JSON.parse(r) } catch (e) { } }
     function persist() { try { localStorage.setItem(SK, JSON.stringify(S)) } catch (e) { } }
-    function getDay(ds) { if (!S.days[ds]) S.days[ds] = { data: ds, abitudini: {}, attivitaDelGiorno: { compiti: ['', '', ''], altaPriorita: [false, false, false], completato: false, completatiCount: 0 }, note: '', timestamp: Date.now() }; return S.days[ds]; }
+    function getDay(ds) { if (!S.days[ds]) S.days[ds] = { data: ds, abitudini: {}, attivitaDelGiorno: { compiti: ['', '', ''], altaPriorita: [false, false, false], completato: false, completatiCount: 0 }, note: '', timestamp: Date.now(), eventi: [] }; return S.days[ds]; }
     function activeHabits() { return S.habits.filter(h => h.attiva).sort((a, b) => a.ordine - b.ordine) }
     function calcPct(ds) { const day = S.days[ds]; if (!day) return null; const habits = activeHabits(); let total = 1, done = 0; habits.forEach(h => { const r = day.abitudini[h.id] || {}; if (!r.saltato) total++; if (!r.saltato && r.completato) done++; }); const atd = day.attivitaDelGiorno; const nonEmpty = atd.compiti.filter(t => t.trim()).length; done += nonEmpty > 0 ? (atd.completatiCount || 0) / nonEmpty : (atd.completato ? 1 : 0); return Math.round((done / total) * 100); }
     function pctColor(p) { return p <= 25 ? '#f87171' : p <= 50 ? '#fb923c' : p <= 75 ? '#facc15' : '#4ade80' }
@@ -2686,18 +2874,18 @@
       document.getElementById('screen-' + name).classList.add('active');
       document.getElementById('nav-' + name).classList.add('active');
       curScreen = name;
+      selectedDate = todayStr();
       if (name === 'plan') renderPlan();
       if (name === 'oggi') renderOggi();
       if (name === 'recap') renderRecap();
-      if (name === 'analytics') renderAnalytics();
+      if (name === 'calendario') renderCalendario();
     }
 
     // ── PLAN ──────────────────────────────────────────────────
     function renderPlan() {
-      const today = todayStr();
-      document.getElementById('plan-date').textContent = fmtDate(today);
-      const day = getDay(today);
-      renderTaskInputs(day, today); renderHPlanList(); checkPriBanner(day);
+      renderDateNavHeader(selectedDate, 'plan-date-nav');
+      const day = getDay(selectedDate);
+      renderTaskInputs(day, selectedDate); renderHPlanList(); checkPriBanner(day);
       setSS('sd-plan', 'st-plan', 'ok', 'pronto');
     }
     function renderTaskInputs(day, today) {
@@ -2715,7 +2903,7 @@
     function checkPriBanner(day) { const has = day.attivitaDelGiorno.altaPriorita.some(v => v); document.getElementById('pri-banner').style.display = has ? 'flex' : 'none'; }
     function savePlan() {
       persist();
-      sbSaveDay(todayStr(), 'sd-plan', 'st-plan');
+      sbSaveDay(selectedDate, 'sd-plan', 'st-plan');
       const btn = document.getElementById('save-btn'); btn.textContent = 'Salvato ✓'; btn.style.opacity = '.6';
       setTimeout(() => { btn.textContent = 'Salva giornata'; btn.style.opacity = '1' }, 1300);
     }
@@ -2727,32 +2915,28 @@
 
     // ── OGGI ──────────────────────────────────────────────────
     async function renderOggi() {
-      const today = todayStr();
-      document.getElementById('oggi-date').textContent = fmtDate(today);
+      renderDateNavHeader(selectedDate, 'oggi-date-nav');
       setSS('sd-oggi', 'st-oggi-sync', 'syncing', 'aggiornamento...');
-      // Scarica il giorno da Supabase (per avere dati aggiornati da altri device)
-      const remote = await sbLoadDay(today);
+      const remote = await sbLoadDay(selectedDate);
       if (remote) {
-        const local = S.days[today];
-        if (!local || (remote.timestamp > (local.timestamp || 0))) { S.days[today] = remote; persist(); }
+        const local = S.days[selectedDate];
+        if (!local || (remote.timestamp > (local.timestamp || 0))) { S.days[selectedDate] = remote; persist(); }
       }
       setSS('sd-oggi', 'st-oggi-sync', 'ok', 'sincronizzato');
-      const day = getDay(today); persist();
+      const day = getDay(selectedDate); persist();
       const habits = activeHabits();
-      const pct = calcPct(today) || 0;
+      const pct = calcPct(selectedDate) || 0;
       setRing('ring-fill-oggi', 'pct-oggi', pct);
       const so = document.getElementById('st-oggi'); so.textContent = pct + '%'; so.style.color = pctColor(pct);
       const wa = calcAvg(weekDays()), ma = calcAvg(monthDays(new Date().getFullYear(), new Date().getMonth()));
       document.getElementById('st-sett').textContent = wa !== null ? wa + '%' : '—';
       document.getElementById('st-mese').textContent = ma !== null ? ma + '%' : '—';
-      // Streak
       const streak = calcStreak();
       const streakEl = document.getElementById('streak-oggi');
       streakEl.textContent = '🔥 ' + streak;
       streakEl.className = 'streak-badge' + (streak === 0 ? ' none' : '');
-      // Streak milestone confetti
       if (streak > 0 && streak % 7 === 0) { shootConfetti(); showToast(`🔥 ${streak} giorni di streak! Fantastico!`, 'info'); }
-      renderHOggiList(day, today);
+      renderHOggiList(day, selectedDate);
     }
     function setupRowGestures(row, onComplete, onSwipeLeft) {
       const HOLD_MS = 700, HOLD_DRIFT = 10, SWIPE_DIST = 60;
@@ -2836,13 +3020,12 @@
 
     // ── RECAP ─────────────────────────────────────────────────
     async function renderRecap() {
-      const today = todayStr();
-      document.getElementById('recap-date').textContent = fmtDate(today);
+      renderDateNavHeader(selectedDate, 'recap-date-nav');
       setSS('sd-recap', 'st-recap-sync', 'syncing', 'aggiornamento...');
-      const remote = await sbLoadDay(today);
-      if (remote) { const local = S.days[today]; if (!local || (remote.timestamp > (local.timestamp || 0))) { S.days[today] = remote; persist(); } }
+      const remote = await sbLoadDay(selectedDate);
+      if (remote) { const local = S.days[selectedDate]; if (!local || (remote.timestamp > (local.timestamp || 0))) { S.days[selectedDate] = remote; persist(); } }
       setSS('sd-recap', 'st-recap-sync', 'ok', 'sincronizzato');
-      const day = getDay(today); const pct = calcPct(today) || 0; setBar('fill-recap', 'pct-recap', pct);
+      const day = getDay(selectedDate); const pct = calcPct(selectedDate) || 0; setBar('fill-recap', 'pct-recap', pct);
       const list = document.getElementById('sum-list'); list.innerHTML = '';
       activeHabits().forEach(h => { const rec = day.abitudini[h.id] || {}; const row = document.createElement('div'); row.className = 'sum-row'; const icon = document.createElement('div'); icon.className = 'sum-icon ' + (rec.saltato ? 'sk' : rec.completato ? 'ok' : 'ko'); icon.innerHTML = rec.saltato ? '—' : rec.completato ? '<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="3" fill="none"><polyline points="20 6 9 17 4 12"/></svg>' : '<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="3" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'; const nm = document.createElement('span'); nm.className = 'sum-name'; nm.textContent = h.nome; const badge = document.createElement('span'); badge.className = 'sum-badge ' + (rec.saltato ? 'bs' : rec.completato ? 'bd' : 'bm'); badge.textContent = rec.saltato ? 'saltata' : rec.completato ? 'completata' : 'mancata'; row.appendChild(icon); row.appendChild(nm); row.appendChild(badge); list.appendChild(row); });
       const tr = document.createElement('div'); tr.className = 'sum-row'; const ti = document.createElement('div'); const rAtdNE = day.attivitaDelGiorno.compiti.filter(t => t.trim()).length; const rAtdCnt = day.attivitaDelGiorno.completatiCount || 0; const rAtdFull = rAtdNE > 0 ? rAtdCnt >= rAtdNE : day.attivitaDelGiorno.completato; ti.className = 'sum-icon ' + (rAtdFull ? 'ok' : 'ko'); ti.innerHTML = rAtdFull ? '<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="3" fill="none"><polyline points="20 6 9 17 4 12"/></svg>' : '<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="3" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'; const tn = document.createElement('span'); tn.className = 'sum-name'; tn.textContent = 'Attività del giorno'; const tb = document.createElement('span'); tb.className = 'sum-badge ' + (rAtdFull ? 'bd' : 'bm'); tb.textContent = rAtdFull ? 'completata' : rAtdCnt > 0 && rAtdNE > 0 ? `${rAtdCnt}/${rAtdNE} completate` : 'mancata'; tr.appendChild(ti); tr.appendChild(tn); tr.appendChild(tb); list.appendChild(tr);
@@ -2851,10 +3034,10 @@
       const motivEl = document.getElementById('ai-motiv-txt');
       if (motivEl) motivEl.textContent = motivPhrases[Math.floor(Math.random() * motivPhrases.length)];
     }
-    function saveNotes() { const d = getDay(todayStr()); d.note = document.getElementById('notes-ta').value; scheduleSync(todayStr(), 'sd-recap', 'st-recap-sync'); }
+    function saveNotes() { const d = getDay(selectedDate); d.note = document.getElementById('notes-ta').value; scheduleSync(selectedDate, 'sd-recap', 'st-recap-sync'); }
 
     // ── ANALYTICS ─────────────────────────────────────────────
-    async function renderAnalytics() {
+    async function renderCalendario() {
       document.getElementById('an-date').textContent = new Date().toLocaleDateString('it-IT', { year: 'numeric', month: 'long' }).toLowerCase();
       renderHeatmap(); renderWeeklyHabits();
       setSS('sd-an', 'st-an-sync', 'syncing', 'caricamento storico...');
@@ -2880,7 +3063,7 @@
         else if (wa < prevWa) { trendEl.textContent = ' ↓'; trendEl.className = 'trend-arrow down'; }
         else { trendEl.textContent = ' →'; trendEl.className = 'trend-arrow flat'; }
       } else { trendEl.textContent = ''; }
-      renderHeatmap(); renderWeeklyHabits();
+      renderHeatmap(); renderWeeklyHabits(); renderProssimi();
     }
     function changeMonth(delta) { hmMonth += delta; if (hmMonth > 11) { hmMonth = 0; hmYear++; } if (hmMonth < 0) { hmMonth = 11; hmYear--; } renderHeatmap(); }
     function renderHeatmap() {
@@ -2888,32 +3071,147 @@
       const grid = document.getElementById('hm-grid'); grid.innerHTML = '';
       const first = new Date(hmYear, hmMonth, 1).getDay(); const off = first === 0 ? 6 : first - 1; const days = new Date(hmYear, hmMonth + 1, 0).getDate(); const today = todayStr();
       for (let i = 0; i < off; i++) { const e = document.createElement('div'); e.className = 'hm-cell empty'; grid.appendChild(e); }
-      for (let d = 1; d <= days; d++) { const ds = `${hmYear}-${p2(hmMonth + 1)}-${p2(d)}`; const cell = document.createElement('div'); const pct = calcPct(ds); const hc = heatColor(pct); cell.className = 'hm-cell' + (pct === null ? ' no-data' : '') + (ds === today ? ' today' : ''); if (hc) cell.style.background = hc; cell.onclick = ev => showPopup(ds, cell, ev); grid.appendChild(cell); }
+      for (let d = 1; d <= days; d++) { 
+        const ds = `${hmYear}-${p2(hmMonth + 1)}-${p2(d)}`; 
+        const cell = document.createElement('div'); 
+        const pct = calcPct(ds); 
+        const hc = heatColor(pct); 
+        cell.className = 'hm-cell' + (pct === null ? ' no-data' : '') + (ds === today ? ' today' : ''); 
+        if (hc) cell.style.background = hc; 
+        cell.onclick = ev => showPopup(ds, cell, ev); 
+        
+        const dayInfo = S.days[ds];
+        if (dayInfo && dayInfo.eventi && dayInfo.eventi.length > 0) {
+           const hasScadenza = dayInfo.eventi.some(e => e.tipo === 'scadenza');
+           const badge = document.createElement('div');
+           badge.className = 'evento-badge';
+           badge.style.background = hasScadenza ? 'var(--orange)' : 'var(--green)';
+           cell.appendChild(badge);
+        }
+
+        grid.appendChild(cell); 
+      }
     }
     function showPopup(ds, cell, ev) {
-      ev.stopPropagation(); const popup = document.getElementById('day-popup'); const day = S.days[ds]; if (!day) { popup.style.display = 'none'; return; }
-      const pct = calcPct(ds) || 0; const habits = activeHabits();
+      ev.stopPropagation(); const popup = document.getElementById('day-popup'); const day = S.days[ds] || getDay(ds);
+      const pct = calcPct(ds) || 0; 
       popup.innerHTML = '';
-      const headDate = document.createElement('div'); headDate.className = 'dp-date'; headDate.textContent = fmtShort(ds);
+      
+      const headDate = document.createElement('div'); headDate.className = 'dp-date'; headDate.textContent = fmtDate(ds);
       const headPct = document.createElement('div'); headPct.className = 'dp-pct'; headPct.style.color = pctColor(pct); headPct.textContent = pct + '%';
       popup.appendChild(headDate); popup.appendChild(headPct);
-      habits.forEach(h => {
-        const r = day.abitudini[h.id] || {}; const c = r.saltato ? 'var(--text3)' : r.completato ? 'var(--green)' : 'var(--red)';
-        const item = document.createElement('div'); item.className = 'dp-item';
-        const dot = document.createElement('div'); dot.className = 'dp-dot'; dot.style.background = c;
-        const nameSpan = document.createElement('span'); nameSpan.textContent = h.nome;
-        item.appendChild(dot); item.appendChild(nameSpan);
-        popup.appendChild(item);
-      });
-      if (day.note && day.note.trim()) {
-        const noteEl = document.createElement('div'); noteEl.className = 'dp-note'; noteEl.textContent = day.note.slice(0, 80) + (day.note.length > 80 ? '…' : '');
-        popup.appendChild(noteEl);
+      
+      const compiti = day.attivitaDelGiorno ? day.attivitaDelGiorno.compiti.filter(c => c.trim()) : [];
+      if (compiti.length > 0) {
+        const cTitle = document.createElement('div'); cTitle.className = 'dp-sec-title'; cTitle.textContent = 'Compiti:';
+        popup.appendChild(cTitle);
+        compiti.forEach(c => {
+          const item = document.createElement('div'); item.className = 'dp-item';
+          const dot = document.createElement('div'); dot.className = 'dp-dot'; dot.style.background = 'var(--text3)';
+          const nameSpan = document.createElement('span'); nameSpan.textContent = c;
+          item.appendChild(dot); item.appendChild(nameSpan);
+          popup.appendChild(item);
+        });
       }
+
+      const gotoBtn = document.createElement('button'); gotoBtn.className = 'dp-goto-btn'; gotoBtn.textContent = 'Vai al giorno';
+      gotoBtn.onclick = () => { setSelectedDate(ds); goScreen('plan'); popup.style.display = 'none'; };
+      popup.appendChild(gotoBtn);
+
+      const evTitle = document.createElement('div'); evTitle.className = 'dp-sec-title'; evTitle.textContent = 'Impegni / Scadenze:'; evTitle.style.marginTop = '12px';
+      popup.appendChild(evTitle);
+
+      const evList = document.createElement('div'); evList.className = 'dp-ev-list';
+      const eventi = day.eventi || [];
+      eventi.forEach(eObj => {
+        const item = document.createElement('div'); item.className = 'evento-item';
+        const badge = document.createElement('span'); badge.className = 'evento-type-badge ' + eObj.tipo; badge.textContent = eObj.tipo === 'scadenza' ? 'S' : 'I';
+        const title = document.createElement('span'); title.className = 'evento-title'; title.textContent = eObj.titolo;
+        const ora = document.createElement('span'); ora.className = 'evento-ora'; ora.textContent = eObj.ora || '';
+        const delBtn = document.createElement('button'); delBtn.className = 'evento-del'; delBtn.textContent = '✕';
+        delBtn.onclick = (e) => { e.stopPropagation(); day.eventi = day.eventi.filter(x => x.id !== eObj.id); scheduleSync(ds, 'sd-an', 'st-an-sync'); showPopup(ds, cell, ev); renderHeatmap(); renderProssimi(); };
+        item.appendChild(badge); item.appendChild(title); item.appendChild(ora); item.appendChild(delBtn);
+        evList.appendChild(item);
+      });
+      popup.appendChild(evList);
+
+      const form = document.createElement('div'); form.className = 'evento-form';
+      form.innerHTML = `
+        <input type="text" id="ev-titolo" placeholder="Nuovo evento...">
+        <select id="ev-tipo"><option value="impegno">Impegno</option><option value="scadenza">Scadenza</option></select>
+        <input type="time" id="ev-ora">
+        <button id="ev-add">+</button>
+      `;
+      popup.appendChild(form);
+
+      setTimeout(() => {
+        const addBtn = document.getElementById('ev-add');
+        if(addBtn) addBtn.onclick = (e) => {
+          e.stopPropagation();
+          const t = document.getElementById('ev-titolo').value.trim();
+          if(!t) return;
+          const tipo = document.getElementById('ev-tipo').value;
+          const ora = document.getElementById('ev-ora').value;
+          if (!day.eventi) day.eventi = [];
+          day.eventi.push({id: uid(), titolo: t, tipo: tipo, ora: ora, completato: false});
+          scheduleSync(ds, 'sd-an', 'st-an-sync');
+          showPopup(ds, cell, ev);
+          renderHeatmap();
+          renderProssimi();
+        };
+      }, 0);
+
       const rect = cell.getBoundingClientRect(); const wrap = document.getElementById('shell').getBoundingClientRect();
       let left = rect.right - wrap.left + 4; let top = rect.top - wrap.top;
-      if (left + 200 > wrap.width) left = rect.left - wrap.left - 200; if (top + 150 > wrap.height) top = wrap.height - 160;
+      if (left + 260 > wrap.width) left = rect.left - wrap.left - 260; 
+      if (top + 300 > wrap.height) top = wrap.height - 320;
       popup.style.left = left + 'px'; popup.style.top = top + 'px'; popup.style.display = 'block';
-      setTimeout(() => document.addEventListener('click', () => { popup.style.display = 'none' }, { once: true }), 30);
+      
+      setTimeout(() => document.addEventListener('click', function closeP(e) { 
+        if(!popup.contains(e.target) && e.target !== cell) {
+            popup.style.display = 'none'; 
+            document.removeEventListener('click', closeP);
+        }
+      }), 30);
+    }
+    
+    function renderProssimi() {
+      let wrap = document.getElementById('prossimi-wrap');
+      if (!wrap) {
+        wrap = document.createElement('div');
+        wrap.id = 'prossimi-wrap';
+        wrap.className = 'wh-section';
+        const anScreen = document.getElementById('screen-calendario');
+        const hmWrap = anScreen.querySelector('.heatmap-wrap');
+        if(hmWrap) hmWrap.insertAdjacentElement('afterend', wrap);
+      }
+      wrap.innerHTML = '<div class="section-head" style="padding:0;border:none;margin-bottom:12px;background:none"><span class="section-label">Prossimi impegni (14 gg)</span></div>';
+      
+      const today = todayStr();
+      const next14 = Array.from({length: 14}, (_, i) => offsetDate(today, i));
+      
+      let count = 0;
+      next14.forEach(ds => {
+        const day = S.days[ds];
+        if (day && day.eventi && day.eventi.length > 0) {
+          day.eventi.forEach(ev => {
+            count++;
+            const row = document.createElement('div'); row.className = 'prossimi-row';
+            row.onclick = () => { setSelectedDate(ds); goScreen('plan'); };
+            
+            const dateSpan = document.createElement('span'); dateSpan.className = 'prossimi-date'; dateSpan.textContent = fmtShort(ds);
+            const badge = document.createElement('span'); badge.className = 'evento-type-badge ' + ev.tipo; badge.textContent = ev.tipo === 'scadenza' ? 'S' : 'I';
+            const title = document.createElement('span'); title.className = 'prossimi-title'; title.textContent = ev.titolo;
+            const ora = document.createElement('span'); ora.className = 'prossimi-ora'; ora.textContent = ev.ora || '';
+            
+            row.appendChild(dateSpan); row.appendChild(badge); row.appendChild(title); row.appendChild(ora);
+            wrap.appendChild(row);
+          });
+        }
+      });
+      if (count === 0) {
+        wrap.innerHTML += '<div style="font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:.1em">Nessun impegno nei prossimi 14 giorni.</div>';
+      }
     }
     function renderWeeklyHabits() {
       const c = document.getElementById('wh-section'); c.innerHTML = ''; const habits = activeHabits().filter(h => h.frequenza === 'settimanale');
