@@ -2575,7 +2575,7 @@
           <div class="date-nav-label">
             ${fmtDate(ds)} ${ds === today ? '<span class="today-badge">Oggi</span>' : ''}
           </div>
-          <button class="date-nav-arrow" ${ds >= today ? 'disabled style="opacity:0.3;cursor:not-allowed"' : ''} onclick="${ds < today ? `setSelectedDate(offsetDate('${ds}', 1))` : ''}">
+          <button class="date-nav-arrow" onclick="setSelectedDate(offsetDate('${ds}', 1))">
             <svg viewBox="0 0 24 24"><polyline points="9,18 15,12 9,6" /></svg>
           </button>
         </div>
@@ -2594,7 +2594,7 @@
     function fmtShort(ds) { const d = new Date(ds + 'T12:00:00'); return d.toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' }).toLowerCase() }
     function weekDays() { const now = new Date(); const dow = now.getDay(); const diff = dow === 0 ? 6 : dow - 1; const mon = new Date(now); mon.setDate(now.getDate() - diff); return Array.from({ length: 7 }, (_, i) => { const d = new Date(mon); d.setDate(mon.getDate() + i); return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}` }); }
     function monthDays(y, m) { const tot = new Date(y, m + 1, 0).getDate(); return Array.from({ length: tot }, (_, i) => `${y}-${p2(m + 1)}-${p2(i + 1)}`); }
-    function calcAvg(dates) { const vals = dates.map(d => calcPct(d)).filter(v => v !== null); if (!vals.length) return null; return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length); }
+    function calcAvg(dates) { const today = todayStr(); const vals = dates.filter(d => d <= today).map(d => calcPct(d)).filter(v => v !== null); if (!vals.length) return null; return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length); }
     function setBar(fId, pId, pct) { document.getElementById(fId).style.width = pct + '%'; document.getElementById(fId).style.background = pctColor(pct); const el = document.getElementById(pId); el.textContent = pct + '%'; el.style.color = pctColor(pct); }
     function setRing(ringId, pctId, pct) { const el = document.getElementById(ringId); el.style.strokeDashoffset = 213.6 * (1 - pct / 100); el.style.stroke = pctColor(pct); const p = document.getElementById(pctId); p.textContent = pct + '%'; p.style.color = pctColor(pct); }
     let focusMode = localStorage.getItem('dayflow_focusMode') === 'true';
@@ -2875,13 +2875,13 @@
     })();
 
     // ── NAVIGATION ────────────────────────────────────────────
-    function goScreen(name) {
+    function goScreen(name, keepDate = false) {
       document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
       document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
       document.getElementById('screen-' + name).classList.add('active');
       document.getElementById('nav-' + name).classList.add('active');
       curScreen = name;
-      selectedDate = todayStr();
+      if (!keepDate) selectedDate = todayStr();
       if (name === 'plan') renderPlan();
       if (name === 'oggi') renderOggi();
       if (name === 'recap') renderRecap();
@@ -3122,7 +3122,7 @@
       }
 
       const gotoBtn = document.createElement('button'); gotoBtn.className = 'dp-goto-btn'; gotoBtn.textContent = 'Vai al giorno';
-      gotoBtn.onclick = () => { setSelectedDate(ds); goScreen('plan'); popup.style.display = 'none'; };
+      gotoBtn.onclick = () => { setSelectedDate(ds); goScreen('plan', true); popup.style.display = 'none'; };
       popup.appendChild(gotoBtn);
 
       const evTitle = document.createElement('div'); evTitle.className = 'dp-sec-title'; evTitle.textContent = 'Impegni / Scadenze:'; evTitle.style.marginTop = '12px';
@@ -3204,7 +3204,7 @@
           day.eventi.forEach(ev => {
             count++;
             const row = document.createElement('div'); row.className = 'prossimi-row';
-            row.onclick = () => { setSelectedDate(ds); goScreen('plan'); };
+            row.onclick = () => { setSelectedDate(ds); goScreen('plan', true); };
             
             const dateSpan = document.createElement('span'); dateSpan.className = 'prossimi-date'; dateSpan.textContent = fmtShort(ds);
             const badge = document.createElement('span'); badge.className = 'evento-type-badge ' + ev.tipo; badge.textContent = ev.tipo === 'scadenza' ? 'S' : 'I';
