@@ -1,0 +1,19 @@
+{
+  "name": "DayFlow",
+  "short_name": "DayFlow",
+  "description": "Habit tracker per ADHD — senza sensi di colpa",
+  "start_url": "./dayflow1_0.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#09090b",
+  "theme_color": "#09090b",
+  "lang": "it",
+  "icons": [
+    {
+      "src": "./icons/icon-180.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ]
+}

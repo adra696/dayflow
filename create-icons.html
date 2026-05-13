@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <title>DayFlow — Genera Icone PWA</title>
+  <style>
+    body { background: #09090b; color: #f4f4f5; font-family: sans-serif; padding: 2rem; display: flex; flex-direction: column; align-items: center; gap: 1.5rem; }
+    canvas { border-radius: 22%; border: 1px solid #27272a; }
+    button { background: #10b981; color: #09090b; border: none; padding: .6rem 1.4rem; border-radius: 8px; font-weight: 700; cursor: pointer; font-size: 14px; }
+    h1 { font-size: 1.2rem; color: #10b981; margin: 0; }
+    .row { display: flex; gap: 2rem; flex-wrap: wrap; justify-content: center; }
+    .card { display: flex; flex-direction: column; align-items: center; gap: .5rem; }
+    small { color: #71717a; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>DayFlow — Generatore Icone PWA</h1>
+  <p style="color:#71717a;font-size:13px;text-align:center">Clicca "Scarica" su ciascuna icona, poi mettila in <code style="color:#10b981">icons/</code></p>
+  <div class="row" id="icons"></div>
+
+  <script>
+    const sizes = [
+      { size: 180, label: 'icon-180.png' },
+    ];
+
+    sizes.forEach(({ size, label }) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = size;
+      const ctx = canvas.getContext('2d');
+
+      // Sfondo
+      ctx.fillStyle = '#09090b';
+      ctx.fillRect(0, 0, size, size);
+
+      // Cerchio decorativo verde (sfumato)
+      const grad = ctx.createRadialGradient(size * .5, size * .4, 0, size * .5, size * .4, size * .38);
+      grad.addColorStop(0, '#10b98122');
+      grad.addColorStop(1, 'transparent');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, size, size);
+
+      // Arco progresso (3/4 cerchio)
+      const cx = size / 2, cy = size / 2;
+      const r = size * .3;
+      const lw = size * .07;
+      ctx.strokeStyle = '#27272a';
+      ctx.lineWidth = lw;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, Math.PI * .75, Math.PI * 2.25);
+      ctx.stroke();
+
+      ctx.strokeStyle = '#10b981';
+      ctx.lineWidth = lw;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, Math.PI * .75, Math.PI * 1.85);
+      ctx.stroke();
+
+      // Lettera "D" centrata
+      const fs = size * .28;
+      ctx.fillStyle = '#f4f4f5';
+      ctx.font = `700 ${fs}px "DM Mono", monospace`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('D', cx, cy);
+
+      // Card
+      const card = document.createElement('div');
+      card.className = 'card';
+      const small = document.createElement('small');
+      small.textContent = label;
+      const btn = document.createElement('button');
+      btn.textContent = 'Scarica';
+      btn.onclick = () => {
+        const a = document.createElement('a');
+        a.download = label.split(' ')[0];
+        a.href = canvas.toDataURL('image/png');
+        a.click();
+      };
+      card.appendChild(canvas);
+      card.appendChild(small);
+      card.appendChild(btn);
+      document.getElementById('icons').appendChild(card);
+    });
+  </script>
+</body>
+</html>

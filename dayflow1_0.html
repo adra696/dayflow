@@ -11,8 +11,15 @@
     font-src https://fonts.gstatic.com;
     connect-src https://iqlxjazrshqzqrltkjoz.supabase.co;
     img-src 'self' data:;
+    worker-src 'self';
   ">
   <title>DayFlow</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#09090b">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="DayFlow">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,700;1,300&display=swap"
     rel="stylesheet">
@@ -3282,6 +3289,13 @@
       persist(); sbSaveHabits(); mMode = 'list'; renderModal(); if (curScreen === 'plan') renderPlan(); if (curScreen === 'oggi') renderOggi();
     }
     function deleteHabit(id) { if (!confirm('Eliminare questa abitudine?')) return; S.habits = S.habits.filter(h => h.id !== id); persist(); sbSaveHabits(); mMode = 'list'; renderModal(); if (curScreen === 'plan') renderPlan(); if (curScreen === 'oggi') renderOggi(); }
+
+    // ── SERVICE WORKER (solo HTTPS) ────────────────────────────
+    if ('serviceWorker' in navigator && location.protocol === 'https:') {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch(() => {});
+      });
+    }
 
   </script>
 </body>
