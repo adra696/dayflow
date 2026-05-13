@@ -242,7 +242,137 @@ body{font-family:var(--sans);color:var(--text);font-size:15px;display:flex;flex-
 
 .empty-state{padding:48px 20px;text-align:center}
 .empty-lbl{font-family:var(--mono);font-size:10px;color:var(--text3);letter-spacing:.12em;text-transform:uppercase}
+
+/* =========================================
+   DESKTOP RESPONSIVE LAYOUT 
+   ========================================= */
+@media (min-width: 768px) {
+  body {
+    justify-content: center;
+    padding: 20px 0;
+  }
+
+  #shell {
+    flex-direction: row;
+    max-width: 1024px;
+    height: 90vh;
+    max-height: 900px;
+    min-height: 600px;
+    border-radius: 20px;
+    margin: auto;
+    border: 1px solid var(--border);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+  }
+
+  /* Sidebar Navigation */
+  #nav {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    padding-top: 40px;
+    padding-bottom: 32px;
+    width: 240px;
+    border-top: none;
+    border-right: 1px solid var(--border);
+    gap: 8px;
+  }
+
+  .nav-btn {
+    flex-direction: row;
+    padding: 16px 32px;
+    border-top: none;
+    border-left: 4px solid transparent;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: .12em;
+    gap: 16px;
+    width: 100%;
+    align-items: center;
+    justify-content: flex-start;
+  }
+
+  .nav-btn svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  .nav-btn.active {
+    border-top-color: transparent;
+    border-left-color: var(--green);
+    background: linear-gradient(90deg, rgba(16,185,129,0.1), transparent);
+  }
+
+  .nav-btn.active svg {
+    transform: translateX(4px);
+  }
+
+  /* Adjust Main Content Area */
+  #screen-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: rgba(9,9,11,0.2);
+  }
+
+  .topbar {
+    padding: 40px 40px 24px;
+  }
+  
+  .sync-bar {
+    padding: 10px 40px;
+  }
+
+  .prog-wrap, .section-head, .habit-row, .plan-task, .hplan-row, .sum-row, .an-stats, .heatmap-wrap, .wh-section {
+    padding-left: 40px;
+    padding-right: 40px;
+  }
+
+  .tasks-row {
+    margin: 12px 40px;
+  }
+  
+  .notes-wrap, .ai-box, .priority-banner {
+    margin-left: 40px;
+    margin-right: 40px;
+  }
+
+  .save-btn {
+    margin: 32px 40px 16px;
+    width: calc(100% - 80px);
+    padding: 18px;
+    font-size: 11px;
+  }
+
+  /* Modal Adjustments for PC */
+  .modal-overlay {
+    align-items: center;
+    justify-content: center;
+  }
+
+  .modal {
+    width: 540px;
+    border-radius: 24px;
+    border: 1px solid var(--border);
+    max-height: 80vh;
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  
+  .modal-overlay.open .modal {
+    transform: scale(1);
+    opacity: 1;
+  }
+
+  /* Heatmap */
+  .hm-grid, .hm-days-head {
+    max-width: 600px;
+  }
+  .hm-cell {
+    border-radius: 6px;
+  }
+}
 </style>
+
 </head>
 <body>
 
