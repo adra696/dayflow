@@ -454,14 +454,61 @@
     .prog-wrap {
       padding: 20px 20px;
       border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 20px
+    }
+
+    .prog-ring-wrap {
+      position: relative;
+      width: 80px;
+      height: 80px;
       flex-shrink: 0
     }
 
-    .prog-head {
+    .prog-ring {
+      width: 80px;
+      height: 80px;
+      transform: rotate(-90deg)
+    }
+
+    .prog-ring-bg {
+      fill: none;
+      stroke: var(--bg3);
+      stroke-width: 6
+    }
+
+    .prog-ring-fill {
+      fill: none;
+      stroke: var(--green);
+      stroke-width: 6;
+      stroke-linecap: round;
+      stroke-dasharray: 213.6;
+      stroke-dashoffset: 213.6;
+      transition: stroke-dashoffset .8s cubic-bezier(0.34, 1.56, 0.64, 1), stroke .5s ease
+    }
+
+    .prog-ring-center {
+      position: absolute;
+      inset: 0;
       display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-      margin-bottom: 12px
+      align-items: center;
+      justify-content: center
+    }
+
+    .prog-ring-pct {
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 700;
+      transition: color .5s ease
+    }
+
+    .prog-info {
+      display: flex;
+      flex-direction: column;
+      gap: 6px
     }
 
     .prog-label {
@@ -472,13 +519,7 @@
       text-transform: uppercase
     }
 
-    .prog-pct {
-      font-size: 38px;
-      font-weight: 700;
-      letter-spacing: -.04em;
-      transition: color .5s ease
-    }
-
+    /* keep prog-track/fill for recap and storico screens */
     .prog-track {
       height: 4px;
       background: var(--bg3);
@@ -505,13 +546,39 @@
     }
 
     @keyframes shimmer {
-      0% {
-        transform: translateX(-100%)
-      }
+      0% { transform: translateX(-100%) }
+      100% { transform: translateX(100%) }
+    }
 
-      100% {
-        transform: translateX(100%)
-      }
+    /* FOCUS MODE */
+    .habit-row.done-hidden {
+      display: none
+    }
+
+    .focus-btn {
+      background: none;
+      border: 1px solid var(--border3);
+      color: var(--text3);
+      font-family: var(--mono);
+      font-size: 9px;
+      letter-spacing: .08em;
+      padding: 3px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all .2s ease
+    }
+
+    .focus-btn.active {
+      border-color: var(--green);
+      color: var(--green)
+    }
+
+    .habit-streak-badge {
+      font-family: var(--mono);
+      font-size: 9px;
+      color: var(--text3);
+      letter-spacing: .05em;
+      flex-shrink: 0
     }
 
     /* STATS */
@@ -2100,27 +2167,35 @@
           <div class="sync-dot offline" id="sd-oggi"></div><span class="sync-txt" id="st-oggi-sync">—</span>
         </div>
         <div class="prog-wrap">
-          <div class="prog-head"><span class="prog-label">Progresso</span><span class="streak-badge none" id="streak-oggi">🔥 0</span><span class="prog-pct" id="pct-oggi">0%</span>
+          <div class="prog-ring-wrap">
+            <svg class="prog-ring" viewBox="0 0 80 80">
+              <circle class="prog-ring-bg" cx="40" cy="40" r="34"/>
+              <circle class="prog-ring-fill" id="ring-fill-oggi" cx="40" cy="40" r="34"/>
+            </svg>
+            <div class="prog-ring-center">
+              <span class="prog-ring-pct" id="pct-oggi">0%</span>
+            </div>
           </div>
-          <div class="prog-track">
-            <div class="prog-fill" id="fill-oggi" style="width:0%"></div>
+          <div class="prog-info">
+            <span class="prog-label">Progresso</span>
+            <span class="streak-badge none" id="streak-oggi">🔥 0</span>
+            <div class="stats-row" style="margin:0;padding:0;border:none;gap:12px">
+              <div class="stat-card" style="padding:0;background:none;border:none">
+                <div class="stat-val" id="st-oggi" style="font-size:14px">0%</div>
+                <div class="stat-lbl">Oggi</div>
+              </div>
+              <div class="stat-card" style="padding:0;background:none;border:none">
+                <div class="stat-val" id="st-sett" style="font-size:14px">—</div>
+                <div class="stat-lbl">Settimana</div>
+              </div>
+              <div class="stat-card" style="padding:0;background:none;border:none">
+                <div class="stat-val" id="st-mese" style="font-size:14px">—</div>
+                <div class="stat-lbl">Mese</div>
+              </div>
+            </div>
           </div>
         </div>
-        <div class="stats-row">
-          <div class="stat-card">
-            <div class="stat-val" id="st-oggi">0%</div>
-            <div class="stat-lbl">Oggi</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-val" id="st-sett">—</div>
-            <div class="stat-lbl">Settimana</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-val" id="st-mese">—</div>
-            <div class="stat-lbl">Mese</div>
-          </div>
-        </div>
-        <div class="section-head"><span class="section-label" id="habit-count-lbl">Abitudini</span></div>
+        <div class="section-head"><span class="section-label" id="habit-count-lbl">Abitudini</span><button class="focus-btn" id="focus-toggle-btn" onclick="toggleFocusMode()">focus</button></div>
         <div id="hoggi-list"></div>
       </div>
 
@@ -2293,6 +2368,9 @@
     function monthDays(y, m) { const tot = new Date(y, m + 1, 0).getDate(); return Array.from({ length: tot }, (_, i) => `${y}-${p2(m + 1)}-${p2(i + 1)}`); }
     function calcAvg(dates) { const vals = dates.map(d => calcPct(d)).filter(v => v !== null); if (!vals.length) return null; return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length); }
     function setBar(fId, pId, pct) { document.getElementById(fId).style.width = pct + '%'; document.getElementById(fId).style.background = pctColor(pct); const el = document.getElementById(pId); el.textContent = pct + '%'; el.style.color = pctColor(pct); }
+    function setRing(ringId, pctId, pct) { const el = document.getElementById(ringId); el.style.strokeDashoffset = 213.6 * (1 - pct / 100); el.style.stroke = pctColor(pct); const p = document.getElementById(pctId); p.textContent = pct + '%'; p.style.color = pctColor(pct); }
+    let focusMode = localStorage.getItem('dayflow_focusMode') === 'true';
+    function toggleFocusMode() { focusMode = !focusMode; localStorage.setItem('dayflow_focusMode', focusMode); const btn = document.getElementById('focus-toggle-btn'); if (btn) { btn.classList.toggle('active', focusMode); btn.textContent = focusMode ? '🎯 focus' : 'focus'; } const today = todayStr(); renderHOggiList(getDay(today), today); }
     function setSS(dotId, txtId, status, msg) { const d = document.getElementById(dotId); const t = document.getElementById(txtId); if (!d || !t) return; d.className = 'sync-dot ' + status; t.textContent = msg; }
     function shootConfetti() {
       const colors = ['#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#a855f7'];
@@ -2476,6 +2554,18 @@
       if (todayPct !== null && todayPct >= 1) streak++;
       return streak;
     }
+    function calcHabitStreak(habitId) {
+      const today = todayStr();
+      const dates = Object.keys(S.days).filter(d => d <= today).sort().reverse();
+      let streak = 0;
+      for (const ds of dates) {
+        const rec = (S.days[ds].abitudini || {})[habitId] || {};
+        if (rec.saltato) { streak++; continue; }
+        if (!rec.completato) break;
+        streak++;
+      }
+      return streak;
+    }
     // ── MOTIVATIONAL PHRASES ──────────────────────────────────
     const motivPhrases = [
       'Ogni giorno è un passo avanti. Continua così! 💪',
@@ -2620,7 +2710,7 @@
       const day = getDay(today); persist();
       const habits = activeHabits();
       const pct = calcPct(today) || 0;
-      setBar('fill-oggi', 'pct-oggi', pct);
+      setRing('ring-fill-oggi', 'pct-oggi', pct);
       const so = document.getElementById('st-oggi'); so.textContent = pct + '%'; so.style.color = pctColor(pct);
       const wa = calcAvg(weekDays()), ma = calcAvg(monthDays(new Date().getFullYear(), new Date().getMonth()));
       document.getElementById('st-sett').textContent = wa !== null ? wa + '%' : '—';
@@ -2634,29 +2724,43 @@
       if (streak > 0 && streak % 7 === 0) { shootConfetti(); showToast(`🔥 ${streak} giorni di streak! Fantastico!`, 'info'); }
       renderHOggiList(day, today);
     }
-    function setupHoldAction(row, onComplete) {
-      const HOLD_MS = 700, MAX_DRIFT = 10;
-      let timer = null, startX = 0, startY = 0;
-      function cancel() { clearTimeout(timer); timer = null; row.classList.remove('holding'); }
+    function setupRowGestures(row, onComplete, onSwipeLeft) {
+      const HOLD_MS = 700, HOLD_DRIFT = 10, SWIPE_DIST = 60;
+      let timer = null, startX = 0, startY = 0, swiping = false;
+      function cancelHold() { clearTimeout(timer); timer = null; row.classList.remove('holding'); }
       row.addEventListener('pointerdown', e => {
         if (e.pointerType !== 'touch') return;
         if (e.target.closest('.skip-btn')) return;
-        startX = e.clientX; startY = e.clientY;
+        startX = e.clientX; startY = e.clientY; swiping = false;
         row.classList.add('holding');
-        timer = setTimeout(() => { row.classList.remove('holding'); if (navigator.vibrate) navigator.vibrate([40]); onComplete(); }, HOLD_MS);
+        timer = setTimeout(() => { if (swiping) return; row.classList.remove('holding'); if (navigator.vibrate) navigator.vibrate([40]); onComplete(); }, HOLD_MS);
       });
-      row.addEventListener('pointermove', e => { if (!timer) return; if (Math.abs(e.clientX - startX) > MAX_DRIFT || Math.abs(e.clientY - startY) > MAX_DRIFT) cancel(); });
-      row.addEventListener('pointerup', cancel);
-      row.addEventListener('pointercancel', cancel);
+      row.addEventListener('pointermove', e => {
+        if (!timer && !swiping) return;
+        const dx = e.clientX - startX, dy = e.clientY - startY;
+        const adx = Math.abs(dx), ady = Math.abs(dy);
+        if (!swiping && adx > HOLD_DRIFT) cancelHold();
+        if (onSwipeLeft && adx > SWIPE_DIST && adx > ady * 1.5) { swiping = true; row.style.transform = `translateX(${Math.min(dx, 0)}px)`; }
+      });
+      row.addEventListener('pointerup', e => {
+        const dx = e.clientX - startX;
+        if (swiping && dx < -SWIPE_DIST) { row.style.transform = ''; if (onSwipeLeft) onSwipeLeft(); }
+        else row.style.transform = '';
+        cancelHold(); swiping = false;
+      });
+      row.addEventListener('pointercancel', () => { row.style.transform = ''; cancelHold(); swiping = false; });
     }
     function renderHOggiList(day, today) {
       const c = document.getElementById('hoggi-list'); c.innerHTML = '';
       const habits = activeHabits();
       const done = habits.filter(h => day.abitudini[h.id] && day.abitudini[h.id].completato).length;
       document.getElementById('habit-count-lbl').textContent = `Abitudini — ${done}/${habits.length}`;
+      const focusBtn = document.getElementById('focus-toggle-btn');
+      if (focusBtn) { focusBtn.classList.toggle('active', focusMode); focusBtn.textContent = focusMode ? '🎯 focus' : 'focus'; }
       habits.forEach(h => {
         const rec = day.abitudini[h.id] || {};
         const row = document.createElement('div'); row.className = 'habit-row' + (rec.saltato ? ' skipped' : '');
+        if (focusMode && rec.completato && !rec.saltato) row.classList.add('done-hidden');
         row.onclick = e => {
           if (e.pointerType === 'touch') return;
           if (e.target.closest('.skip-btn')) return; addRipple(row, e);
@@ -2664,10 +2768,13 @@
           if (!d.abitudini[h.id].saltato) { d.abitudini[h.id].completato = !d.abitudini[h.id].completato; scheduleSync(today, 'sd-oggi', 'st-oggi-sync'); renderHOggiList(getDay(today), today); updateOggiStats(today); }
         };
         const fill = document.createElement('div'); fill.className = 'hold-fill'; row.prepend(fill);
-        setupHoldAction(row, () => { const d = getDay(today); if (!d.abitudini[h.id]) d.abitudini[h.id] = {}; if (!d.abitudini[h.id].saltato) { d.abitudini[h.id].completato = !d.abitudini[h.id].completato; scheduleSync(today, 'sd-oggi', 'st-oggi-sync'); renderHOggiList(getDay(today), today); updateOggiStats(today); } });
+        const onSwipeLeft = h.frequenza === 'settimanale' ? () => { const d = getDay(today); if (!d.abitudini[h.id]) d.abitudini[h.id] = {}; d.abitudini[h.id].saltato = !d.abitudini[h.id].saltato; if (d.abitudini[h.id].saltato) d.abitudini[h.id].completato = false; scheduleSync(today, 'sd-oggi', 'st-oggi-sync'); renderHOggiList(getDay(today), today); updateOggiStats(today); } : null;
+        setupRowGestures(row, () => { const d = getDay(today); if (!d.abitudini[h.id]) d.abitudini[h.id] = {}; if (!d.abitudini[h.id].saltato) { d.abitudini[h.id].completato = !d.abitudini[h.id].completato; scheduleSync(today, 'sd-oggi', 'st-oggi-sync'); renderHOggiList(getDay(today), today); updateOggiStats(today); } }, onSwipeLeft);
         const chk = document.createElement('div'); chk.className = 'hcheck' + (rec.completato ? ' done' : ''); chk.innerHTML = '<svg viewBox="0 0 11 11" fill="none" stroke="#080808" stroke-width="2.5" stroke-linecap="round"><polyline points="1.5,5.5 4.5,8.5 9.5,2.5"/></svg>';
         const nm = document.createElement('span'); nm.className = 'hname' + (rec.completato ? ' done' : ''); nm.textContent = h.nome;
         row.appendChild(chk); row.appendChild(nm);
+        const hStreak = calcHabitStreak(h.id);
+        if (hStreak > 1) { const sb = document.createElement('span'); sb.className = 'habit-streak-badge'; sb.textContent = `🔥${hStreak}`; row.appendChild(sb); }
         if (h.frequenza === 'settimanale') {
           const fr = document.createElement('span'); fr.className = 'hfreq'; fr.textContent = `×${h.targetSettimanale}`;
           const sb2 = document.createElement('button'); sb2.className = 'skip-btn' + (rec.saltato ? ' active' : ''); sb2.title = rec.saltato ? 'Ripristina' : 'Salta oggi';
@@ -2694,7 +2801,7 @@
       day.attivitaDelGiorno.compiti.forEach((t, i) => { if (!t.trim()) return; const it = document.createElement('div'); it.className = 'task-item' + (day.attivitaDelGiorno.altaPriorita[i] ? ' hi' : ''); const dot = document.createElement('div'); dot.className = 'task-dot'; it.appendChild(dot); it.appendChild(document.createTextNode(t)); tlist.appendChild(it); });
       tr.appendChild(tlist); c.appendChild(tr);
     }
-    function updateOggiStats(today) { const pct = calcPct(today) || 0; const oldPct = parseInt(document.getElementById('pct-oggi').textContent) || 0; setBar('fill-oggi', 'pct-oggi', pct); const so = document.getElementById('st-oggi'); so.textContent = pct + '%'; so.style.color = pctColor(pct); if (pct === 100 && oldPct < 100) shootConfetti(); }
+    function updateOggiStats(today) { const pct = calcPct(today) || 0; const oldPct = parseInt(document.getElementById('pct-oggi').textContent) || 0; setRing('ring-fill-oggi', 'pct-oggi', pct); const so = document.getElementById('st-oggi'); so.textContent = pct + '%'; so.style.color = pctColor(pct); if (pct === 100 && oldPct < 100) shootConfetti(); }
     function addRipple(el, e) { const r = document.createElement('span'); r.className = 'ripple'; const rect = el.getBoundingClientRect(); const sz = Math.max(rect.width, rect.height) * 2; r.style.cssText = `width:${sz}px;height:${sz}px;left:${e.clientX - rect.left - sz / 2}px;top:${e.clientY - rect.top - sz / 2}px`; el.appendChild(r); setTimeout(() => r.remove(), 520); }
 
     // ── RECAP ─────────────────────────────────────────────────
