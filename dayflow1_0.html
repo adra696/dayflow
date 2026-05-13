@@ -999,6 +999,51 @@
       box-shadow: 0 0 4px currentColor
     }
 
+    .task-item.clickable {
+      cursor: pointer;
+      padding: 4px 6px;
+      border-radius: 6px;
+      align-items: center;
+      transition: background .15s
+    }
+
+    .task-item.clickable:hover {
+      background: rgba(39, 39, 42, 0.4)
+    }
+
+    .task-item.done .task-text {
+      text-decoration: line-through;
+      color: var(--text3)
+    }
+
+    .task-check {
+      width: 14px;
+      height: 14px;
+      border-radius: 4px;
+      border: 1.5px solid var(--border3);
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: transparent;
+      transition: all .2s
+    }
+
+    .task-check svg {
+      width: 9px;
+      height: 9px;
+      opacity: 0
+    }
+
+    .task-check.done {
+      background: var(--green);
+      border-color: var(--green)
+    }
+
+    .task-check.done svg {
+      opacity: 1
+    }
+
     /* PLAN SCREEN */
     .plan-task {
       display: flex;
@@ -1055,6 +1100,57 @@
       filter: grayscale(0%) opacity(1);
       background: rgba(245, 158, 11, 0.1);
       transform: scale(1.1)
+    }
+
+    .slot-del {
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 6px;
+      font-size: 13px;
+      flex-shrink: 0;
+      line-height: 1;
+      border-radius: 8px;
+      filter: grayscale(100%) opacity(0.35);
+      transition: all .15s
+    }
+
+    .slot-del:hover:not(:disabled) {
+      filter: grayscale(0%) opacity(1);
+      background: rgba(239, 68, 68, 0.1)
+    }
+
+    .slot-del:disabled {
+      cursor: not-allowed;
+      opacity: 0.15
+    }
+
+    .slot-add {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: calc(100% - 24px);
+      margin: 8px 12px;
+      padding: 12px 16px;
+      background: rgba(24, 24, 27, 0.3);
+      border: 1px dashed var(--border2);
+      border-radius: 10px;
+      color: var(--text3);
+      font-family: var(--mono);
+      font-size: 12px;
+      cursor: pointer;
+      transition: all .15s
+    }
+
+    .slot-add:hover {
+      background: rgba(39, 39, 42, 0.4);
+      border-color: var(--green);
+      color: var(--green)
+    }
+
+    .slot-add span {
+      font-size: 18px;
+      line-height: 1
     }
 
     .priority-banner {
@@ -1270,6 +1366,73 @@
       display: flex;
       gap: 12px;
       margin-top: 24px
+    }
+
+    .day-pills {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap
+    }
+
+    .day-pill {
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      background: rgba(24, 24, 27, 0.5);
+      border: 1px solid var(--border2);
+      color: var(--text3);
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .15s;
+      user-select: none
+    }
+
+    .day-pill input {
+      display: none
+    }
+
+    .day-pill:hover {
+      border-color: var(--border3);
+      color: var(--text2)
+    }
+
+    .day-pill.on {
+      background: var(--green);
+      color: #080808;
+      border-color: var(--green)
+    }
+
+    .wh-days-mini {
+      display: flex;
+      gap: 4px;
+      flex: 1;
+      justify-content: center
+    }
+
+    .day-mini {
+      width: 22px;
+      height: 22px;
+      border-radius: 5px;
+      background: rgba(24, 24, 27, 0.6);
+      border: 1px solid var(--border2);
+      color: var(--text3);
+      font-family: var(--mono);
+      font-size: 9px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center
+    }
+
+    .day-mini.on {
+      background: var(--green);
+      color: #080808;
+      border-color: var(--green)
     }
 
     .btn-pri {
@@ -2238,9 +2401,11 @@
 
       .notes-wrap,
       .ai-box,
-      .priority-banner {
+      .priority-banner,
+      .slot-add {
         margin-left: 40px;
         margin-right: 40px;
+        width: calc(100% - 80px);
       }
 
       .save-btn {
@@ -2476,6 +2641,16 @@
           <div class="hm-grid" id="hm-grid"></div>
           <div id="day-popup" class="day-popup" style="display:none"></div>
         </div>
+        <div class="section-head">
+          <span class="section-label">Impegni ricorrenti</span>
+          <button class="icon-btn" onclick="openImpegniModal()" aria-label="Gestisci impegni ricorrenti">
+            <svg viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+          </button>
+        </div>
+        <div class="wh-section" id="impegni-section"></div>
         <div class="section-head"><span class="section-label">Abitudini settimanali</span></div>
         <div class="wh-section" id="wh-section"></div>
       </div>
@@ -2541,7 +2716,7 @@
     try { sb = createClient(SUPA_URL, SUPA_KEY); } catch (e) { console.error('Supabase init error', e); }
 
     const SK = 'dayflow_v3';
-    let S = { habits: [], days: {} };
+    let S = { habits: [], days: {}, impegniRicorrenti: [] };
     let curUser = null;
     let curScreen = 'oggi';
     let selectedDate = todayStr();
@@ -2583,11 +2758,37 @@
     }
     function p2(n) { return String(n).padStart(2, '0') }
     function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2) }
-    function load() { try { const r = localStorage.getItem(SK); if (r) S = JSON.parse(r) } catch (e) { } }
+    function load() { try { const r = localStorage.getItem(SK); if (r) S = JSON.parse(r) } catch (e) { } if (!Array.isArray(S.impegniRicorrenti)) S.impegniRicorrenti = []; }
     function persist() { try { localStorage.setItem(SK, JSON.stringify(S)) } catch (e) { } }
-    function getDay(ds) { if (!S.days[ds]) S.days[ds] = { data: ds, abitudini: {}, attivitaDelGiorno: { compiti: ['', '', ''], altaPriorita: [false, false, false], completato: false, completatiCount: 0 }, note: '', timestamp: Date.now(), eventi: [] }; return S.days[ds]; }
+    function getDay(ds) { if (!S.days[ds]) S.days[ds] = { data: ds, abitudini: {}, attivitaDelGiorno: { compiti: ['', '', ''], altaPriorita: [false, false, false], completatiTask: [false, false, false], completato: false, completatiCount: 0 }, note: '', timestamp: Date.now(), eventi: [] }; ensureSlotArrays(S.days[ds]); return S.days[ds]; }
+    function ensureSlotArrays(day) {
+      const atd = day.attivitaDelGiorno;
+      if (!Array.isArray(atd.compiti)) atd.compiti = ['', '', ''];
+      if (!Array.isArray(atd.altaPriorita)) atd.altaPriorita = [];
+      while (atd.altaPriorita.length < atd.compiti.length) atd.altaPriorita.push(false);
+      atd.altaPriorita.length = atd.compiti.length;
+      if (!Array.isArray(atd.completatiTask)) {
+        // Migration: derive from legacy completatiCount / completato
+        const cnt = atd.completatiCount || (atd.completato ? atd.compiti.filter(t => t.trim()).length : 0);
+        atd.completatiTask = atd.compiti.map(() => false);
+        let marked = 0;
+        for (let i = 0; i < atd.compiti.length && marked < cnt; i++) {
+          if (atd.compiti[i] && atd.compiti[i].trim()) { atd.completatiTask[i] = true; marked++; }
+        }
+      }
+      while (atd.completatiTask.length < atd.compiti.length) atd.completatiTask.push(false);
+      atd.completatiTask.length = atd.compiti.length;
+    }
+    function atdDoneCount(day) {
+      const atd = day.attivitaDelGiorno;
+      let n = 0;
+      for (let i = 0; i < atd.compiti.length; i++) {
+        if (atd.compiti[i] && atd.compiti[i].trim() && atd.completatiTask[i]) n++;
+      }
+      return n;
+    }
     function activeHabits() { return S.habits.filter(h => h.attiva).sort((a, b) => a.ordine - b.ordine) }
-    function calcPct(ds) { const day = S.days[ds]; if (!day) return null; const habits = activeHabits(); let total = 1, done = 0; habits.forEach(h => { const r = day.abitudini[h.id] || {}; if (!r.saltato) total++; if (!r.saltato && r.completato) done++; }); const atd = day.attivitaDelGiorno; const nonEmpty = atd.compiti.filter(t => t.trim()).length; done += nonEmpty > 0 ? (atd.completatiCount || 0) / nonEmpty : (atd.completato ? 1 : 0); return Math.round((done / total) * 100); }
+    function calcPct(ds) { const day = S.days[ds]; if (!day) return null; ensureSlotArrays(day); const habits = activeHabits(); let total = 1, done = 0; habits.forEach(h => { const r = day.abitudini[h.id] || {}; if (!r.saltato) total++; if (!r.saltato && r.completato) done++; }); const atd = day.attivitaDelGiorno; const nonEmpty = atd.compiti.filter(t => t.trim()).length; done += nonEmpty > 0 ? atdDoneCount(day) / nonEmpty : 0; return Math.round((done / total) * 100); }
     function pctColor(p) { return p <= 25 ? '#f87171' : p <= 50 ? '#fb923c' : p <= 75 ? '#facc15' : '#4ade80' }
     function heatColor(p) { if (p === null) return null; if (p === 0) return '#181818'; if (p <= 25) return '#3d1515'; if (p <= 50) return '#3d2510'; if (p <= 75) return '#352e08'; return '#163316'; }
     function fmtDate(ds) { const d = new Date(ds + 'T12:00:00'); return d.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).toLowerCase() }
@@ -2652,7 +2853,7 @@
     }
     async function doLogout() {
       await sb.auth.signOut();
-      S = { habits: [], days: {} };
+      S = { habits: [], days: {}, impegniRicorrenti: [] };
       localStorage.removeItem(SK);
       curUser = null;
       document.getElementById('shell').style.display = 'none';
@@ -2680,14 +2881,18 @@
     async function sbSaveHabits() {
       if (!curUser || !sb) return;
       try {
-        await sb.from('profiles').upsert({ id: curUser.id, habits: S.habits, updated_at: new Date().toISOString() });
+        await sb.from('profiles').upsert({ id: curUser.id, habits: S.habits, impegni_ricorrenti: S.impegniRicorrenti || [], updated_at: new Date().toISOString() });
       } catch (e) { console.error('sbSaveHabits', e); }
     }
     async function sbLoadHabits() {
       if (!curUser || !sb) return;
       try {
-        const { data } = await sb.from('profiles').select('habits').eq('id', curUser.id).single();
-        if (data && data.habits && data.habits.length) { S.habits = data.habits; persist(); }
+        const { data } = await sb.from('profiles').select('habits, impegni_ricorrenti').eq('id', curUser.id).single();
+        if (data) {
+          if (data.habits && data.habits.length) S.habits = data.habits;
+          if (Array.isArray(data.impegni_ricorrenti)) S.impegniRicorrenti = data.impegni_ricorrenti;
+          persist();
+        }
       } catch (e) { console.error('sbLoadHabits', e); }
     }
     async function sbSaveDay(ds, dotId, txtId) {
@@ -2896,16 +3101,43 @@
       setSS('sd-plan', 'st-plan', 'ok', 'pronto');
     }
     function renderTaskInputs(day, today) {
+      ensureSlotArrays(day);
       const c = document.getElementById('task-inputs'); c.innerHTML = '';
-      for (let i = 0; i < 3; i++) {
+      const n = day.attivitaDelGiorno.compiti.length;
+      for (let i = 0; i < n; i++) {
         const row = document.createElement('div'); row.className = 'plan-task';
-        const num = document.createElement('span'); num.className = 'plan-num'; num.textContent = `0${i + 1}`;
+        const num = document.createElement('span'); num.className = 'plan-num'; num.textContent = p2(i + 1);
         const inp = document.createElement('input'); inp.type = 'text'; inp.placeholder = `Attività ${i + 1}…`; inp.value = day.attivitaDelGiorno.compiti[i] || ''; inp.dataset.i = i;
         inp.addEventListener('input', e => { const d = getDay(today); d.attivitaDelGiorno.compiti[+e.target.dataset.i] = e.target.value; scheduleSync(today, 'sd-plan', 'st-plan'); });
         const pb = document.createElement('button'); pb.className = 'pri-toggle' + (day.attivitaDelGiorno.altaPriorita[i] ? ' on' : ''); pb.dataset.i = i; pb.title = 'Alta priorità'; pb.textContent = '🔥';
         pb.onclick = e => { e.stopPropagation(); const d = getDay(today); const idx = +e.currentTarget.dataset.i; d.attivitaDelGiorno.altaPriorita[idx] = !d.attivitaDelGiorno.altaPriorita[idx]; checkPriBanner(d); e.currentTarget.classList.toggle('on'); scheduleSync(today, 'sd-plan', 'st-plan'); };
-        row.appendChild(num); row.appendChild(inp); row.appendChild(pb); c.appendChild(row);
+        const db = document.createElement('button'); db.className = 'slot-del'; db.dataset.i = i; db.title = 'Elimina slot'; db.textContent = '🗑';
+        db.disabled = n <= 1;
+        db.onclick = e => {
+          e.stopPropagation();
+          const d = getDay(today);
+          if (d.attivitaDelGiorno.compiti.length <= 1) return;
+          const idx = +e.currentTarget.dataset.i;
+          d.attivitaDelGiorno.compiti.splice(idx, 1);
+          d.attivitaDelGiorno.altaPriorita.splice(idx, 1);
+          d.attivitaDelGiorno.completatiTask.splice(idx, 1);
+          scheduleSync(today, 'sd-plan', 'st-plan');
+          renderTaskInputs(d, today);
+          checkPriBanner(d);
+        };
+        row.appendChild(num); row.appendChild(inp); row.appendChild(pb); row.appendChild(db); c.appendChild(row);
       }
+      const addRow = document.createElement('button'); addRow.className = 'slot-add'; addRow.type = 'button';
+      addRow.innerHTML = '<span>+</span> aggiungi slot';
+      addRow.onclick = () => {
+        const d = getDay(today);
+        d.attivitaDelGiorno.compiti.push('');
+        d.attivitaDelGiorno.altaPriorita.push(false);
+        d.attivitaDelGiorno.completatiTask.push(false);
+        scheduleSync(today, 'sd-plan', 'st-plan');
+        renderTaskInputs(d, today);
+      };
+      c.appendChild(addRow);
     }
     function checkPriBanner(day) { const has = day.attivitaDelGiorno.altaPriorita.some(v => v); document.getElementById('pri-banner').style.display = has ? 'flex' : 'none'; }
     function savePlan() {
@@ -3005,12 +3237,12 @@
         }
         c.appendChild(row);
       });
+      ensureSlotArrays(day);
       const hasP = day.attivitaDelGiorno.altaPriorita.some(v => v);
       const atdNE = day.attivitaDelGiorno.compiti.filter(t => t.trim()).length;
-      const atdCount = day.attivitaDelGiorno.completatiCount || 0;
-      const atdDone = atdNE > 0 ? atdCount >= atdNE : day.attivitaDelGiorno.completato;
+      const atdCount = atdDoneCount(day);
+      const atdDone = atdNE > 0 && atdCount >= atdNE;
       const tr = document.createElement('div'); tr.className = 'tasks-row' + (hasP ? ' priority-on' : '');
-      tr.onclick = () => { const d = getDay(today); const ne = d.attivitaDelGiorno.compiti.filter(t => t.trim()).length; const max = ne || 1; const cur = d.attivitaDelGiorno.completatiCount || 0; d.attivitaDelGiorno.completatiCount = (cur + 1) % (max + 1); d.attivitaDelGiorno.completato = d.attivitaDelGiorno.completatiCount >= max; scheduleSync(today, 'sd-oggi', 'st-oggi-sync'); renderHOggiList(getDay(today), today); updateOggiStats(today); };
       const th = document.createElement('div'); th.className = 'tasks-head';
       const tc = document.createElement('div'); tc.className = 'hcheck' + (atdDone ? ' done' : ''); tc.innerHTML = '<svg viewBox="0 0 11 11" fill="none" stroke="#080808" stroke-width="2.5" stroke-linecap="round"><polyline points="1.5,5.5 4.5,8.5 9.5,2.5"/></svg>';
       const tl = document.createElement('span'); tl.className = 'hname' + (atdDone ? ' done' : ''); tl.textContent = 'Attività del giorno';
@@ -3019,7 +3251,23 @@
       if (hasP) { const pb = document.createElement('span'); pb.style.cssText = 'font-family:var(--mono);font-size:8px;color:var(--red);' + (atdCount > 0 && atdNE > 0 && !atdDone ? 'margin-left:4px' : 'margin-left:auto'); pb.textContent = '⚠ priorità'; th.appendChild(pb); }
       tr.appendChild(th);
       const tlist = document.createElement('div'); tlist.className = 'tasks-list';
-      day.attivitaDelGiorno.compiti.forEach((t, i) => { if (!t.trim()) return; const it = document.createElement('div'); it.className = 'task-item' + (day.attivitaDelGiorno.altaPriorita[i] ? ' hi' : ''); const dot = document.createElement('div'); dot.className = 'task-dot'; it.appendChild(dot); it.appendChild(document.createTextNode(t)); tlist.appendChild(it); });
+      day.attivitaDelGiorno.compiti.forEach((t, i) => {
+        if (!t.trim()) return;
+        const it = document.createElement('div');
+        it.className = 'task-item clickable' + (day.attivitaDelGiorno.altaPriorita[i] ? ' hi' : '') + (day.attivitaDelGiorno.completatiTask[i] ? ' done' : '');
+        const chk = document.createElement('div'); chk.className = 'task-check' + (day.attivitaDelGiorno.completatiTask[i] ? ' done' : ''); chk.innerHTML = '<svg viewBox="0 0 11 11" fill="none" stroke="#080808" stroke-width="2.5" stroke-linecap="round"><polyline points="1.5,5.5 4.5,8.5 9.5,2.5"/></svg>';
+        it.appendChild(chk);
+        const lbl = document.createElement('span'); lbl.className = 'task-text'; lbl.textContent = t; it.appendChild(lbl);
+        it.onclick = e => {
+          e.stopPropagation();
+          const d = getDay(today);
+          d.attivitaDelGiorno.completatiTask[i] = !d.attivitaDelGiorno.completatiTask[i];
+          scheduleSync(today, 'sd-oggi', 'st-oggi-sync');
+          renderHOggiList(getDay(today), today);
+          updateOggiStats(today);
+        };
+        tlist.appendChild(it);
+      });
       tr.appendChild(tlist); c.appendChild(tr);
     }
     function updateOggiStats(today) { const pct = calcPct(today) || 0; const oldPct = parseInt(document.getElementById('pct-oggi').textContent) || 0; setRing('ring-fill-oggi', 'pct-oggi', pct); const so = document.getElementById('st-oggi'); so.textContent = pct + '%'; so.style.color = pctColor(pct); if (pct === 100 && oldPct < 100) shootConfetti(); }
@@ -3035,7 +3283,8 @@
       const day = getDay(selectedDate); const pct = calcPct(selectedDate) || 0; setBar('fill-recap', 'pct-recap', pct);
       const list = document.getElementById('sum-list'); list.innerHTML = '';
       activeHabits().forEach(h => { const rec = day.abitudini[h.id] || {}; const row = document.createElement('div'); row.className = 'sum-row'; const icon = document.createElement('div'); icon.className = 'sum-icon ' + (rec.saltato ? 'sk' : rec.completato ? 'ok' : 'ko'); icon.innerHTML = rec.saltato ? '—' : rec.completato ? '<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="3" fill="none"><polyline points="20 6 9 17 4 12"/></svg>' : '<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="3" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'; const nm = document.createElement('span'); nm.className = 'sum-name'; nm.textContent = h.nome; const badge = document.createElement('span'); badge.className = 'sum-badge ' + (rec.saltato ? 'bs' : rec.completato ? 'bd' : 'bm'); badge.textContent = rec.saltato ? 'saltata' : rec.completato ? 'completata' : 'mancata'; row.appendChild(icon); row.appendChild(nm); row.appendChild(badge); list.appendChild(row); });
-      const tr = document.createElement('div'); tr.className = 'sum-row'; const ti = document.createElement('div'); const rAtdNE = day.attivitaDelGiorno.compiti.filter(t => t.trim()).length; const rAtdCnt = day.attivitaDelGiorno.completatiCount || 0; const rAtdFull = rAtdNE > 0 ? rAtdCnt >= rAtdNE : day.attivitaDelGiorno.completato; ti.className = 'sum-icon ' + (rAtdFull ? 'ok' : 'ko'); ti.innerHTML = rAtdFull ? '<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="3" fill="none"><polyline points="20 6 9 17 4 12"/></svg>' : '<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="3" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'; const tn = document.createElement('span'); tn.className = 'sum-name'; tn.textContent = 'Attività del giorno'; const tb = document.createElement('span'); tb.className = 'sum-badge ' + (rAtdFull ? 'bd' : 'bm'); tb.textContent = rAtdFull ? 'completata' : rAtdCnt > 0 && rAtdNE > 0 ? `${rAtdCnt}/${rAtdNE} completate` : 'mancata'; tr.appendChild(ti); tr.appendChild(tn); tr.appendChild(tb); list.appendChild(tr);
+      ensureSlotArrays(day);
+      const tr = document.createElement('div'); tr.className = 'sum-row'; const ti = document.createElement('div'); const rAtdNE = day.attivitaDelGiorno.compiti.filter(t => t.trim()).length; const rAtdCnt = atdDoneCount(day); const rAtdFull = rAtdNE > 0 && rAtdCnt >= rAtdNE; ti.className = 'sum-icon ' + (rAtdFull ? 'ok' : 'ko'); ti.innerHTML = rAtdFull ? '<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="3" fill="none"><polyline points="20 6 9 17 4 12"/></svg>' : '<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="3" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'; const tn = document.createElement('span'); tn.className = 'sum-name'; tn.textContent = 'Attività del giorno'; const tb = document.createElement('span'); tb.className = 'sum-badge ' + (rAtdFull ? 'bd' : 'bm'); tb.textContent = rAtdFull ? 'completata' : rAtdCnt > 0 && rAtdNE > 0 ? `${rAtdCnt}/${rAtdNE} completate` : 'mancata'; tr.appendChild(ti); tr.appendChild(tn); tr.appendChild(tb); list.appendChild(tr);
       document.getElementById('notes-ta').value = day.note || '';
       // Motivational phrase
       const motivEl = document.getElementById('ai-motiv-txt');
@@ -3070,7 +3319,7 @@
         else if (wa < prevWa) { trendEl.textContent = ' ↓'; trendEl.className = 'trend-arrow down'; }
         else { trendEl.textContent = ' →'; trendEl.className = 'trend-arrow flat'; }
       } else { trendEl.textContent = ''; }
-      renderHeatmap(); renderWeeklyHabits(); renderProssimi();
+      renderHeatmap(); renderWeeklyHabits(); renderImpegniSection(); renderProssimi();
     }
     function changeMonth(delta) { hmMonth += delta; if (hmMonth > 11) { hmMonth = 0; hmYear++; } if (hmMonth < 0) { hmMonth = 11; hmYear--; } renderHeatmap(); }
     function renderHeatmap() {
@@ -3289,6 +3538,144 @@
       persist(); sbSaveHabits(); mMode = 'list'; renderModal(); if (curScreen === 'plan') renderPlan(); if (curScreen === 'oggi') renderOggi();
     }
     function deleteHabit(id) { if (!confirm('Eliminare questa abitudine?')) return; S.habits = S.habits.filter(h => h.id !== id); persist(); sbSaveHabits(); mMode = 'list'; renderModal(); if (curScreen === 'plan') renderPlan(); if (curScreen === 'oggi') renderOggi(); }
+
+    // ── MODAL IMPEGNI RICORRENTI ──────────────────────────────
+    let impegniMode = 'list';
+    let editImpId = null;
+    const GIORNI_LBL = ['L', 'M', 'M', 'G', 'V', 'S', 'D'];
+    const GIORNI_FULL = ['lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom'];
+
+    function activeImpegni() {
+      const arr = (S.impegniRicorrenti || []).filter(r => r.attivo !== false);
+      return arr.slice().sort((a, b) => (a.ordine || 0) - (b.ordine || 0));
+    }
+
+    function openImpegniModal() { impegniMode = 'list'; renderImpegniModal(); }
+
+    function renderImpegniModal() {
+      document.getElementById('modal-overlay').classList.add('open');
+      if (impegniMode === 'list') renderImpegniList();
+      else renderImpegniForm(impegniMode === 'edit' ? (S.impegniRicorrenti || []).find(r => r.id === editImpId) : null);
+    }
+
+    function renderImpegniList() {
+      document.getElementById('modal-title').textContent = 'Gestione impegni ricorrenti';
+      const body = document.getElementById('modal-body'); body.innerHTML = '';
+      const list = activeImpegni();
+      if (!list.length) { const e = document.createElement('div'); e.className = 'empty-state'; e.innerHTML = '<div class="empty-lbl">Nessun impegno ricorrente</div>'; body.appendChild(e); }
+      list.forEach(r => {
+        const row = document.createElement('div'); row.className = 'hmanage-row'; row.draggable = true;
+        row.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', r.id); row.classList.add('dragging'); });
+        row.addEventListener('dragend', () => row.classList.remove('dragging'));
+        row.addEventListener('dragover', (e) => e.preventDefault());
+        row.addEventListener('drop', (e) => {
+          e.preventDefault(); const dId = e.dataTransfer.getData('text/plain');
+          if (dId && dId !== r.id) {
+            const arr = activeImpegni(); const dIdx = arr.findIndex(x => x.id === dId); const tIdx = arr.findIndex(x => x.id === r.id);
+            const dR = arr.splice(dIdx, 1)[0]; arr.splice(tIdx, 0, dR); arr.forEach((x, i) => x.ordine = i);
+            persist(); sbSaveHabits(); renderImpegniList(); renderImpegniSection();
+          }
+        });
+        row.onclick = (e) => { if (e.target.closest('.arr-btn')) return; editImpId = r.id; impegniMode = 'edit'; renderImpegniModal(); };
+        const handle = document.createElement('div'); handle.className = 'drag-handle'; handle.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>';
+        const info = document.createElement('div'); info.className = 'hmanage-info';
+        const nm = document.createElement('div'); nm.className = 'hmanage-name'; nm.textContent = r.titolo;
+        const meta = document.createElement('div'); meta.className = 'hmanage-meta';
+        const gg = (r.giorniSettimana || []).slice().sort((a, b) => a - b).map(g => GIORNI_FULL[g - 1]).join(' ');
+        meta.textContent = (gg || 'nessun giorno') + (r.ora ? ` · ${r.ora}` : '');
+        info.appendChild(nm); info.appendChild(meta);
+        const arrows = document.createElement('div'); arrows.className = 'arrows';
+        const up = document.createElement('button'); up.className = 'arr-btn'; up.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><polyline points="18 15 12 9 6 15"/></svg>'; up.onclick = e => { e.stopPropagation(); moveImpegno(r.id, -1); };
+        const dn = document.createElement('button'); dn.className = 'arr-btn'; dn.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><polyline points="6 9 12 15 18 9"/></svg>'; dn.onclick = e => { e.stopPropagation(); moveImpegno(r.id, 1); };
+        arrows.appendChild(up); arrows.appendChild(dn);
+        row.appendChild(handle); row.appendChild(info); row.appendChild(arrows); body.appendChild(row);
+      });
+      const addBtn = document.createElement('button'); addBtn.className = 'add-habit-btn';
+      addBtn.innerHTML = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>Aggiungi impegno';
+      addBtn.onclick = () => { impegniMode = 'add'; renderImpegniModal(); };
+      body.appendChild(addBtn);
+    }
+
+    function moveImpegno(id, dir) {
+      const arr = activeImpegni(); const idx = arr.findIndex(r => r.id === id); const nIdx = idx + dir;
+      if (nIdx < 0 || nIdx >= arr.length) return;
+      const tmp = arr[idx].ordine; arr[idx].ordine = arr[nIdx].ordine; arr[nIdx].ordine = tmp;
+      persist(); sbSaveHabits(); renderImpegniList(); renderImpegniSection();
+    }
+
+    function renderImpegniForm(rec) {
+      document.getElementById('modal-title').textContent = rec ? 'Modifica impegno' : 'Nuovo impegno';
+      const body = document.getElementById('modal-body'); body.innerHTML = '';
+      const form = document.createElement('div'); form.className = 'modal-form';
+      const days = rec ? (rec.giorniSettimana || []) : [];
+      const checks = GIORNI_LBL.map((lbl, i) => {
+        const dNum = i + 1; const on = days.includes(dNum);
+        return `<label class="day-pill${on ? ' on' : ''}"><input type="checkbox" data-d="${dNum}"${on ? ' checked' : ''}/>${lbl}</label>`;
+      }).join('');
+      form.innerHTML = `
+        <div class="form-row"><label class="form-label">Nome</label><input class="form-input" id="if-nome" type="text" placeholder="Es. Palestra"></div>
+        <div class="form-row"><label class="form-label">Ora (opzionale)</label><input class="form-input" id="if-ora" type="time" value="${rec && rec.ora ? rec.ora : ''}"></div>
+        <div class="form-row"><label class="form-label">Giorni della settimana</label><div class="day-pills" id="if-days">${checks}</div></div>
+      `;
+      const btns = document.createElement('div'); btns.className = 'form-btns';
+      const sv = document.createElement('button'); sv.className = 'btn-pri'; sv.textContent = rec ? 'Salva' : 'Aggiungi';
+      sv.onclick = () => submitImpegnoForm(rec ? rec.id : null);
+      const bk = document.createElement('button'); bk.className = 'btn-sec'; bk.textContent = 'Indietro';
+      bk.onclick = () => { impegniMode = 'list'; renderImpegniModal(); };
+      btns.appendChild(sv); btns.appendChild(bk);
+      if (rec) { const dl = document.createElement('button'); dl.className = 'btn-del'; dl.textContent = 'Elimina'; dl.onclick = () => deleteImpegno(rec.id); btns.appendChild(dl); }
+      form.appendChild(btns); body.appendChild(form);
+      form.querySelectorAll('.day-pill input').forEach(inp => {
+        inp.addEventListener('change', e => { e.currentTarget.parentElement.classList.toggle('on', e.currentTarget.checked); });
+      });
+      const ni = document.getElementById('if-nome');
+      if (rec) ni.value = rec.titolo;
+      ni.focus();
+    }
+
+    function submitImpegnoForm(id) {
+      const titolo = document.getElementById('if-nome').value.trim(); if (!titolo) return;
+      const ora = document.getElementById('if-ora').value || '';
+      const days = Array.from(document.querySelectorAll('#if-days input:checked')).map(i => +i.dataset.d);
+      if (!days.length) { alert('Seleziona almeno un giorno'); return; }
+      if (!Array.isArray(S.impegniRicorrenti)) S.impegniRicorrenti = [];
+      if (id) {
+        const r = S.impegniRicorrenti.find(x => x.id === id);
+        if (r) { r.titolo = titolo; r.ora = ora; r.giorniSettimana = days; r.attivo = r.attivo !== false; }
+      } else {
+        const maxOrd = S.impegniRicorrenti.length ? Math.max(...S.impegniRicorrenti.map(r => r.ordine || 0)) : -1;
+        S.impegniRicorrenti.push({ id: uid(), titolo, ora, giorniSettimana: days, ordine: maxOrd + 1, attivo: true });
+      }
+      persist(); sbSaveHabits();
+      impegniMode = 'list'; renderImpegniModal(); renderImpegniSection();
+    }
+
+    function deleteImpegno(id) {
+      if (!confirm('Eliminare questo impegno ricorrente?')) return;
+      S.impegniRicorrenti = (S.impegniRicorrenti || []).filter(r => r.id !== id);
+      persist(); sbSaveHabits();
+      impegniMode = 'list'; renderImpegniModal(); renderImpegniSection();
+    }
+
+    function renderImpegniSection() {
+      const c = document.getElementById('impegni-section'); if (!c) return;
+      c.innerHTML = ''; const list = activeImpegni();
+      if (!list.length) { c.innerHTML = '<div class="empty-state"><div class="empty-lbl">Nessun impegno ricorrente — premi ⚙ per aggiungerne</div></div>'; return; }
+      list.forEach(r => {
+        const row = document.createElement('div'); row.className = 'wh-row';
+        const nm = document.createElement('div'); nm.className = 'wh-name'; nm.textContent = r.titolo;
+        const days = (r.giorniSettimana || []).slice().sort((a, b) => a - b);
+        const track = document.createElement('div'); track.className = 'wh-days-mini';
+        GIORNI_LBL.forEach((lbl, i) => {
+          const dot = document.createElement('span');
+          dot.className = 'day-mini' + (days.includes(i + 1) ? ' on' : '');
+          dot.textContent = lbl;
+          track.appendChild(dot);
+        });
+        const ora = document.createElement('div'); ora.className = 'wh-count'; ora.textContent = r.ora || '';
+        row.appendChild(nm); row.appendChild(track); row.appendChild(ora); c.appendChild(row);
+      });
+    }
 
     // ── SERVICE WORKER (solo HTTPS) ────────────────────────────
     if ('serviceWorker' in navigator && location.protocol === 'https:') {
