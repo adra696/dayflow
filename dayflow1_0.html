@@ -2776,6 +2776,7 @@
     let mMode = 'list', editId = null;
     let syncDebounce = null;
     let pendingSync = new Set(); // giorni in attesa di sync
+    let allDaysLoaded = false;
 
     // ── UTILS ──────────────────────────────────────────────────
     function todayStr() { const d = new Date(); return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}` }
@@ -2784,6 +2785,9 @@
       if (curScreen === 'plan') renderPlan();
       else if (curScreen === 'oggi') renderOggi();
       else if (curScreen === 'recap') renderRecap();
+      
+      // Caricamento incrementale in background della nuova finestra temporale
+      loadWindowForDate(ds);
     }
     function offsetDate(ds, giorni) {
       const d = new Date(ds + 'T12:00:00');
@@ -2921,6 +2925,7 @@
     async function doLogout() {
       await sb.auth.signOut();
       S = { habits: [], days: {}, impegniRicorrenti: [] };
+      allDaysLoaded = false;
       localStorage.removeItem(SK);
       curUser = null;
       document.getElementById('shell').style.display = 'none';
@@ -3003,6 +3008,64 @@
         }
         return result;
       } catch (e) { console.error('sbLoadAllDays', e); return null; }
+    }
+    async function sbLoadDaysRange(startDate, endDate) {
+      if (!curUser || !sb) return null;
+      try {
+        const { data } = await sb.from('days').select('*').eq('user_id', curUser.id).gte('data', startDate).lte('data', endDate);
+        if (!data) return null;
+        const result = {};
+        for (const row of data) {
+          result[row.data] = { data: row.data, abitudini: row.abitudini || {}, attivitaDelGiorno: row.attivita_del_giorno || { compiti: ['', '', ''], altaPriorita: [false, false, false], completato: false }, impegniRicorrentiCompletati: row.impegni_ricorrenti_completati || {}, note: row.note || '', timestamp: row.timestamp || Date.now() };
+        }
+        return result;
+      } catch (e) { console.error('sbLoadDaysRange', e); return null; }
+    }
+    async function loadWindowForDate(ds) {
+      if (!curUser || !sb) return;
+      const startD = offsetDate(ds, -4);
+      const endD = offsetDate(ds, 4);
+      const windowDays = await sbLoadDaysRange(startD, endD);
+      if (windowDays) {
+        let changed = false;
+        for (const [dateStr, remote] of Object.entries(windowDays)) {
+          const local = S.days[dateStr];
+          if (!local || (remote.timestamp > (local.timestamp || 0))) {
+            S.days[dateStr] = remote;
+            changed = true;
+          }
+        }
+        if (changed) {
+          persist();
+          if (curScreen === 'plan') renderPlan();
+          else if (curScreen === 'oggi') renderOggi();
+          else if (curScreen === 'recap') renderRecap();
+        }
+      }
+    }
+    function sbLoadAllDaysInBackground() {
+      if (!curUser || !sb) return;
+      (async () => {
+        try {
+          const allDays = await sbLoadAllDays();
+          if (allDays) {
+            let changed = false;
+            for (const [ds, remote] of Object.entries(allDays)) {
+              const local = S.days[ds];
+              if (!local || (remote.timestamp > (local.timestamp || 0))) {
+                S.days[ds] = remote;
+                changed = true;
+              }
+            }
+            allDaysLoaded = true;
+            persist();
+            if (curScreen === 'oggi') renderOggi();
+            else if (curScreen === 'calendario') renderCalendario();
+          }
+        } catch (e) {
+          console.error('sbLoadAllDaysInBackground error', e);
+        }
+      })();
     }
     function scheduleSync(ds, dotId, txtId) {
       persist();
@@ -3101,9 +3164,13 @@
       goScreen('oggi');
       setSS('sd-oggi', 'st-oggi-sync', 'syncing', 'sincronizzazione...');
       await withTimeout(sbLoadHabits(), 8000);
-      const allDays = await withTimeout(sbLoadAllDays(), 8000);
-      if (allDays) {
-        for (const [ds, remote] of Object.entries(allDays)) {
+      
+      // Carica solo la finestra temporale iniziale di 9 giorni [selectedDate-4, selectedDate+4]
+      const startD = offsetDate(selectedDate, -4);
+      const endD = offsetDate(selectedDate, 4);
+      const windowDays = await withTimeout(sbLoadDaysRange(startD, endD), 8000);
+      if (windowDays) {
+        for (const [ds, remote] of Object.entries(windowDays)) {
           const local = S.days[ds];
           if (!local || (remote.timestamp > (local.timestamp || 0))) S.days[ds] = remote;
         }
@@ -3112,7 +3179,10 @@
         else if (curScreen === 'plan') renderPlan();
         else if (curScreen === 'recap') renderRecap();
       }
-      setSS('sd-oggi', 'st-oggi-sync', allDays ? 'ok' : 'err', allDays ? 'sincronizzato' : 'locale — nessuna rete');
+      setSS('sd-oggi', 'st-oggi-sync', windowDays ? 'ok' : 'err', windowDays ? 'sincronizzato' : 'locale — nessuna rete');
+      
+      // Carica il resto dei dati storici in background per Streak e Calendario
+      sbLoadAllDaysInBackground();
     }
 
     // ── AUTH LISTENER ─────────────────────────────────────────
@@ -3148,7 +3218,7 @@
     })();
 
     // ── NAVIGATION ────────────────────────────────────────────
-    function goScreen(name, keepDate = false) {
+    function goScreen(name, keepDate = true) {
       document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
       document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
       document.getElementById('screen-' + name).classList.add('active');
@@ -3254,11 +3324,13 @@
       const wa = calcAvg(weekDays()), ma = calcAvg(monthDays(new Date().getFullYear(), new Date().getMonth()));
       document.getElementById('st-sett').textContent = wa !== null ? wa + '%' : '—';
       document.getElementById('st-mese').textContent = ma !== null ? ma + '%' : '—';
-      const streak = calcStreak();
+      
+      // Mostra caricamento provvisorio della streak se i dati non sono completi
+      const streak = allDaysLoaded ? calcStreak() : '...';
       const streakEl = document.getElementById('streak-oggi');
       streakEl.textContent = '🔥 ' + streak;
-      streakEl.className = 'streak-badge' + (streak === 0 ? ' none' : '');
-      if (streak > 0 && streak % 7 === 0) { shootConfetti(); showToast(`🔥 ${streak} giorni di streak! Fantastico!`, 'info'); }
+      streakEl.className = 'streak-badge' + (streak === 0 || streak === '...' ? ' none' : '');
+      if (allDaysLoaded && streak > 0 && streak % 7 === 0) { shootConfetti(); showToast(`🔥 ${streak} giorni di streak! Fantastico!`, 'info'); }
       renderHOggiList(day, selectedDate);
     }
     function setupRowGestures(row, onComplete, onSwipeLeft) {
@@ -3431,6 +3503,7 @@
       const allDays = await sbLoadAllDays();
       if (allDays) {
         for (const [ds, nd] of Object.entries(allDays)) { const local = S.days[ds]; if (!local || (nd.timestamp > (local.timestamp || 0))) S.days[ds] = nd; }
+        allDaysLoaded = true;
         persist();
       }
       setSS('sd-an', 'st-an-sync', 'ok', 'sincronizzato');
@@ -3833,6 +3906,63 @@
         row.appendChild(nm); row.appendChild(track); row.appendChild(ora); c.appendChild(row);
       });
     }
+
+    // ── SWIPE NAVIGATION ──────────────────────────────────────
+    (function initSwipeNavigation() {
+      const screenArea = document.getElementById('screen-area');
+      if (!screenArea) return;
+
+      const screens = ['plan', 'oggi', 'recap', 'calendario'];
+      let touchStartX = 0;
+      let touchStartY = 0;
+      let touchEndX = 0;
+      let touchEndY = 0;
+
+      screenArea.addEventListener('touchstart', (e) => {
+        if (e.touches.length > 1) return;
+        
+        // Ignora gesti se originano da elementi interattivi orizzontali o modali aperti
+        const overlay = document.getElementById('modal-overlay');
+        if (overlay && overlay.classList.contains('open')) return;
+
+        const target = e.target.closest('.heatmap-container, .hm-grid, input[type="range"], select');
+        if (target) return;
+
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+      }, { passive: true });
+
+      screenArea.addEventListener('touchend', (e) => {
+        if (e.changedTouches.length === 0) return;
+        touchEndX = e.changedTouches[0].clientX;
+        touchEndY = e.changedTouches[0].clientY;
+
+        handleSwipe();
+      }, { passive: true });
+
+      function handleSwipe() {
+        const deltaX = touchEndX - touchStartX;
+        const deltaY = touchEndY - touchStartY;
+
+        const thresholdX = 60; // soglia minima per swipe
+        if (Math.abs(deltaX) > thresholdX && Math.abs(deltaX) > Math.abs(deltaY) * 1.5) {
+          const currentIndex = screens.indexOf(curScreen);
+          if (currentIndex === -1) return;
+
+          if (deltaX < 0) {
+            // Swipe a sinistra -> vai a destra
+            if (currentIndex < screens.length - 1) {
+              goScreen(screens[currentIndex + 1], true);
+            }
+          } else {
+            // Swipe a destra -> vai a sinistra
+            if (currentIndex > 0) {
+              goScreen(screens[currentIndex - 1], true);
+            }
+          }
+        }
+      }
+    })();
 
     // ── SERVICE WORKER (solo HTTPS) ────────────────────────────
     if ('serviceWorker' in navigator && location.protocol === 'https:') {
