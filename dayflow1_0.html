@@ -2769,6 +2769,7 @@
     let S = { habits: [], days: {}, impegniRicorrenti: [] };
     let curUser = null;
     let curScreen = 'oggi';
+    let isProgrammaticScroll = false;
     let selectedDate = todayStr();
     let hmYear = new Date().getFullYear(), hmMonth = new Date().getMonth();
     let mMode = 'list', editId = null;
@@ -3217,21 +3218,34 @@
 
     // ── NAVIGATION ────────────────────────────────────────────
     function goScreen(name, keepDate = true, smooth = true) {
-      const targetScreen = document.getElementById('screen-' + name);
       const screenArea = document.getElementById('screen-area');
 
       curScreen = name;
       if (!keepDate) selectedDate = todayStr();
 
-      if (targetScreen && screenArea) {
-        const targetLeft = targetScreen.offsetLeft;
-        if (Math.abs(screenArea.scrollLeft - targetLeft) > 5) {
-          screenArea.scrollTo({
-            left: targetLeft,
-            behavior: smooth ? 'smooth' : 'instant'
-          });
+      const screens = ['plan', 'oggi', 'recap', 'calendario'];
+      const index = screens.indexOf(name);
+
+      const doScroll = () => {
+        if (screenArea && index !== -1) {
+          const width = screenArea.clientWidth;
+          if (width > 0) {
+            const targetLeft = index * width;
+            if (Math.abs(screenArea.scrollLeft - targetLeft) > 5) {
+              isProgrammaticScroll = true;
+              screenArea.scrollTo({
+                left: targetLeft,
+                behavior: smooth ? 'smooth' : 'instant'
+              });
+              setTimeout(() => { isProgrammaticScroll = false; }, smooth ? 350 : 50);
+            }
+          } else {
+            requestAnimationFrame(doScroll);
+          }
         }
-      }
+      };
+
+      doScroll();
 
       document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === 'screen-' + name));
       document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.id === 'nav-' + name));
@@ -3927,6 +3941,7 @@
       let isScrollingTimer = null;
 
       screenArea.addEventListener('scroll', () => {
+        if (isProgrammaticScroll) return;
         const width = screenArea.clientWidth;
         if (!width) return;
 
