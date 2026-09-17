@@ -254,6 +254,24 @@
       box-shadow: 0 0 40px rgba(0, 0, 0, 0.8)
     }
 
+    #top-progress-track {
+      width: 100%;
+      height: 3.5px;
+      background: rgba(255, 255, 255, 0.05);
+      position: relative;
+      overflow: hidden;
+      flex-shrink: 0;
+      z-index: 100;
+    }
+
+    #top-progress-bar {
+      height: 100%;
+      width: 0%;
+      background: #f87171;
+      box-shadow: none;
+      transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.4s ease, box-shadow 0.4s ease;
+    }
+
     #screen-area {
       flex: 1;
       display: flex;
@@ -2538,6 +2556,9 @@
   </div>
 
   <div id="shell" style="display:none">
+    <div id="top-progress-track">
+      <div id="top-progress-bar"></div>
+    </div>
     <div id="screen-area">
 
       <div class="screen" id="screen-plan">
@@ -2579,35 +2600,6 @@
         <div class="sync-bar">
           <div class="sync-dot offline" id="sd-oggi"></div><span class="sync-txt" id="st-oggi-sync">—</span>
         </div>
-        <div class="prog-wrap">
-          <div class="prog-ring-wrap">
-            <svg class="prog-ring" viewBox="0 0 80 80">
-              <circle class="prog-ring-bg" cx="40" cy="40" r="34"/>
-              <circle class="prog-ring-fill" id="ring-fill-oggi" cx="40" cy="40" r="34"/>
-            </svg>
-            <div class="prog-ring-center">
-              <span class="prog-ring-pct" id="pct-oggi">0%</span>
-            </div>
-          </div>
-          <div class="prog-info">
-            <span class="prog-label">Progresso</span>
-            <span class="streak-badge none" id="streak-oggi">🔥 0</span>
-            <div class="stats-row" style="margin:0;padding:0;border:none;gap:12px">
-              <div class="stat-card" style="padding:0;background:none;border:none">
-                <div class="stat-val" id="st-oggi" style="font-size:14px">0%</div>
-                <div class="stat-lbl">Oggi</div>
-              </div>
-              <div class="stat-card" style="padding:0;background:none;border:none">
-                <div class="stat-val" id="st-sett" style="font-size:14px">—</div>
-                <div class="stat-lbl">Settimana</div>
-              </div>
-              <div class="stat-card" style="padding:0;background:none;border:none">
-                <div class="stat-val" id="st-mese" style="font-size:14px">—</div>
-                <div class="stat-lbl">Mese</div>
-              </div>
-            </div>
-          </div>
-        </div>
         <div class="section-head"><span class="section-label" id="habit-count-lbl">Abitudini</span><button class="focus-btn" id="focus-toggle-btn" onclick="toggleFocusMode()">focus</button></div>
         <div id="hoggi-list"></div>
       </div>
@@ -2622,13 +2614,6 @@
         </div>
         <div class="sync-bar">
           <div class="sync-dot offline" id="sd-recap"></div><span class="sync-txt" id="st-recap-sync">—</span>
-        </div>
-        <div class="prog-wrap">
-          <div class="prog-head"><span class="prog-label">Completamento finale</span><span class="prog-pct"
-              id="pct-recap">0%</span></div>
-          <div class="prog-track">
-            <div class="prog-fill" id="fill-recap" style="width:0%"></div>
-          </div>
         </div>
         <div class="section-head"><span class="section-label">Abitudini</span></div>
         <div id="sum-list"></div>
@@ -2654,20 +2639,6 @@
         </div>
         <div class="sync-bar">
           <div class="sync-dot offline" id="sd-an"></div><span class="sync-txt" id="st-an-sync">—</span>
-        </div>
-        <div class="an-stats" style="grid-template-columns:1fr 1fr 1fr">
-          <div class="an-stat">
-            <div class="an-val" id="an-sett">—<span class="trend-arrow" id="an-trend"></span></div>
-            <div class="an-lbl">Media settimana</div>
-          </div>
-          <div class="an-stat" style="border-right:1px solid var(--border)">
-            <div class="an-val" id="an-mese">—</div>
-            <div class="an-lbl">Media mese</div>
-          </div>
-          <div class="an-stat">
-            <div class="an-val" id="an-streak" style="color:var(--orange)">—</div>
-            <div class="an-lbl">🔥 Streak</div>
-          </div>
         </div>
         <div class="heatmap-wrap">
           <div class="hm-nav">
@@ -2761,9 +2732,14 @@
     // ── SUPABASE ──────────────────────────────────────────────
     const SUPA_URL = 'https://iqlxjazrshqzqrltkjoz.supabase.co';
     const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlxbHhqYXpyc2hxenFybHRram96Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2MTUzMzUsImV4cCI6MjA5NDE5MTMzNX0.N5F7RW3ueIHFtwwZFBXkbeTxZMam_lh8hPshy7uX1MI';
-    const { createClient } = supabase;
-    let sb;
-    try { sb = createClient(SUPA_URL, SUPA_KEY); } catch (e) { console.error('Supabase init error', e); }
+    let sb = null;
+    try {
+      if (typeof supabase !== 'undefined' && supabase && supabase.createClient) {
+        sb = supabase.createClient(SUPA_URL, SUPA_KEY);
+      }
+    } catch (e) {
+      console.error('Supabase init error', e);
+    }
 
     const SK = 'dayflow_v3';
     let S = { habits: [], days: {}, impegniRicorrenti: [] };
@@ -2860,6 +2836,16 @@
     }
     function calcPct(ds) { const day = S.days[ds]; if (!day) return null; ensureSlotArrays(day); const habits = activeHabits(); let total = 1, done = 0; habits.forEach(h => { const r = day.abitudini[h.id] || {}; if (!r.saltato) total++; if (!r.saltato && r.completato) done++; }); const atd = day.attivitaDelGiorno; const nonEmpty = atd.compiti.filter(t => t.trim()).length; done += nonEmpty > 0 ? atdDoneCount(day) / nonEmpty : 0; const imp = getImpegniDelGiorno(ds); total += imp.length; imp.forEach(r => { if (day.impegniRicorrentiCompletati[r.id]) done++; }); return Math.round((done / total) * 100); }
     function pctColor(p) { return p <= 25 ? '#f87171' : p <= 50 ? '#fb923c' : p <= 75 ? '#facc15' : '#4ade80' }
+    let lastTopPct = 0;
+    function updateTopProgressBar(pct) {
+      const bar = document.getElementById('top-progress-bar');
+      if (!bar) return;
+      const p = Math.max(0, Math.min(100, Math.round(pct || 0)));
+      const col = pctColor(p);
+      bar.style.width = p + '%';
+      bar.style.backgroundColor = col;
+      bar.style.boxShadow = p > 0 ? `0 0 10px ${col}, 0 0 4px ${col}` : 'none';
+    }
     function heatColor(p) { if (p === null) return null; if (p === 0) return '#181818'; if (p <= 25) return '#3d1515'; if (p <= 50) return '#3d2510'; if (p <= 75) return '#352e08'; return '#163316'; }
     function fmtDate(ds) { const d = new Date(ds + 'T12:00:00'); return d.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).toLowerCase() }
     function fmtShort(ds) { const d = new Date(ds + 'T12:00:00'); return d.toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' }).toLowerCase() }
@@ -3262,6 +3248,7 @@
       const day = getDay(selectedDate);
       renderTaskInputs(day, selectedDate); renderHPlanList(); checkPriBanner(day);
       setSS('sd-plan', 'st-plan', 'ok', 'pronto');
+      updateTopProgressBar(calcPct(selectedDate) || 0);
     }
     function renderTaskInputs(day, today) {
       ensureSlotArrays(day);
@@ -3342,20 +3329,9 @@
       }
       setSS('sd-oggi', 'st-oggi-sync', 'ok', 'sincronizzato');
       const day = getDay(selectedDate); persist();
-      const habits = activeHabits();
       const pct = calcPct(selectedDate) || 0;
-      setRing('ring-fill-oggi', 'pct-oggi', pct);
-      const so = document.getElementById('st-oggi'); so.textContent = pct + '%'; so.style.color = pctColor(pct);
-      const wa = calcAvg(weekDays()), ma = calcAvg(monthDays(new Date().getFullYear(), new Date().getMonth()));
-      document.getElementById('st-sett').textContent = wa !== null ? wa + '%' : '—';
-      document.getElementById('st-mese').textContent = ma !== null ? ma + '%' : '—';
-      
-      // Mostra caricamento provvisorio della streak se i dati non sono completi
-      const streak = allDaysLoaded ? calcStreak() : '...';
-      const streakEl = document.getElementById('streak-oggi');
-      streakEl.textContent = '🔥 ' + streak;
-      streakEl.className = 'streak-badge' + (streak === 0 || streak === '...' ? ' none' : '');
-      if (allDaysLoaded && streak > 0 && streak % 7 === 0) { shootConfetti(); showToast(`🔥 ${streak} giorni di streak! Fantastico!`, 'info'); }
+      updateTopProgressBar(pct);
+      lastTopPct = pct;
       renderHOggiList(day, selectedDate);
     }
     function setupRowGestures(row, onComplete, onSwipeLeft) {
@@ -3484,7 +3460,7 @@
       });
       tr.appendChild(tlist); c.appendChild(tr);
     }
-    function updateOggiStats(today) { const pct = calcPct(today) || 0; const oldPct = parseInt(document.getElementById('pct-oggi').textContent) || 0; setRing('ring-fill-oggi', 'pct-oggi', pct); const so = document.getElementById('st-oggi'); so.textContent = pct + '%'; so.style.color = pctColor(pct); if (pct === 100 && oldPct < 100) shootConfetti(); }
+    function updateOggiStats(today) { const pct = calcPct(today) || 0; updateTopProgressBar(pct); if (pct === 100 && lastTopPct < 100) shootConfetti(); lastTopPct = pct; }
     function addRipple(el, e) { const r = document.createElement('span'); r.className = 'ripple'; const rect = el.getBoundingClientRect(); const sz = Math.max(rect.width, rect.height) * 2; r.style.cssText = `width:${sz}px;height:${sz}px;left:${e.clientX - rect.left - sz / 2}px;top:${e.clientY - rect.top - sz / 2}px`; el.appendChild(r); setTimeout(() => r.remove(), 520); }
 
     // ── RECAP ─────────────────────────────────────────────────
@@ -3494,7 +3470,7 @@
       const remote = await sbLoadDay(selectedDate);
       if (remote) { const local = S.days[selectedDate]; if (!local || (remote.timestamp > (local.timestamp || 0))) { S.days[selectedDate] = remote; persist(); } }
       setSS('sd-recap', 'st-recap-sync', 'ok', 'sincronizzato');
-      const day = getDay(selectedDate); const pct = calcPct(selectedDate) || 0; setBar('fill-recap', 'pct-recap', pct);
+      const day = getDay(selectedDate); const pct = calcPct(selectedDate) || 0; updateTopProgressBar(pct);
       const list = document.getElementById('sum-list'); list.innerHTML = '';
       activeHabits().forEach(h => { const rec = day.abitudini[h.id] || {}; const row = document.createElement('div'); row.className = 'sum-row'; const icon = document.createElement('div'); icon.className = 'sum-icon ' + (rec.saltato ? 'sk' : rec.completato ? 'ok' : 'ko'); icon.innerHTML = rec.saltato ? '—' : rec.completato ? '<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="3" fill="none"><polyline points="20 6 9 17 4 12"/></svg>' : '<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="3" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'; const nm = document.createElement('span'); nm.className = 'sum-name'; nm.textContent = h.nome; const badge = document.createElement('span'); badge.className = 'sum-badge ' + (rec.saltato ? 'bs' : rec.completato ? 'bd' : 'bm'); badge.textContent = rec.saltato ? 'saltata' : rec.completato ? 'completata' : 'mancata'; row.appendChild(icon); row.appendChild(nm); row.appendChild(badge); list.appendChild(row); });
       ensureSlotArrays(day);
@@ -3532,22 +3508,7 @@
         persist();
       }
       setSS('sd-an', 'st-an-sync', 'ok', 'sincronizzato');
-      const wa = calcAvg(weekDays()), ma = calcAvg(monthDays(new Date().getFullYear(), new Date().getMonth()));
-      document.getElementById('an-sett').textContent = wa !== null ? wa + '%' : '—';
-      document.getElementById('an-mese').textContent = ma !== null ? ma + '%' : '—';
-      // Streak
-      const streak = calcStreak();
-      document.getElementById('an-streak').textContent = streak;
-      // Trend: confronta settimana corrente vs precedente
-      const now = new Date();
-      const prevWeekDays = (() => { const dow = now.getDay(); const diff = dow === 0 ? 6 : dow - 1; const mon = new Date(now); mon.setDate(now.getDate() - diff - 7); return Array.from({ length: 7 }, (_, i) => { const d = new Date(mon); d.setDate(mon.getDate() + i); return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`; }); })();
-      const prevWa = calcAvg(prevWeekDays);
-      const trendEl = document.getElementById('an-trend');
-      if (wa !== null && prevWa !== null) {
-        if (wa > prevWa) { trendEl.textContent = ' ↑'; trendEl.className = 'trend-arrow up'; }
-        else if (wa < prevWa) { trendEl.textContent = ' ↓'; trendEl.className = 'trend-arrow down'; }
-        else { trendEl.textContent = ' →'; trendEl.className = 'trend-arrow flat'; }
-      } else { trendEl.textContent = ''; }
+      updateTopProgressBar(calcPct(selectedDate) || 0);
       renderHeatmap(); renderWeeklyHabits(); renderImpegniSection(); renderProssimi();
     }
     function changeMonth(delta) { hmMonth += delta; if (hmMonth > 11) { hmMonth = 0; hmYear++; } if (hmMonth < 0) { hmMonth = 11; hmYear--; } renderHeatmap(); }
