@@ -256,36 +256,34 @@
 
     #screen-area {
       flex: 1;
-      overflow-y: auto;
-      overflow-x: hidden;
-      scrollbar-width: none
+      display: flex;
+      flex-direction: row;
+      overflow-x: auto;
+      overflow-y: hidden;
+      scroll-snap-type: x mandatory;
+      scroll-behavior: smooth;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      touch-action: pan-x pan-y;
     }
 
     #screen-area::-webkit-scrollbar {
-      display: none
+      display: none;
     }
 
     .screen {
-      display: none;
-      min-height: 100%;
+      display: flex;
       flex-direction: column;
-      animation: screenFadeIn .3s cubic-bezier(0.16, 1, 0.3, 1)
-    }
-
-    .screen.active {
-      display: flex
-    }
-
-    @keyframes screenFadeIn {
-      from {
-        opacity: 0;
-        transform: translateY(10px)
-      }
-
-      to {
-        opacity: 1;
-        transform: translateY(0)
-      }
+      flex: 0 0 100%;
+      width: 100%;
+      min-width: 100%;
+      max-width: 100%;
+      scroll-snap-align: start;
+      scroll-snap-stop: always;
+      height: 100%;
+      overflow-y: auto;
+      overflow-x: hidden;
+      box-sizing: border-box;
     }
 
     @keyframes slideUp {
@@ -2422,7 +2420,7 @@
       #screen-area {
         flex: 1;
         display: flex;
-        flex-direction: column;
+        flex-direction: row;
         background: rgba(9, 9, 11, 0.2);
       }
 
@@ -3161,7 +3159,7 @@
         const saved = localStorage.getItem('sidebarExpanded');
         if (saved === 'true') document.getElementById('nav').classList.add('expanded');
       }
-      goScreen('oggi');
+      goScreen('oggi', true, false);
       setSS('sd-oggi', 'st-oggi-sync', 'syncing', 'sincronizzazione...');
       await withTimeout(sbLoadHabits(), 8000);
       
@@ -3218,13 +3216,26 @@
     })();
 
     // ── NAVIGATION ────────────────────────────────────────────
-    function goScreen(name, keepDate = true) {
-      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-      document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-      document.getElementById('screen-' + name).classList.add('active');
-      document.getElementById('nav-' + name).classList.add('active');
+    function goScreen(name, keepDate = true, smooth = true) {
+      const targetScreen = document.getElementById('screen-' + name);
+      const screenArea = document.getElementById('screen-area');
+
       curScreen = name;
       if (!keepDate) selectedDate = todayStr();
+
+      if (targetScreen && screenArea) {
+        const targetLeft = targetScreen.offsetLeft;
+        if (Math.abs(screenArea.scrollLeft - targetLeft) > 5) {
+          screenArea.scrollTo({
+            left: targetLeft,
+            behavior: smooth ? 'smooth' : 'instant'
+          });
+        }
+      }
+
+      document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === 'screen-' + name));
+      document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.id === 'nav-' + name));
+
       if (name === 'plan') renderPlan();
       if (name === 'oggi') renderOggi();
       if (name === 'recap') renderRecap();
@@ -3907,61 +3918,42 @@
       });
     }
 
-    // ── SWIPE NAVIGATION ──────────────────────────────────────
+    // ── SWIPE & CAROUSEL NAVIGATION ────────────────────────────
     (function initSwipeNavigation() {
       const screenArea = document.getElementById('screen-area');
       if (!screenArea) return;
 
       const screens = ['plan', 'oggi', 'recap', 'calendario'];
-      let touchStartX = 0;
-      let touchStartY = 0;
-      let touchEndX = 0;
-      let touchEndY = 0;
+      let isScrollingTimer = null;
 
-      screenArea.addEventListener('touchstart', (e) => {
-        if (e.touches.length > 1) return;
-        
-        // Ignora gesti se originano da elementi interattivi orizzontali o modali aperti
-        const overlay = document.getElementById('modal-overlay');
-        if (overlay && overlay.classList.contains('open')) return;
+      screenArea.addEventListener('scroll', () => {
+        const width = screenArea.clientWidth;
+        if (!width) return;
 
-        const target = e.target.closest('.heatmap-container, .hm-grid, input[type="range"], select');
-        if (target) return;
+        const index = Math.round(screenArea.scrollLeft / width);
+        const activeName = screens[index];
 
-        touchStartX = e.touches[0].clientX;
-        touchStartY = e.touches[0].clientY;
-      }, { passive: true });
+        if (activeName && activeName !== curScreen) {
+          curScreen = activeName;
+          document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === 'screen-' + activeName));
+          document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.id === 'nav-' + activeName));
 
-      screenArea.addEventListener('touchend', (e) => {
-        if (e.changedTouches.length === 0) return;
-        touchEndX = e.changedTouches[0].clientX;
-        touchEndY = e.changedTouches[0].clientY;
-
-        handleSwipe();
-      }, { passive: true });
-
-      function handleSwipe() {
-        const deltaX = touchEndX - touchStartX;
-        const deltaY = touchEndY - touchStartY;
-
-        const thresholdX = 60; // soglia minima per swipe
-        if (Math.abs(deltaX) > thresholdX && Math.abs(deltaX) > Math.abs(deltaY) * 1.5) {
-          const currentIndex = screens.indexOf(curScreen);
-          if (currentIndex === -1) return;
-
-          if (deltaX < 0) {
-            // Swipe a sinistra -> vai a destra
-            if (currentIndex < screens.length - 1) {
-              goScreen(screens[currentIndex + 1], true);
-            }
-          } else {
-            // Swipe a destra -> vai a sinistra
-            if (currentIndex > 0) {
-              goScreen(screens[currentIndex - 1], true);
-            }
-          }
+          clearTimeout(isScrollingTimer);
+          isScrollingTimer = setTimeout(() => {
+            if (activeName === 'plan') renderPlan();
+            else if (activeName === 'oggi') renderOggi();
+            else if (activeName === 'recap') renderRecap();
+            else if (activeName === 'calendario') renderCalendario();
+          }, 60);
         }
-      }
+      }, { passive: true });
+
+      window.addEventListener('resize', () => {
+        const targetScreen = document.getElementById('screen-' + curScreen);
+        if (targetScreen && screenArea) {
+          screenArea.scrollTo({ left: targetScreen.offsetLeft, behavior: 'instant' });
+        }
+      });
     })();
 
     // ── SERVICE WORKER (solo HTTPS) ────────────────────────────
