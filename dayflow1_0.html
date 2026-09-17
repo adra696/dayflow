@@ -2412,6 +2412,48 @@
       margin-bottom: 12px
     }
 
+    /* Articolo in streaming: cursore discreto sull'ultimo blocco */
+    .article .art-tail::after {
+      content: '';
+      display: inline-block;
+      width: 7px;
+      height: 1em;
+      margin-left: 3px;
+      vertical-align: -2px;
+      border-radius: 1px;
+      background: var(--accent);
+      animation: artBlink 1s steps(2, start) infinite
+    }
+
+    @keyframes artBlink {
+      to { visibility: hidden }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .article .art-tail::after { animation: none; opacity: .6 }
+    }
+
+    .article .art-status {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 16px
+    }
+
+    .article .art-status .feed-spinner {
+      width: 14px;
+      height: 14px
+    }
+
+    .article .art-sk {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 8px
+    }
+
+    .article.has-text .art-sk { display: none }
+
     /* Chat */
     .chat-log {
       display: flex;
@@ -3704,9 +3746,11 @@
     // Discover feed (Gemini) — stato e costanti
     const GEMINI_MODEL = 'gemini-2.5-flash';
     const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/' + GEMINI_MODEL + ':generateContent';
+    const GEMINI_STREAM_URL = 'https://generativelanguage.googleapis.com/v1beta/models/' + GEMINI_MODEL + ':streamGenerateContent?alt=sse';
     const FEED_KEY_LS = 'dayflow_gemini_key';
     const FEED_TOPICS_LS = 'dayflow_feed_topics';
     const FEED_CARDS_N = 8;
+    const FEED_PREFETCH_AHEAD = 3;              // card rimanenti davanti all'utente sotto cui parte il prefetch
     const FEED_SEEN_LS = 'dayflow_feed_seen';   // titoli già mostrati (dedupe)
     const FEED_SEEN_TTL = 72 * 60 * 60 * 1000;  // memoria 72h
     const FEED_SEEN_MAX = 80;                   // max titoli passati a Gemini
@@ -3722,7 +3766,7 @@
       { id: 'crypto', label: 'Crypto', emoji: '📈', color: '#fbbf24' },
       { id: 'scienza', label: 'Scienza', emoji: '🧬', color: '#c084fc' }
     ];
-    const FEED = { topics: [], activeTopic: 'all', data: null, loading: false, error: null, more: false, moreError: null, sheet: null, card: null, chat: [], chatBusy: false, articleBusy: false, pullInit: false, endObs: null, saved: null };
+    const FEED = { topics: [], activeTopic: 'all', data: null, loading: false, error: null, more: false, moreTopic: null, moreError: null, sheet: null, card: null, chat: [], chatBusy: false, articleStream: null, articlePartial: null, pullInit: false, endObs: null, saved: null };
 
     // ── UTILS ──────────────────────────────────────────────────
     function todayStr() { const d = new Date(); return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}` }
@@ -4675,6 +4719,79 @@
       if (!text) throw Object.assign(new Error('empty'), { code: 'empty', reason: json?.candidates?.[0]?.finishReason || json?.promptFeedback?.blockReason || '' });
       return text;
     }
+    // Parser SSE incrementale: accetta chunk di testo arbitrari (anche spezzati a metà riga/evento)
+    // e chiama onData(payload) per ogni evento completo con righe "data:".
+    function createSSEParser(onData) {
+      let buf = '', data = [];
+      const dispatch = () => { if (data.length) { const d = data.join('\n'); data = []; onData(d); } };
+      const line = l => {
+        if (l.endsWith('\r')) l = l.slice(0, -1);
+        if (l === '') { dispatch(); return; }
+        if (l.startsWith(':')) return;
+        if (l.startsWith('data:')) data.push(l.slice(5).replace(/^ /, ''));
+      };
+      return {
+        push(chunk) {
+          buf += chunk;
+          let i;
+          while ((i = buf.indexOf('\n')) >= 0) { const l = buf.slice(0, i); buf = buf.slice(i + 1); line(l); }
+        },
+        end() { if (buf) { line(buf); buf = ''; } dispatch(); }
+      };
+    }
+    // Streaming Gemini (SSE). onChunk(delta, fullText) a ogni frammento; ritorna il testo completo.
+    // opts.signal = AbortSignal; un abort lancia { code: 'abort' }.
+    async function geminiStream(body, onChunk, opts = {}) {
+      const key = feedKey();
+      if (!key) throw Object.assign(new Error('nokey'), { code: 'nokey' });
+      const signal = opts.signal;
+      const aborted = () => Object.assign(new Error('abort'), { code: 'abort' });
+      let res;
+      try {
+        res = await fetch(GEMINI_STREAM_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify(body), signal });
+      } catch (e) { throw signal && signal.aborted ? aborted() : Object.assign(new Error('network'), { code: 'network' }); }
+      if (!res.ok) {
+        const err = Object.assign(new Error('http ' + res.status), { code: 'http', status: res.status });
+        try { const j = await res.json(); err.detail = j?.error?.message || ''; } catch (e) { }
+        throw err;
+      }
+      if (!res.body || !res.body.getReader) throw Object.assign(new Error('network'), { code: 'network' });
+      let full = '', finish = '', block = '', streamErr = null;
+      const parser = createSSEParser(payload => {
+        if (streamErr) return;
+        let j; try { j = JSON.parse(payload); } catch (e) { return; }
+        if (j.error) { streamErr = Object.assign(new Error('http ' + (j.error.code || '')), { code: 'http', status: j.error.code || 500, detail: j.error.message || '' }); return; }
+        const cand = j.candidates && j.candidates[0];
+        if (j.promptFeedback && j.promptFeedback.blockReason) block = j.promptFeedback.blockReason;
+        if (cand && cand.finishReason) finish = cand.finishReason;
+        const delta = ((cand && cand.content && cand.content.parts) || []).filter(p => !p.thought).map(p => p.text || '').join('');
+        if (delta) { full += delta; onChunk(delta, full); }
+      });
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      try {
+        for (; ;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          parser.push(dec.decode(value, { stream: true }));
+          if (streamErr) { try { reader.cancel(); } catch (e) { } throw streamErr; }
+        }
+        parser.push(dec.decode());
+        parser.end();
+      } catch (e) {
+        if (signal && signal.aborted) throw aborted();
+        if (e && e.code) throw e;
+        throw Object.assign(new Error('network'), { code: 'network' });
+      }
+      if (streamErr) throw streamErr;
+      if (signal && signal.aborted) throw aborted();
+      if (full.trim() && !block && finish === 'MAX_TOKENS')
+        throw Object.assign(new Error('truncated'), { code: 'truncated', partial: full }); // testo troncato: mai trattarlo come completo
+      if (!full.trim() || block || (finish && finish !== 'STOP'))
+        throw Object.assign(new Error('empty'), { code: 'empty', reason: block || finish, partial: full });
+      if (!finish) throw Object.assign(new Error('network'), { code: 'network', partial: full }); // stream chiuso senza fine
+      return full;
+    }
     async function geminiJSON(prompt, schema, temperature = 0.9) {
       const text = await geminiRequest({ contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json', responseSchema: schema, temperature } });
       const clean = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
@@ -4687,6 +4804,7 @@
       if (!e) return 'Errore sconosciuto.';
       if (e.code === 'nokey') return 'Nessuna chiave API configurata.';
       if (e.code === 'network') return navigator.onLine ? 'La rete non risponde. Riprova tra poco.' : 'Sei offline. Il feed torna quando sei connesso.';
+      if (e.code === 'truncated') return 'Articolo interrotto.';
       if (e.code === 'parse' || e.code === 'empty') return 'Risposta dell\'AI non valida. Riprova.';
       if (e.code === 'http') {
         if (e.status === 400 || e.status === 401 || e.status === 403) return 'Chiave API non valida o non autorizzata.';
@@ -4845,15 +4963,17 @@
       if (!FEED.data) { f.innerHTML = ''; return; }
 
       setFeedStatus('ok', 'feed di oggi · ' + new Date(FEED.data.generatedAt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }));
-      const cards = FEED.data.cards.filter(c => FEED.activeTopic === 'all' || c.topicId === FEED.activeTopic);
-      if (!cards.length) {
-        const t = feedTopic(FEED.activeTopic);
-        f.innerHTML = `<div class="feed-slide"><div class="feed-card feed-state"><h3>Niente qui</h3><p>Nessuna notizia su ${escFeed(t.label)} nel feed di oggi.</p><div class="feed-actions"><button class="feed-btn pri" onclick="loadMoreFeed()" ${FEED.more ? 'disabled' : ''}>${FEED.more ? 'Generazione…' : '✦ Genera notizie su ' + escFeed(t.label)}</button></div></div></div>`;
-        return;
-      }
+      const cards = feedVisibleCards();
+      // Nessuna card per il filtro: mostro direttamente la slide di caricamento (è #disc-end,
+      // quindi l'observer/prefetch parte da solo). Con moreError resta lo stato errore + Riprova.
       f.innerHTML = cards.map((c, i) => feedCardHTML(c, i)).join('') + feedEndHTML();
       renumberFeed();
       attachFeedEndObserver();
+    }
+    // Card del feed coerenti con il filtro attivo (chip 'saved' escluso: non usa FEED.data).
+    function feedVisibleCards(topicId = FEED.activeTopic) {
+      if (!FEED.data || topicId === 'saved') return [];
+      return FEED.data.cards.filter(c => topicId === 'all' || c.topicId === topicId);
     }
     function feedCardHTML(c, i) {
       const t = feedTopic(c.topicId);
@@ -4880,10 +5000,12 @@
             <h3>Non riesco a caricare altro</h3>
             <p>${escFeed(FEED.moreError)}</p>
             <div class="feed-actions"><button class="feed-btn pri" onclick="loadMoreFeed(true)">↻ Riprova</button></div>`;
+      const empty = !feedVisibleCards().length && FEED.activeTopic !== 'all';
+      const t = feedTopic(FEED.activeTopic);
       return `
             <div class="feed-state-icon"><div class="feed-spinner"></div></div>
-            <h3>Altre notizie in arrivo…</h3>
-            <p>Gemini sta cercando qualcosa che non hai ancora visto.</p>
+            <h3>${empty ? 'Cerco notizie su ' + escFeed(t.label) + '…' : 'Altre notizie in arrivo…'}</h3>
+            <p>${empty ? 'Niente qui nel feed di oggi: Gemini sta generando qualcosa su questo argomento.' : 'Gemini sta cercando qualcosa che non hai ancora visto.'}</p>
             <div class="feed-disclaimer">Contenuti generati dall'AI · possono contenere imprecisioni</div>`;
     }
     function renumberFeed() {
@@ -4899,9 +5021,13 @@
         if (entries.some(e => e.isIntersecting) && !FEED.moreError) loadMoreFeed();
       }, { root: f, threshold: 0.5 });
       FEED.endObs.observe(end);
-      // prefetch: parte già dall'ultima card vera, così lo spinner si vede di rado
-      const lastCard = f.querySelector('.feed-slide.card:last-of-type');
-      if (lastCard && lastCard !== end) FEED.endObs.observe(lastCard);
+      // Prefetch: osservo le ultime FEED_PREFETCH_AHEAD card (non solo l'ultima), così il batch
+      // successivo parte quando davanti all'utente restano poche card. Osservo tutte quelle nel
+      // range perché uno scroll rapido può saltare una card senza farla intersecare.
+      const cards = [...f.querySelectorAll('.feed-slide.card')];
+      cards.slice(Math.max(0, cards.length - FEED_PREFETCH_AHEAD)).forEach(c => FEED.endObs.observe(c));
+      // Poche card visibili (filtro appena aperto/cambiato): parto subito, senza aspettare l'observer.
+      if (cards.length <= FEED_PREFETCH_AHEAD && !FEED.moreError) loadMoreFeed();
     }
     function toggleFeedKeyVis(id) { const i = document.getElementById(id); if (i) i.type = i.type === 'password' ? 'text' : 'password'; }
     function saveFeedKey(inputId = 'disc-key-input') {
@@ -4982,43 +5108,61 @@
       if (FEED.more || FEED.loading || !FEED.data || !feedKey()) return;
       if (FEED.moreError && !retry) return;
       if (FEED.activeTopic === 'saved') return;
-      const topics = FEED.activeTopic === 'all' ? FEED.topics : [feedTopic(FEED.activeTopic)];
-      FEED.more = true; FEED.moreError = null;
-      const f = document.getElementById('disc-feed');
+      const topicId = FEED.activeTopic;
+      const topics = topicId === 'all' ? FEED.topics : [feedTopic(topicId)];
+      const data = FEED.data;
+      FEED.more = true; FEED.moreTopic = topicId; FEED.moreError = null;
       let end = document.getElementById('disc-end');
       if (end) end.querySelector('.feed-card').innerHTML = feedEndInner();
-      else renderFeed();
-      try {
-        const cards = await fetchFeedCards(topics, FEED_CARDS_N);
-        FEED.data.cards.push(...cards);
-        saveFeedCache();
+      else if (curScreen === 'recap') renderFeed();
+      let cards = null, err = null;
+      try { cards = await fetchFeedCards(topics, FEED_CARDS_N); } catch (e) { err = e; }
+      FEED.more = false; FEED.moreTopic = null;
+      // Nel frattempo il feed è stato rigenerato (pull-to-refresh): le card appartengono al vecchio feed.
+      if (FEED.data !== data || FEED.loading) return;
+      if (err) {
+        console.error('loadMoreFeed', err);
+        FEED.moreError = feedErrorMessage(err);
         end = document.getElementById('disc-end');
-        if (f && end && curScreen === 'recap') {
-          const shown = cards.filter(c => FEED.activeTopic === 'all' || c.topicId === FEED.activeTopic);
-          const tpl = document.createElement('template');
-          tpl.innerHTML = shown.map((c, i) => feedCardHTML(c, i)).join('') + feedEndHTML();
-          const nodes = [...tpl.content.children];
-          // La slide "fine" è quella agganciata dallo snap: la trasformo in-place nella prima
-          // nuova card (Chrome mantiene in vista l'elemento snappato anche dopo modifiche al DOM),
-          // poi accodo le altre card e una nuova slide "fine".
-          const first = nodes.shift();
-          const wasOnEnd = Math.abs(f.scrollTop - end.offsetTop) < 4;
-          end.removeAttribute('id');
-          end.className = first.className;
-          end.dataset.id = first.dataset.id;
-          end.innerHTML = first.innerHTML;
-          end.after(...nodes);
-          if (wasOnEnd && Math.abs(f.scrollTop - end.offsetTop) > 2) f.scrollTo({ top: end.offsetTop, behavior: 'instant' });
-          renumberFeed();
-          attachFeedEndObserver();
-        } else renderFeed();
-      } catch (e) {
-        console.error('loadMoreFeed', e);
-        FEED.moreError = feedErrorMessage(e);
-        end = document.getElementById('disc-end');
-        if (end) end.querySelector('.feed-card').innerHTML = feedEndInner(); else renderFeed();
+        if (end) end.querySelector('.feed-card').innerHTML = feedEndInner();
+        else if (curScreen === 'recap' && FEED.activeTopic !== 'saved') renderFeed();
+        return;
       }
-      FEED.more = false;
+      FEED.data.cards.push(...cards);
+      saveFeedCache();
+      appendFeedCards(cards);
+    }
+    // Accoda al DOM le card appena generate, ma solo quelle coerenti con il filtro ATTUALE
+    // (l'utente può aver cambiato chip durante la generazione). Poi riaggancia l'observer,
+    // che fa ripartire un nuovo load se per il filtro attuale restano poche card.
+    function appendFeedCards(cards) {
+      if (curScreen !== 'recap' || FEED.activeTopic === 'saved') return;
+      const f = document.getElementById('disc-feed');
+      const end = document.getElementById('disc-end');
+      if (!f || !end) { renderFeed(); return; }
+      const shown = cards.filter(c => FEED.activeTopic === 'all' || c.topicId === FEED.activeTopic);
+      if (!shown.length) {
+        // Nessuna card per questo filtro: la slide di fine resta, l'observer rilancia il load.
+        end.querySelector('.feed-card').innerHTML = feedEndInner();
+        attachFeedEndObserver();
+        return;
+      }
+      const tpl = document.createElement('template');
+      tpl.innerHTML = shown.map((c, i) => feedCardHTML(c, i)).join('') + feedEndHTML();
+      const nodes = [...tpl.content.children];
+      // La slide "fine" è quella agganciata dallo snap: la trasformo in-place nella prima
+      // nuova card (Chrome mantiene in vista l'elemento snappato anche dopo modifiche al DOM),
+      // poi accodo le altre card e una nuova slide "fine".
+      const first = nodes.shift();
+      const wasOnEnd = Math.abs(f.scrollTop - end.offsetTop) < 4;
+      end.removeAttribute('id');
+      end.className = first.className;
+      end.dataset.id = first.dataset.id;
+      end.innerHTML = first.innerHTML;
+      end.after(...nodes);
+      if (wasOnEnd && Math.abs(f.scrollTop - end.offsetTop) > 2) f.scrollTo({ top: end.offsetTop, behavior: 'instant' });
+      renumberFeed();
+      attachFeedEndObserver();
     }
     function regenerateFeed() {
       if (FEED.loading) return;
@@ -5035,6 +5179,7 @@
       const foot = document.getElementById('fsheet-foot');
       const title = document.getElementById('fsheet-title');
       const isCard = mode === 'article' || mode === 'chat';
+      if (FEED.articleStream && (!isCard || !FEED.card || FEED.card.id !== FEED.articleStream.id)) abortArticleStream();
       tabs.style.display = isCard ? 'flex' : 'none';
       document.getElementById('fsheet-tab-article').classList.toggle('on', mode === 'article');
       document.getElementById('fsheet-tab-chat').classList.toggle('on', mode === 'chat');
@@ -5044,7 +5189,7 @@
       renderFeedSheet();
     }
     function switchFeedSheet(mode) { openFeedSheet(mode); }
-    function closeFeedSheet() { FEED.sheet = null; document.getElementById('feed-sheet').classList.remove('open'); }
+    function closeFeedSheet() { abortArticleStream(); FEED.sheet = null; document.getElementById('feed-sheet').classList.remove('open'); }
     function feedSheetOverlayClick(e) { if (e.target === document.getElementById('feed-sheet')) closeFeedSheet(); }
     function renderFeedSheet() {
       const b = document.getElementById('fsheet-body'); if (!b) return;
@@ -5061,35 +5206,148 @@
       if (FEED.card && FEED.card.id !== id) FEED.chat = [];
       recordFeedPref(card, 'article');
       openFeedSheet('article', card);
-      if (card.fullArticle || FEED.articleBusy) return;
-      FEED.articleBusy = true; renderFeedSheet();
-      try {
-        const schema = { type: 'OBJECT', properties: { title: { type: 'STRING' }, sections: { type: 'ARRAY', items: { type: 'OBJECT', properties: { heading: { type: 'STRING' }, paragraphs: { type: 'ARRAY', items: { type: 'STRING' } } }, required: ['heading', 'paragraphs'] } } }, required: ['title', 'sections'] };
-        const prompt = `Scrivi in italiano un articolo di approfondimento (400-600 parole) a partire da questa notizia.\nTitolo: ${card.title}\nRiassunto: ${card.summary}\nFonte: ${card.source}\nArgomento: ${feedTopic(card.topicId).label}\n\nStruttura: 3-4 sezioni con un sottotitolo breve ciascuna e 1-3 paragrafi. Tono giornalistico, chiaro, senza retorica. Contestualizza, spiega le implicazioni e chiudi con cosa aspettarsi. Non inventare citazioni virgolettate attribuite a persone reali.`;
-        const out = await geminiJSON(prompt, schema, 0.7);
-        card.fullArticle = { title: String(out.title || card.title), sections: (out.sections || []).map(s => ({ heading: String(s.heading || ''), paragraphs: (s.paragraphs || []).map(String) })) };
-        saveFeedCache();
-        syncFeedSaved(card);
-      } catch (e) {
-        console.error('expandArticle', e);
-        card.articleError = feedErrorMessage(e);
+      if (card.fullArticle || FEED.articleStream) return;
+      streamArticle(card);
+    }
+    // Formato testo dell'articolo (parsabile a pezzi):
+    //   riga 1 = titolo · riga vuota · "## Sottotitolo" · paragrafi separati da riga vuota.
+    // parseArticleText(text, final) → { title, blocks: [{ tag: 'h3'|'p', text }] }.
+    // Se !final l'ultima riga incompleta è inclusa nell'ultimo blocco (titolo solo a riga chiusa).
+    function parseArticleText(text, final) {
+      const lines = String(text || '').replace(/\r\n?/g, '\n').split('\n');
+      const complete = final ? lines.length : lines.length - 1;
+      const clean = s => s.replace(/\*\*|__/g, '').trim();
+      let title = '', titleDone = false, para = null;
+      const blocks = [];
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!titleDone) {
+          if (!line) continue;
+          if (i >= complete) break;
+          title = clean(line.replace(/^#+\s*/, '').replace(/^titolo\s*:\s*/i, ''));
+          titleDone = true; continue;
+        }
+        if (!line) { para = null; continue; }
+        if (/^#{1,6}(\s|$)/.test(line)) { para = null; blocks.push({ tag: 'h3', text: clean(line.replace(/^#+\s*/, '')) }); continue; }
+        const t = clean(line);
+        if (para) para.text += ' ' + t;
+        else { para = { tag: 'p', text: t }; blocks.push(para); }
       }
-      FEED.articleBusy = false;
-      if (FEED.sheet === 'article' && FEED.card && FEED.card.id === id) renderFeedSheet();
+      return { title, blocks };
+    }
+    function articleFromBlocks(title, blocks) {
+      const sections = [];
+      let cur = null;
+      blocks.forEach(b => {
+        if (b.tag === 'h3') { if (b.text) { cur = { heading: b.text, paragraphs: [] }; sections.push(cur); } }
+        else if (b.text) { if (!cur) { cur = { heading: '', paragraphs: [] }; sections.push(cur); } cur.paragraphs.push(b.text); }
+      });
+      return { title, sections: sections.filter(s => s.paragraphs.length || s.heading) };
+    }
+    function abortArticleStream() {
+      const st = FEED.articleStream; if (!st) return;
+      FEED.articleStream = null;
+      if (st.raf) cancelAnimationFrame(st.raf);
+      try { st.ctrl.abort(); } catch (e) { }
+    }
+    async function streamArticle(card) {
+      delete card.articleError;
+      FEED.articlePartial = null;
+      const st = { id: card.id, ctrl: new AbortController(), text: '', raf: 0, els: [] };
+      FEED.articleStream = st;
+      if (FEED.sheet === 'article' && FEED.card && FEED.card.id === card.id) renderFeedSheet();
+      const prompt = `Scrivi in italiano un articolo di approfondimento (400-600 parole) a partire da questa notizia.\nTitolo: ${card.title}\nRiassunto: ${card.summary}\nFonte: ${card.source}\nArgomento: ${feedTopic(card.topicId).label}\n\nTono giornalistico, chiaro, senza retorica. Contestualizza, spiega le implicazioni e chiudi con cosa aspettarsi. Non inventare citazioni virgolettate attribuite a persone reali.\n\nFORMATO DI OUTPUT (testo semplice, niente JSON, niente elenchi puntati, niente grassetti):\n- Prima riga: solo il titolo dell'articolo.\n- Poi una riga vuota.\n- 3-4 sezioni: ogni sezione inizia con una riga "## Sottotitolo breve", seguita da 1-3 paragrafi.\n- Separa ogni paragrafo e ogni sottotitolo con una riga vuota.`;
+      const body = { contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { temperature: 0.7, maxOutputTokens: 3072, thinkingConfig: { thinkingBudget: 0 } } }; // 400-600 parole ≈ 800-1100 token: margine ampio
+      try {
+        const full = await geminiStream(body, (d, all) => {
+          if (FEED.articleStream !== st) return;
+          st.text = all;
+          if (!st.raf) st.raf = requestAnimationFrame(() => paintArticleStream(st, false));
+        }, { signal: st.ctrl.signal });
+        if (FEED.articleStream !== st) return;
+        const parsed = parseArticleText(full, true);
+        const art = articleFromBlocks(parsed.title || card.title, parsed.blocks);
+        if (!art.sections.some(s => s.paragraphs.length)) throw Object.assign(new Error('empty'), { code: 'empty' });
+        st.text = full;
+        if (st.raf) { cancelAnimationFrame(st.raf); st.raf = 0; }
+        paintArticleStream(st, true);
+        FEED.articleStream = null;
+        card.fullArticle = art; // resta visibile anche se il feed è stato rigenerato nel frattempo
+        // Il feed può essere stato sostituito durante lo stream: ricerca per id prima di salvare
+        const inFeed = FEED.data && FEED.data.cards.find(c => c.id === card.id);
+        if (inFeed) { inFeed.fullArticle = art; saveFeedCache(); }
+        syncFeedSaved(card); // aggiorna i salvati solo se la card è salvata
+        // Nessun re-render completo: il DOM è già allineato, si aggiunge solo il disclaimer
+        const root = articleStreamRoot(st.id);
+        if (root) {
+          const s = root.querySelector('.art-status'); if (s) s.remove();
+          const disc = document.createElement('div'); disc.className = 'feed-disclaimer';
+          disc.textContent = "Articolo generato dall'AI · può contenere imprecisioni";
+          root.appendChild(disc);
+          root.removeAttribute('id');
+        }
+      } catch (e) {
+        if (e.code === 'abort' || FEED.articleStream !== st) return;
+        console.error('expandArticle', e);
+        if (st.raf) { cancelAnimationFrame(st.raf); st.raf = 0; }
+        FEED.articleStream = null;
+        card.articleError = feedErrorMessage(e);
+        FEED.articlePartial = st.text.trim() ? { id: card.id, text: st.text } : null;
+        if (FEED.sheet === 'article' && FEED.card && FEED.card.id === card.id) {
+          const b = document.getElementById('fsheet-body');
+          const top = b ? b.scrollTop : 0;
+          renderFeedSheet();
+          if (b) b.scrollTop = top;
+        }
+      }
+    }
+    function articleStreamRoot(id) {
+      if (FEED.sheet !== 'article' || !FEED.card || FEED.card.id !== id) return null;
+      const root = document.getElementById('fart');
+      return root && root.dataset.id === id ? root : null;
+    }
+    // Aggiornamento incrementale del DOM (textContent, mai innerHTML): tocca solo blocchi nuovi o cambiati.
+    function paintArticleStream(st, final) {
+      st.raf = 0;
+      const root = articleStreamRoot(st.id); if (!root) return;
+      const body = root.querySelector('.art-body'); if (!body) return;
+      const { title, blocks } = parseArticleText(st.text, final);
+      if (title) { const h = root.querySelector('h2'); if (h && h.textContent !== title) h.textContent = title; }
+      const els = st.els;
+      blocks.forEach((bl, i) => {
+        let el = els[i];
+        if (!el || el.tagName.toLowerCase() !== bl.tag) {
+          const n = document.createElement(bl.tag);
+          if (el) el.replaceWith(n); else body.appendChild(n);
+          els[i] = el = n;
+        }
+        if (el.textContent !== bl.text) el.textContent = bl.text;
+      });
+      while (els.length > blocks.length) els.pop().remove();
+      els.forEach((el, i) => el.classList.toggle('art-tail', !final && i === els.length - 1));
+      root.classList.toggle('has-text', blocks.length > 0);
     }
     function renderFeedArticle(b) {
       const c = FEED.card; if (!c) { b.innerHTML = ''; return; }
       const t = feedTopic(c.topicId);
-      const head = `<h2>${escFeed(c.fullArticle ? c.fullArticle.title : c.title)}</h2><div class="feed-meta"><span>${escFeed(c.source)}</span><span class="feed-meta-dot"></span><span>${escFeed(feedRelTime(c))}</span><span class="feed-meta-dot"></span><span>${escFeed(t.label)}</span></div>`;
+      const meta = `<div class="feed-meta"><span>${escFeed(c.source)}</span><span class="feed-meta-dot"></span><span>${escFeed(feedRelTime(c))}</span><span class="feed-meta-dot"></span><span>${escFeed(t.label)}</span></div>`;
+      const head = `<h2>${escFeed(c.fullArticle ? c.fullArticle.title : c.title)}</h2>${meta}`;
       if (c.fullArticle) {
-        b.innerHTML = `<div class="article">${head}${c.fullArticle.sections.map(s => `<h3>${escFeed(s.heading)}</h3>${s.paragraphs.map(p => `<p>${escFeed(p)}</p>`).join('')}`).join('')}<div class="feed-disclaimer">Articolo generato dall'AI · può contenere imprecisioni</div></div>`;
+        b.innerHTML = `<div class="article">${head}${c.fullArticle.sections.map(s => `${s.heading ? `<h3>${escFeed(s.heading)}</h3>` : ''}${s.paragraphs.map(p => `<p>${escFeed(p)}</p>`).join('')}`).join('')}<div class="feed-disclaimer">Articolo generato dall'AI · può contenere imprecisioni</div></div>`;
         return;
       }
-      if (FEED.articleBusy) {
-        b.innerHTML = `<div class="article">${head}<p>${escFeed(c.summary)}</p><div style="display:flex;flex-direction:column;gap:12px;margin-top:20px"><div class="sk-line w40"></div><div class="sk-line w90"></div><div class="sk-line w90"></div><div class="sk-line w70"></div><div class="sk-line w40" style="margin-top:10px"></div><div class="sk-line w90"></div><div class="sk-line w70"></div></div><div class="feed-meta" style="margin-top:20px"><div class="feed-spinner"></div><span>Gemini sta scrivendo l'articolo…</span></div></div>`;
+      const st = FEED.articleStream;
+      if (st && st.id === c.id) {
+        // Struttura statica; il testo arriva via paintArticleStream (render sincrono dello stato già ricevuto)
+        b.innerHTML = `<div class="article" id="fart" data-id="${escFeed(c.id)}"><h2>${escFeed(c.title)}</h2>${meta}<div class="art-body"></div><div class="art-sk"><div class="sk-line w90"></div><div class="sk-line w90"></div><div class="sk-line w70"></div><div class="sk-line w40" style="margin-top:10px"></div><div class="sk-line w90"></div><div class="sk-line w70"></div></div><div class="feed-meta art-status"><div class="feed-spinner"></div><span>Gemini sta scrivendo…</span></div></div>`;
+        st.els = [];
+        paintArticleStream(st, false);
         return;
       }
-      b.innerHTML = `<div class="article">${head}<p>${escFeed(c.summary)}</p>${c.articleError ? `<p style="color:var(--red)">${escFeed(c.articleError)}</p>` : ''}<div class="feed-actions"><button class="feed-btn pri" onclick="delete FEED.card.articleError; expandArticle('${escFeed(c.id)}')">↻ Genera l'articolo</button></div></div>`;
+      const partial = FEED.articlePartial && FEED.articlePartial.id === c.id ? parseArticleText(FEED.articlePartial.text, true) : null;
+      const partialHtml = partial && partial.blocks.length ? partial.blocks.map(bl => `<${bl.tag}>${escFeed(bl.text)}</${bl.tag}>`).join('') : `<p>${escFeed(c.summary)}</p>`;
+      const h2 = partial && partial.title ? partial.title : c.title;
+      b.innerHTML = `<div class="article"><h2>${escFeed(h2)}</h2>${meta}${partialHtml}${c.articleError ? `<p style="color:var(--red)">${escFeed(c.articleError)}</p>` : ''}<div class="feed-actions"><button class="feed-btn pri" onclick="expandArticle('${escFeed(c.id)}')">↻ ${c.articleError ? 'Riprova' : "Genera l'articolo"}</button></div></div>`;
     }
 
     // Chat contestuale
