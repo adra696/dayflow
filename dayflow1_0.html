@@ -9,7 +9,7 @@
     script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net;
     style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
     font-src https://fonts.gstatic.com;
-    connect-src https://iqlxjazrshqzqrltkjoz.supabase.co;
+    connect-src https://iqlxjazrshqzqrltkjoz.supabase.co https://generativelanguage.googleapis.com;
     img-src 'self' data:;
     worker-src 'self';
   ">
@@ -37,22 +37,37 @@
     :root {
       --sidebar-w: 64px;
       --sidebar-expanded-w: 220px;
-      --bg: #000000;
-      --bg2: rgba(24, 24, 27, 0.9);
-      --bg3: rgba(39, 39, 42, 0.8);
-      --border: rgba(82, 82, 91, 0.9);
-      --border2: rgba(113, 113, 122, 0.9);
-      --border3: rgba(161, 161, 170, 0.9);
-      --text: #ffffff;
-      --text2: #e4e4e7;
-      --text3: #a1a1aa;
+      /* Superfici — "Linear Graphite": strati opachi, glass solo su ciò che galleggia */
+      --bg: #0a0a0b;
+      --surface-1: #111113;
+      --surface-2: #18181b;
+      --surface-3: #1f1f23;
+      --bg2: rgba(17, 17, 19, 0.92);
+      --bg3: #1f1f23;
+      /* Bordi: hairline chiari a bassa opacità, mai grigi opachi */
+      --border: rgba(255, 255, 255, 0.06);
+      --border2: rgba(255, 255, 255, 0.10);
+      --border3: rgba(255, 255, 255, 0.16);
+      --hairline: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+      --text: #f4f4f5;
+      --text2: #c9c9cf;
+      --text3: #8b8b94;
       --green: #10b981;
       --red: #ef4444;
       --orange: #f59e0b;
       --yellow: #eab308;
+      --accent: #8b8cf8;
+      --accent-soft: rgba(139, 140, 248, 0.14);
+      --accent-ring: 0 0 0 3px rgba(139, 140, 248, 0.25);
       --mono: 'DM Mono', monospace;
       --sans: 'DM Sans', sans-serif;
-      --glass-blur: blur(16px)
+      --glass-blur: blur(16px);
+      --r-sm: 8px;
+      --r-md: 12px;
+      --r-lg: 16px;
+      --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+      --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+      --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.25)
     }
 
     html,
@@ -69,14 +84,31 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      background: radial-gradient(circle at 50% -20%, #1f1f22 0%, var(--bg) 80%)
+      background: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(139, 140, 248, 0.08) 0%, transparent 60%), var(--bg);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale
+    }
+
+    button,
+    input,
+    select,
+    textarea {
+      font-family: inherit
+    }
+
+    button:focus-visible,
+    input:focus-visible,
+    select:focus-visible,
+    textarea:focus-visible {
+      outline: none;
+      box-shadow: var(--accent-ring)
     }
 
     /* AUTH SCREEN */
     #auth-screen {
       position: fixed;
       inset: 0;
-      background: radial-gradient(circle at 50% -20%, #1f1f22 0%, var(--bg) 80%);
+      background: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(139, 140, 248, 0.10) 0%, transparent 60%), var(--bg);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -96,61 +128,62 @@
 
     .auth-box {
       width: 100%;
-      max-width: 360px;
-      padding: 32px 24px;
-      background: var(--bg2);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-      backdrop-filter: var(--glass-blur);
-      -webkit-backdrop-filter: var(--glass-blur);
+      max-width: 380px;
+      padding: 36px 28px;
+      background: var(--surface-1);
+      border: 1px solid var(--border2);
+      border-radius: var(--r-lg);
+      box-shadow: var(--hairline), var(--shadow-card);
       max-height: 90vh;
       overflow-y: auto;
       -webkit-overflow-scrolling: touch
     }
 
     .auth-logo {
-      font-size: 32px;
-      font-weight: 700;
-      letter-spacing: -.05em;
-      margin-bottom: 4px;
-      background: linear-gradient(135deg, #fff, #a1a1aa);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent
+      font-size: 30px;
+      font-weight: 600;
+      letter-spacing: -.04em;
+      margin-bottom: 6px;
+      color: var(--text)
     }
 
     .auth-sub {
       font-family: var(--mono);
-      font-size: 9px;
+      font-size: 11px;
       color: var(--text3);
-      letter-spacing: .12em;
-      margin-bottom: 40px
+      letter-spacing: .08em;
+      margin-bottom: 36px
     }
 
     .auth-tab-row {
       display: flex;
-      border-bottom: 1px solid var(--border2);
+      gap: 4px;
+      padding: 4px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
       margin-bottom: 24px
     }
 
     .auth-tab {
+      flex: 1;
       background: none;
       border: none;
-      border-bottom: 2px solid transparent;
+      border-radius: 7px;
       color: var(--text3);
       font-family: var(--mono);
-      font-size: 9px;
-      letter-spacing: .12em;
+      font-size: 11px;
+      letter-spacing: .08em;
       text-transform: uppercase;
-      padding: 8px 0;
-      margin-right: 20px;
+      padding: 9px 0;
       cursor: pointer;
-      transition: all .2s ease
+      transition: all .18s ease
     }
 
     .auth-tab.active {
       color: var(--text);
-      border-bottom-color: var(--green)
+      background: var(--surface-3);
+      box-shadow: var(--hairline), 0 1px 2px rgba(0, 0, 0, .4)
     }
 
     .auth-field {
@@ -159,57 +192,60 @@
 
     .auth-label {
       font-family: var(--mono);
-      font-size: 8px;
-      color: var(--text2);
-      letter-spacing: .1em;
+      font-size: 11px;
+      color: var(--text3);
+      letter-spacing: .08em;
       text-transform: uppercase;
       display: block;
-      margin-bottom: 7px
+      margin-bottom: 8px
     }
 
     .auth-input {
       width: 100%;
-      background: rgba(0, 0, 0, 0.2);
+      background: var(--bg);
       border: 1px solid var(--border2);
       color: var(--text);
       font-family: var(--sans);
-      font-size: 14px;
+      font-size: 15px;
       padding: 12px 14px;
-      border-radius: 8px;
+      border-radius: var(--r-sm);
       outline: none;
-      transition: all .2s ease
+      transition: border-color .18s ease, box-shadow .18s ease
+    }
+
+    .auth-input::placeholder {
+      color: var(--text3)
     }
 
     .auth-input:focus {
-      border-color: var(--green);
-      box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.1)
+      border-color: var(--accent);
+      box-shadow: var(--accent-ring)
     }
 
     .auth-btn {
       width: 100%;
       background: var(--text);
-      color: var(--bg);
+      color: #0a0a0b;
       border: none;
-      border-radius: 8px;
+      border-radius: var(--r-sm);
       padding: 13px;
       font-family: var(--mono);
-      font-size: 9px;
-      letter-spacing: .14em;
+      font-size: 11px;
+      letter-spacing: .1em;
       text-transform: uppercase;
       cursor: pointer;
-      font-weight: 600;
+      font-weight: 500;
       margin-top: 8px;
-      transition: all .2s ease
+      transition: transform .15s ease, background .15s ease, box-shadow .15s ease
     }
 
     .auth-btn:hover {
-      background: var(--green);
-      color: #fff;
-      transform: translateY(-1px)
+      background: #ffffff;
+      box-shadow: 0 4px 14px rgba(255, 255, 255, 0.12)
     }
 
     .auth-btn:active {
-      transform: translateY(1px)
+      transform: scale(.985)
     }
 
     .auth-btn:disabled {
@@ -222,25 +258,25 @@
 
     .auth-err {
       font-family: var(--mono);
-      font-size: 9px;
+      font-size: 11px;
       color: var(--red);
-      letter-spacing: .08em;
+      letter-spacing: .04em;
       margin-top: 10px;
       min-height: 16px
     }
 
     .auth-ok {
       font-family: var(--mono);
-      font-size: 9px;
+      font-size: 11px;
       color: var(--green);
-      letter-spacing: .08em;
+      letter-spacing: .04em;
       margin-top: 10px;
       min-height: 16px
     }
 
     #shell {
       width: 100%;
-      max-width: 520px;
+      max-width: 640px;
       height: 100vh;
       display: flex;
       flex-direction: column;
@@ -248,15 +284,12 @@
       border-left: 1px solid var(--border);
       border-right: 1px solid var(--border);
       position: relative;
-      background: rgba(9, 9, 11, 0.8);
-      backdrop-filter: var(--glass-blur);
-      -webkit-backdrop-filter: var(--glass-blur);
-      box-shadow: 0 0 40px rgba(0, 0, 0, 0.8)
+      background: var(--bg)
     }
 
     #top-progress-track {
       width: 100%;
-      height: 3.5px;
+      height: 3px;
       background: rgba(255, 255, 255, 0.05);
       position: relative;
       overflow: hidden;
@@ -268,8 +301,8 @@
       height: 100%;
       width: 0%;
       background: #f87171;
-      box-shadow: none;
-      transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.4s ease, box-shadow 0.4s ease;
+      box-shadow: 0 0 12px currentColor;
+      transition: width 0.4s var(--ease-out), background-color 0.4s ease, box-shadow 0.4s ease;
     }
 
     #screen-area {
@@ -321,11 +354,13 @@
       display: grid;
       grid-template-columns: 1fr 1fr 1fr 1fr;
       border-top: 1px solid var(--border);
-      background: rgba(24, 24, 27, 0.8);
+      background: rgba(17, 17, 19, 0.85);
       backdrop-filter: var(--glass-blur);
       -webkit-backdrop-filter: var(--glass-blur);
       flex-shrink: 0;
-      padding-bottom: env(safe-area-inset-bottom)
+      padding: 6px 8px;
+      padding-bottom: calc(6px + env(safe-area-inset-bottom));
+      gap: 4px
     }
 
     /* nasconde elementi sidebar-only su mobile */
@@ -337,92 +372,113 @@
     .nav-btn {
       background: none;
       border: none;
-      border-right: 1px solid var(--border);
-      border-top: 2px solid transparent;
+      border-radius: 10px;
       color: var(--text3);
-      padding: 12px 0 10px;
+      padding: 8px 0 6px;
       cursor: pointer;
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 4px;
-      transition: all .2s ease;
+      gap: 5px;
+      transition: color .18s ease, background .18s ease, transform .12s ease;
       font-family: var(--mono);
-      font-size: 7px;
-      letter-spacing: .1em;
+      font-size: 10px;
+      letter-spacing: .06em;
       text-transform: uppercase
     }
 
-    .nav-btn:last-child {
-      border-right: none;
+    .nav-btn:active {
+      transform: scale(.94)
     }
 
     .nav-btn svg {
-      width: 20px;
-      height: 20px;
-      stroke-width: 1.5;
+      width: 22px;
+      height: 22px;
+      stroke-width: 1.6;
       stroke: currentColor;
       fill: none;
-      transition: transform .2s cubic-bezier(0.34, 1.56, 0.64, 1)
+      transition: transform .25s var(--ease-spring)
     }
 
     .nav-btn.active {
-      color: var(--green);
-      border-top-color: var(--green)
+      color: var(--text);
+      background: var(--surface-3)
     }
 
     .nav-btn.active svg {
-      stroke-width: 2.2;
-      transform: translateY(-2px)
+      stroke-width: 2;
+      color: var(--accent);
+      transform: translateY(-1px)
     }
 
-    /* TOPBAR */
+    /* TOPBAR — una sola riga: data (o navigatore data) a sinistra, stato sync + azioni a destra.
+       Nessun titolo di schermata: l'etichetta è già nella bottom nav. */
     .topbar {
-      padding: 28px 20px 16px;
-      border-bottom: 1px solid var(--border);
+      padding: 22px 20px 10px;
       flex-shrink: 0;
       display: flex;
-      align-items: flex-start;
+      align-items: center;
       justify-content: space-between;
-      background: linear-gradient(to bottom, rgba(24, 24, 27, 0.4), transparent)
+      gap: 12px
     }
 
-    .topbar-left {}
+    .topbar-left {
+      flex: 1;
+      min-width: 0;
+      min-height: 26px;
+      display: flex;
+      align-items: center
+    }
 
+    .topbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0
+    }
+
+    /* Data statica (Discover, Calendario): stesso peso visivo dell'etichetta del navigatore */
     .topbar-date {
       font-family: var(--mono);
-      font-size: 9px;
-      color: var(--text2);
-      letter-spacing: .12em;
-      margin-bottom: 6px;
-      text-transform: uppercase
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text);
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis
     }
 
     .date-nav {
       display: flex;
       align-items: center;
-      gap: 12px;
-      margin-bottom: 6px;
+      gap: 8px;
+      min-width: 0;
     }
 
     .date-nav-arrow {
-      background: rgba(255, 255, 255, 0.05);
+      background: var(--surface-2);
       border: 1px solid var(--border2);
-      border-radius: 6px;
+      border-radius: 7px;
       color: var(--text2);
       cursor: pointer;
-      width: 24px;
-      height: 24px;
+      width: 26px;
+      height: 26px;
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: all .2s;
+      transition: all .15s;
     }
 
     .date-nav-arrow:hover:not(:disabled) {
-      border-color: var(--text);
+      border-color: var(--border3);
       color: var(--text);
-      background: rgba(255, 255, 255, 0.1);
+      background: var(--surface-3);
+    }
+
+    .date-nav-arrow:active {
+      transform: scale(.92)
     }
 
     .date-nav-arrow svg {
@@ -435,65 +491,68 @@
 
     .date-nav-label {
       font-family: var(--mono);
-      font-size: 10px;
-      color: var(--text2);
-      letter-spacing: .05em;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text);
+      letter-spacing: .06em;
       text-transform: uppercase;
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 8px;
+      white-space: nowrap;
+      min-width: 0;
+    }
+
+    .date-nav-txt {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis
+    }
+
+    .dn-long {
+      display: none
     }
 
     .today-badge {
-      background: var(--green);
-      color: #000;
-      padding: 2px 6px;
-      border-radius: 4px;
-      font-size: 8px;
-      font-weight: bold;
-      letter-spacing: .1em;
-    }
-
-    .topbar-title {
-      font-size: 32px;
-      font-weight: 700;
-      letter-spacing: -.04em;
-      line-height: 1;
-      background: linear-gradient(135deg, #fff, #a1a1aa);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent
+      background: var(--accent-soft);
+      color: var(--accent);
+      border: 1px solid rgba(139, 140, 248, 0.3);
+      padding: 2px 7px;
+      border-radius: 5px;
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: .08em;
     }
 
     .logout-btn {
-      background: rgba(255, 255, 255, 0.05);
+      background: transparent;
       border: 1px solid var(--border2);
-      border-radius: 12px;
-      color: var(--text2);
+      border-radius: 8px;
+      color: var(--text3);
       font-family: var(--mono);
-      font-size: 8px;
-      letter-spacing: .1em;
+      font-size: 10px;
+      letter-spacing: .08em;
       text-transform: uppercase;
-      padding: 6px 12px;
+      padding: 7px 12px;
       cursor: pointer;
-      transition: all .2s ease;
-      margin-top: 4px
+      transition: all .15s ease
     }
 
     .logout-btn:hover {
-      background: rgba(239, 68, 68, 0.1);
+      background: rgba(239, 68, 68, 0.08);
       color: var(--red);
       border-color: rgba(239, 68, 68, 0.3)
     }
 
-    /* SYNC BAR */
+    /* SYNC — indicatore compatto nella topbar: su mobile solo il dot (testo in title/aria-label),
+       da 768px dot + testo breve con ellissi */
     .sync-bar {
       display: flex;
       align-items: center;
       gap: 8px;
-      padding: 8px 20px;
-      border-bottom: 1px solid var(--border);
-      flex-shrink: 0;
-      background: rgba(0, 0, 0, 0.2)
+      min-width: 0;
+      padding: 0 4px;
+      flex-shrink: 1
     }
 
     .sync-dot {
@@ -527,11 +586,16 @@
     }
 
     .sync-txt {
+      display: none;
       font-family: var(--mono);
-      font-size: 8px;
-      color: var(--text2);
-      letter-spacing: .1em;
-      text-transform: uppercase
+      font-size: 10px;
+      color: var(--text3);
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 200px
     }
 
     @keyframes pulse {
@@ -609,9 +673,9 @@
 
     .prog-label {
       font-family: var(--mono);
-      font-size: 9px;
-      color: var(--text2);
-      letter-spacing: .12em;
+      font-size: 11px;
+      color: var(--text3);
+      letter-spacing: .08em;
       text-transform: uppercase
     }
 
@@ -652,29 +716,36 @@
     }
 
     .focus-btn {
-      background: none;
-      border: 1px solid var(--border3);
+      background: var(--surface-2);
+      border: 1px solid var(--border2);
       color: var(--text3);
       font-family: var(--mono);
-      font-size: 9px;
-      letter-spacing: .08em;
-      padding: 3px 8px;
-      border-radius: 4px;
+      font-size: 11px;
+      letter-spacing: .06em;
+      padding: 5px 10px;
+      border-radius: 7px;
       cursor: pointer;
-      transition: all .2s ease
+      transition: all .15s ease
+    }
+
+    .focus-btn:hover {
+      color: var(--text);
+      border-color: var(--border3)
     }
 
     .focus-btn.active {
-      border-color: var(--green);
-      color: var(--green)
+      border-color: rgba(139, 140, 248, 0.4);
+      background: var(--accent-soft);
+      color: var(--accent)
     }
 
     .habit-streak-badge {
       font-family: var(--mono);
-      font-size: 9px;
+      font-size: 11px;
       color: var(--text3);
-      letter-spacing: .05em;
-      flex-shrink: 0
+      letter-spacing: .03em;
+      flex-shrink: 0;
+      font-variant-numeric: tabular-nums
     }
 
     /* prog-head/prog-pct used by recap + storico screens */
@@ -720,55 +791,60 @@
 
     .stat-lbl {
       font-family: var(--mono);
-      font-size: 8px;
+      font-size: 11px;
       color: var(--text3);
-      letter-spacing: .1em;
+      letter-spacing: .08em;
       text-transform: uppercase;
       margin-top: 4px
     }
 
     /* SECTIONS */
     .section-head {
-      padding: 20px 20px 10px;
-      border-bottom: 1px solid var(--border);
+      padding: 22px 20px 10px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      flex-shrink: 0;
-      background: linear-gradient(to bottom, rgba(24, 24, 27, 0.5), transparent)
+      flex-shrink: 0
     }
 
     .section-label {
       font-family: var(--mono);
-      font-size: 9px;
-      color: var(--text2);
-      letter-spacing: .12em;
+      font-size: 11px;
+      color: var(--text3);
+      letter-spacing: .08em;
       text-transform: uppercase;
       font-weight: 500
     }
 
     .icon-btn {
-      background: rgba(255, 255, 255, 0.05);
+      background: var(--surface-2);
       border: 1px solid var(--border2);
       border-radius: 8px;
       cursor: pointer;
       color: var(--text2);
       display: flex;
       align-items: center;
-      padding: 6px;
-      transition: all .2s ease
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      transition: all .15s ease
     }
 
     .icon-btn:hover {
-      background: rgba(255, 255, 255, 0.1);
-      color: var(--text);
-      transform: translateY(-1px)
+      background: var(--surface-3);
+      border-color: var(--border3);
+      color: var(--text)
+    }
+
+    .icon-btn:active {
+      transform: scale(.92)
     }
 
     .icon-btn svg {
       width: 16px;
       height: 16px;
-      stroke-width: 1.5;
+      stroke-width: 1.6;
       stroke: currentColor;
       fill: none
     }
@@ -778,21 +854,22 @@
       display: flex;
       align-items: center;
       gap: 14px;
-      padding: 16px 20px;
+      padding: 15px 20px;
       border-bottom: 1px solid var(--border);
       cursor: pointer;
-      transition: all .2s ease;
+      transition: background .18s ease, transform .12s ease, opacity .2s ease;
       position: relative;
       overflow: hidden;
-      background: rgba(24, 24, 27, 0.2)
+      background: transparent
     }
 
     .habit-row:hover {
-      background: rgba(24, 24, 27, 0.6)
+      background: var(--surface-1)
     }
 
     .habit-row:active {
-      transform: scale(0.99)
+      transform: scale(0.985);
+      background: var(--surface-2)
     }
 
     .habit-row.skipped {
@@ -824,20 +901,24 @@
     .hcheck {
       width: 22px;
       height: 22px;
-      border: 2px solid var(--border3);
-      border-radius: 6px;
+      border: 1.5px solid var(--border3);
+      border-radius: 7px;
       flex-shrink: 0;
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: all .2s cubic-bezier(0.34, 1.56, 0.64, 1);
-      background: rgba(0, 0, 0, 0.2)
+      transition: all .25s var(--ease-spring);
+      background: var(--surface-1)
+    }
+
+    .habit-row:hover .hcheck:not(.done) {
+      border-color: rgba(255, 255, 255, 0.28)
     }
 
     .hcheck.done {
       background: var(--green);
       border-color: var(--green);
-      box-shadow: 0 0 12px rgba(16, 185, 129, 0.3)
+      box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.15)
     }
 
     .hcheck svg {
@@ -872,37 +953,38 @@
 
     .hfreq {
       font-family: var(--mono);
-      font-size: 9px;
+      font-size: 10px;
       color: var(--text3);
-      letter-spacing: .08em;
+      letter-spacing: .06em;
       margin-right: 4px;
-      background: var(--bg3);
-      padding: 2px 6px;
-      border-radius: 4px
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      padding: 3px 7px;
+      border-radius: 5px
     }
 
     .skip-btn {
-      background: rgba(255, 255, 255, 0.05);
+      background: transparent;
       border: 1px solid transparent;
       border-radius: 8px;
       cursor: pointer;
       color: var(--text3);
-      padding: 6px;
-      transition: all .2s ease;
+      padding: 7px;
+      transition: all .15s ease;
       display: flex;
       align-items: center;
       flex-shrink: 0
     }
 
     .skip-btn:hover {
-      background: rgba(255, 255, 255, 0.1);
+      background: var(--surface-3);
       color: var(--text2)
     }
 
     .skip-btn.active {
-      background: rgba(255, 255, 255, 0.15);
+      background: var(--surface-3);
       color: var(--text);
-      border-color: var(--border3)
+      border-color: var(--border2)
     }
 
     .skip-btn svg {
@@ -954,27 +1036,28 @@
 
     /* TASKS FOCUS (OGGI) */
     .tasks-row {
-      padding: 16px 20px;
-      border-bottom: 1px solid var(--border);
+      padding: 16px 18px;
       cursor: pointer;
-      transition: all .2s ease;
-      background: linear-gradient(to right, rgba(24, 24, 27, 0.4), rgba(24, 24, 27, 0.1));
-      margin: 8px 12px;
-      border-radius: 12px;
+      transition: background .18s ease, border-color .18s ease, transform .12s ease;
+      background: var(--surface-1);
+      margin: 6px 16px 10px;
+      border-radius: var(--r-md);
       border: 1px solid var(--border2);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2)
+      box-shadow: var(--hairline), var(--shadow-card)
     }
 
     .tasks-row:hover {
-      background: linear-gradient(to right, rgba(39, 39, 42, 0.5), rgba(39, 39, 42, 0.2));
-      border-color: var(--border3);
-      transform: translateY(-2px);
-      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3)
+      background: var(--surface-2);
+      border-color: var(--border3)
+    }
+
+    .tasks-row:active {
+      transform: scale(.985)
     }
 
     .tasks-row.priority-on {
-      border-left: 3px solid var(--orange);
-      background: linear-gradient(to right, rgba(245, 158, 11, 0.05), transparent)
+      border-color: rgba(245, 158, 11, 0.35);
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.06), var(--surface-1) 60%)
     }
 
     .tasks-head {
@@ -992,7 +1075,7 @@
     }
 
     .task-item {
-      font-size: 13px;
+      font-size: 14px;
       color: var(--text2);
       display: flex;
       align-items: flex-start;
@@ -1065,23 +1148,25 @@
       display: flex;
       align-items: center;
       gap: 12px;
-      padding: 16px 20px;
+      padding: 14px 20px;
       border-bottom: 1px solid var(--border);
-      background: rgba(24, 24, 27, 0.2);
-      transition: background .2s
+      background: var(--surface-1);
+      transition: background .18s, box-shadow .18s
     }
 
     .plan-task:focus-within {
-      background: rgba(39, 39, 42, 0.3)
+      background: var(--surface-2);
+      box-shadow: inset 2px 0 0 var(--accent)
     }
 
     .plan-num {
       font-family: var(--mono);
-      font-size: 11px;
+      font-size: 12px;
       color: var(--text3);
       width: 20px;
       flex-shrink: 0;
-      font-weight: 500
+      font-weight: 500;
+      font-variant-numeric: tabular-nums
     }
 
     .plan-task input {
@@ -1089,10 +1174,15 @@
       background: none;
       border: none;
       outline: none;
+      box-shadow: none;
       font-family: var(--sans);
       font-size: 15px;
       color: var(--text);
-      caret-color: var(--green)
+      caret-color: var(--accent)
+    }
+
+    .plan-task input:focus-visible {
+      box-shadow: none
     }
 
     .plan-task input::placeholder {
@@ -1146,9 +1236,9 @@
       align-items: center;
       gap: 8px;
       width: calc(100% - 24px);
-      margin: 8px 12px;
+      margin: 10px 12px;
       padding: 12px 16px;
-      background: rgba(24, 24, 27, 0.3);
+      background: transparent;
       border: 1px dashed var(--border2);
       border-radius: 10px;
       color: var(--text3);
@@ -1159,9 +1249,9 @@
     }
 
     .slot-add:hover {
-      background: rgba(39, 39, 42, 0.4);
-      border-color: var(--green);
-      color: var(--green)
+      background: var(--accent-soft);
+      border-color: rgba(139, 140, 248, 0.5);
+      color: var(--accent)
     }
 
     .slot-add span {
@@ -1180,40 +1270,38 @@
 
     .priority-banner span {
       font-family: var(--mono);
-      font-size: 9px;
+      font-size: 11px;
       color: var(--orange);
-      letter-spacing: .1em;
+      letter-spacing: .08em;
       text-transform: uppercase;
       font-weight: 500
     }
 
     .save-btn {
-      margin: 24px 20px 12px;
+      margin: 20px 20px 12px;
       background: var(--text);
-      color: var(--bg);
+      color: #0a0a0b;
       border: none;
-      border-radius: 12px;
-      padding: 16px 20px;
+      border-radius: var(--r-md);
+      padding: 15px 20px;
       font-family: var(--mono);
-      font-size: 10px;
-      letter-spacing: .14em;
+      font-size: 11px;
+      letter-spacing: .1em;
       text-transform: uppercase;
       cursor: pointer;
-      transition: all .2s ease;
-      font-weight: 600;
+      transition: transform .15s ease, box-shadow .15s ease, background .15s ease;
+      font-weight: 500;
       width: calc(100% - 40px);
-      box-shadow: 0 4px 12px rgba(255, 255, 255, 0.1)
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4)
     }
 
     .save-btn:hover {
-      background: var(--green);
-      color: #fff;
-      transform: translateY(-2px);
-      box-shadow: 0 6px 16px rgba(16, 185, 129, 0.2)
+      background: #ffffff;
+      box-shadow: 0 6px 20px rgba(255, 255, 255, 0.12)
     }
 
     .save-btn:active {
-      transform: translateY(1px);
+      transform: scale(.985);
       box-shadow: none
     }
 
@@ -1233,26 +1321,27 @@
 
     .hplan-freq {
       font-family: var(--mono);
-      font-size: 9px;
+      font-size: 10px;
       color: var(--text3);
-      letter-spacing: .08em;
-      background: var(--bg3);
+      letter-spacing: .06em;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
       padding: 3px 8px;
-      border-radius: 6px
+      border-radius: 5px
     }
 
     /* MODAL */
     .modal-overlay {
       position: absolute;
       inset: 0;
-      background: rgba(0, 0, 0, 0.6);
-      backdrop-filter: blur(4px);
-      -webkit-backdrop-filter: blur(4px);
+      background: rgba(0, 0, 0, 0.55);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
       display: none;
       align-items: flex-end;
       z-index: 100;
       opacity: 0;
-      transition: opacity .3s ease
+      transition: opacity .25s ease
     }
 
     .modal-overlay.open {
@@ -1261,16 +1350,16 @@
     }
 
     .modal {
-      background: var(--bg);
-      border-top: 1px solid var(--border);
+      background: var(--surface-1);
+      border-top: 1px solid var(--border2);
       border-radius: 20px 20px 0 0;
       width: 100%;
       max-height: 88%;
       overflow-y: auto;
       scrollbar-width: none;
       transform: translateY(100%);
-      transition: transform .3s cubic-bezier(0.34, 1.56, 0.64, 1);
-      box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.5)
+      transition: transform .35s var(--ease-out);
+      box-shadow: var(--hairline), 0 -10px 40px rgba(0, 0, 0, 0.5)
     }
 
     .modal-overlay.open .modal {
@@ -1289,7 +1378,7 @@
       justify-content: space-between;
       position: sticky;
       top: 0;
-      background: rgba(9, 9, 11, 0.9);
+      background: rgba(17, 17, 19, 0.9);
       backdrop-filter: var(--glass-blur);
       -webkit-backdrop-filter: var(--glass-blur);
       z-index: 1
@@ -1297,19 +1386,19 @@
 
     .modal-title {
       font-family: var(--mono);
-      font-size: 10px;
-      letter-spacing: .12em;
+      font-size: 12px;
+      letter-spacing: .08em;
       text-transform: uppercase;
       font-weight: 500
     }
 
     .modal-close {
-      background: rgba(255, 255, 255, 0.05);
+      background: var(--surface-3);
       border: none;
       color: var(--text2);
       border-radius: 50%;
-      width: 28px;
-      height: 28px;
+      width: 30px;
+      height: 30px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -1335,9 +1424,9 @@
 
     .form-label {
       font-family: var(--mono);
-      font-size: 9px;
-      color: var(--text2);
-      letter-spacing: .1em;
+      font-size: 11px;
+      color: var(--text3);
+      letter-spacing: .08em;
       text-transform: uppercase;
       margin-bottom: 8px;
       display: block
@@ -1345,30 +1434,35 @@
 
     .form-input {
       width: 100%;
-      background: rgba(0, 0, 0, 0.2);
+      background: var(--bg);
       border: 1px solid var(--border2);
       color: var(--text);
       font-family: var(--sans);
       font-size: 15px;
-      padding: 14px 16px;
-      border-radius: 8px;
+      padding: 13px 15px;
+      border-radius: var(--r-sm);
       outline: none;
-      transition: border-color .2s
+      transition: border-color .18s, box-shadow .18s
+    }
+
+    .form-input::placeholder {
+      color: var(--text3)
     }
 
     .form-input:focus {
-      border-color: var(--green)
+      border-color: var(--accent);
+      box-shadow: var(--accent-ring)
     }
 
     .form-select {
       width: 100%;
-      background: rgba(0, 0, 0, 0.2);
+      background: var(--bg);
       border: 1px solid var(--border2);
       color: var(--text);
       font-family: var(--mono);
       font-size: 13px;
-      padding: 14px 16px;
-      border-radius: 8px;
+      padding: 13px 15px;
+      border-radius: var(--r-sm);
       outline: none;
       cursor: pointer;
       appearance: none;
@@ -1454,56 +1548,65 @@
     .btn-pri {
       flex: 1;
       background: var(--text);
-      color: var(--bg);
+      color: #0a0a0b;
       border: none;
-      border-radius: 8px;
-      padding: 14px;
+      border-radius: var(--r-sm);
+      padding: 13px;
       font-family: var(--mono);
-      font-size: 10px;
-      letter-spacing: .12em;
+      font-size: 11px;
+      letter-spacing: .08em;
       text-transform: uppercase;
       cursor: pointer;
-      font-weight: 600;
-      transition: all .2s
+      font-weight: 500;
+      transition: all .15s
     }
 
     .btn-pri:hover {
-      background: var(--green);
-      color: #fff
+      background: #ffffff;
+      box-shadow: 0 4px 14px rgba(255, 255, 255, 0.12)
+    }
+
+    .btn-pri:active {
+      transform: scale(.985)
     }
 
     .btn-sec {
       flex: 1;
-      background: rgba(255, 255, 255, 0.05);
+      background: var(--surface-2);
       color: var(--text2);
       border: 1px solid var(--border2);
-      border-radius: 8px;
-      padding: 14px;
+      border-radius: var(--r-sm);
+      padding: 13px;
       font-family: var(--mono);
-      font-size: 10px;
-      letter-spacing: .12em;
+      font-size: 11px;
+      letter-spacing: .08em;
       text-transform: uppercase;
       cursor: pointer;
-      transition: all .2s
+      transition: all .15s
     }
 
     .btn-sec:hover {
-      background: rgba(255, 255, 255, 0.1);
+      background: var(--surface-3);
+      border-color: var(--border3);
       color: var(--text)
+    }
+
+    .btn-sec:active {
+      transform: scale(.985)
     }
 
     .btn-del {
       background: rgba(239, 68, 68, 0.1);
       color: var(--red);
       border: 1px solid rgba(239, 68, 68, 0.2);
-      border-radius: 8px;
-      padding: 14px;
+      border-radius: var(--r-sm);
+      padding: 13px;
       font-family: var(--mono);
-      font-size: 10px;
-      letter-spacing: .12em;
+      font-size: 11px;
+      letter-spacing: .08em;
       text-transform: uppercase;
       cursor: pointer;
-      transition: all .2s
+      transition: all .15s
     }
 
     .btn-del:hover {
@@ -1517,12 +1620,12 @@
       padding: 16px 24px;
       border-bottom: 1px solid var(--border);
       cursor: pointer;
-      transition: background .2s;
-      background: rgba(24, 24, 27, 0.2)
+      transition: background .18s;
+      background: transparent
     }
 
     .hmanage-row:hover {
-      background: rgba(39, 39, 42, 0.4)
+      background: var(--surface-2)
     }
 
     .hmanage-info {
@@ -1536,9 +1639,9 @@
 
     .hmanage-meta {
       font-family: var(--mono);
-      font-size: 9px;
-      color: var(--text2);
-      letter-spacing: .08em
+      font-size: 11px;
+      color: var(--text3);
+      letter-spacing: .04em
     }
 
     .drag-handle {
@@ -1567,20 +1670,21 @@
       gap: 10px;
       padding: 20px;
       cursor: pointer;
-      background: linear-gradient(to bottom, rgba(255, 255, 255, 0.05), transparent);
+      background: var(--surface-2);
       border: none;
       border-bottom: 1px solid var(--border);
       color: var(--text);
       font-family: var(--mono);
-      font-size: 10px;
-      letter-spacing: .1em;
+      font-size: 11px;
+      letter-spacing: .08em;
       text-transform: uppercase;
       width: 100%;
-      transition: all .2s
+      transition: all .15s
     }
 
     .add-habit-btn:hover {
-      background: rgba(255, 255, 255, 0.08)
+      background: var(--surface-3);
+      color: var(--accent)
     }
 
     .add-habit-btn svg {
@@ -1591,153 +1695,896 @@
       fill: none
     }
 
-    /* RECAP */
-    .sum-row {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      padding: 14px 20px;
-      border-bottom: 1px solid var(--border)
-    }
-
-    .sum-icon {
-      width: 28px;
-      height: 28px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 14px;
-      flex-shrink: 0
-    }
-
-    .sum-icon.ok {
-      background: rgba(16, 185, 129, 0.15);
-      color: var(--green);
-      border: 1px solid rgba(16, 185, 129, 0.3)
-    }
-
-    .sum-icon.ko {
-      background: rgba(239, 68, 68, 0.15);
-      color: var(--red);
-      border: 1px solid rgba(239, 68, 68, 0.3)
-    }
-
-    .sum-icon.sk {
-      background: rgba(255, 255, 255, 0.05);
-      color: var(--text3);
-      border: 1px solid var(--border2)
-    }
-
-    .sum-name {
-      flex: 1;
-      font-size: 15px
-    }
-
-    .sum-badge {
-      font-family: var(--mono);
-      font-size: 8px;
-      letter-spacing: .08em;
-      padding: 4px 8px;
-      border-radius: 6px;
-      text-transform: uppercase;
-      font-weight: 500
-    }
-
-    .bd {
-      background: rgba(16, 185, 129, 0.1);
-      color: var(--green);
-      border: 1px solid rgba(16, 185, 129, 0.2)
-    }
-
-    .bm {
-      background: rgba(239, 68, 68, 0.1);
-      color: var(--red);
-      border: 1px solid rgba(239, 68, 68, 0.2)
-    }
-
-    .bs {
-      background: rgba(255, 255, 255, 0.05);
-      color: var(--text2);
-      border: 1px solid var(--border2)
-    }
-
-    .notes-wrap {
-      margin: 16px 20px;
-      border: 1px solid var(--border2);
-      border-radius: 12px;
-      background: rgba(0, 0, 0, 0.2);
-      overflow: hidden;
-      transition: border-color .2s
-    }
-
-    .notes-wrap:focus-within {
-      border-color: var(--green)
-    }
-
-    .notes-wrap textarea {
-      width: 100%;
-      background: none;
-      border: none;
-      outline: none;
-      color: var(--text);
-      font-family: var(--sans);
-      font-size: 14px;
-      resize: none;
-      min-height: 120px;
-      line-height: 1.6;
-      padding: 16px
-    }
-
-    .notes-wrap textarea::placeholder {
-      color: var(--text3)
-    }
-
-    .ai-box {
-      margin: 8px 20px 24px;
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 20px;
-      background: linear-gradient(135deg, rgba(39, 39, 42, 0.6), rgba(24, 24, 27, 0.4));
-      position: relative;
+    /* ══════════════════════════════════════════════
+       DISCOVER FEED
+       ══════════════════════════════════════════════ */
+    .screen.discover {
       overflow: hidden
     }
 
-    .ai-box::before {
-      content: '';
+    /* Chip bar argomenti */
+    .chip-bar {
+      display: flex;
+      gap: 6px;
+      padding: 8px 20px 12px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      flex-shrink: 0;
+      -webkit-overflow-scrolling: touch;
+      border-bottom: 1px solid var(--border)
+    }
+
+    .chip-bar::-webkit-scrollbar {
+      display: none
+    }
+
+    .chip {
+      flex-shrink: 0;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 12px;
+      border-radius: 999px;
+      background: var(--surface-2);
+      border: 1px solid var(--border2);
+      color: var(--text2);
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: .04em;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background .15s ease, border-color .15s ease, color .15s ease, transform .12s ease
+    }
+
+    .chip:hover {
+      border-color: var(--border3);
+      color: var(--text)
+    }
+
+    .chip:active {
+      transform: scale(.94)
+    }
+
+    .chip.on {
+      background: var(--accent-soft);
+      border-color: rgba(139, 140, 248, 0.45);
+      color: var(--accent)
+    }
+
+    .chip.add {
+      color: var(--text3);
+      border-style: dashed;
+      background: transparent
+    }
+
+    .chip.add:hover {
+      color: var(--accent);
+      border-color: rgba(139, 140, 248, 0.5)
+    }
+
+    /* Wrapper feed + indicatore pull-to-refresh */
+    .feed-wrap {
+      flex: 1;
+      min-height: 0;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden
+    }
+
+    .feed-ptr {
       position: absolute;
       top: 0;
       left: 0;
       right: 0;
-      height: 2px;
-      background: linear-gradient(90deg, #8b5cf6, #ec4899, #f43f5e)
-    }
-
-    .ai-lbl {
-      font-family: var(--mono);
-      font-size: 9px;
-      color: #a78bfa;
-      letter-spacing: .1em;
-      text-transform: uppercase;
-      margin-bottom: 8px;
+      height: 56px;
       display: flex;
       align-items: center;
-      gap: 6px
+      justify-content: center;
+      pointer-events: none;
+      z-index: 2;
+      transform: translateY(-56px);
+      opacity: 0;
+      transition: transform .25s var(--ease-out), opacity .2s ease
     }
 
-    .ai-lbl svg {
+    .feed-ptr-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 14px;
+      border-radius: 999px;
+      background: var(--surface-2);
+      border: 1px solid var(--border2);
+      box-shadow: var(--shadow-card);
+      color: var(--text2);
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: .04em
+    }
+
+    .feed-ptr-pill svg {
       width: 14px;
       height: 14px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      transition: transform .2s ease
+    }
+
+    .feed-ptr.ready .feed-ptr-pill {
+      color: var(--accent);
+      border-color: rgba(139, 140, 248, 0.45)
+    }
+
+    .feed-ptr.ready .feed-ptr-pill svg {
+      transform: rotate(180deg)
+    }
+
+    .feed-ptr.busy .feed-ptr-pill svg {
+      animation: spin .8s linear infinite
+    }
+
+    /* Container snap verticale */
+    .feed {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      overflow-x: hidden;
+      overflow-anchor: none;
+      scroll-snap-type: y mandatory;
+      overscroll-behavior-y: contain;
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+      transition: transform .25s var(--ease-out)
+    }
+
+    .feed.pulling {
+      transition: none
+    }
+
+    .feed::-webkit-scrollbar {
+      display: none
+    }
+
+    .feed-slide {
+      height: 100%;
+      scroll-snap-align: start;
+      scroll-snap-stop: always;
+      padding: 12px 20px 16px;
+      display: flex;
+      flex-direction: column;
+      box-sizing: border-box
+    }
+
+    .feed-card {
+      --tc: var(--accent);
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      padding: 24px 22px 20px;
+      background: var(--surface-1);
+      border: 1px solid var(--border2);
+      border-radius: var(--r-lg);
+      box-shadow: var(--hairline), var(--shadow-card);
+      position: relative;
+      overflow: hidden;
+      animation: slideUp .35s var(--ease-out) both
+    }
+
+    .feed-card::before {
+      content: '';
+      position: absolute;
+      inset: -1px -1px auto -1px;
+      height: 160px;
+      background: radial-gradient(ellipse 70% 100% at 20% 0%, color-mix(in srgb, var(--tc) 18%, transparent), transparent 70%);
+      pointer-events: none
+    }
+
+    .feed-card > * {
+      position: relative
+    }
+
+    .feed-badge {
+      align-self: flex-start;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 10px;
+      border-radius: 999px;
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: var(--tc);
+      background: color-mix(in srgb, var(--tc) 14%, transparent);
+      border: 1px solid color-mix(in srgb, var(--tc) 35%, transparent)
+    }
+
+    .feed-title {
+      font-size: 22px;
+      font-weight: 600;
+      letter-spacing: -.02em;
+      line-height: 1.25;
+      color: var(--text)
+    }
+
+    .feed-summary {
+      font-size: 15px;
+      line-height: 1.6;
+      color: var(--text2);
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      scrollbar-width: none
+    }
+
+    .feed-summary::-webkit-scrollbar {
+      display: none
+    }
+
+    .feed-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text3);
+      letter-spacing: .03em
+    }
+
+    .feed-meta-dot {
+      width: 3px;
+      height: 3px;
+      border-radius: 50%;
+      background: var(--text3)
+    }
+
+    .feed-actions {
+      display: flex;
+      gap: 8px;
+      padding-top: 4px
+    }
+
+    .feed-btn {
+      flex: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 12px 10px;
+      border-radius: 10px;
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: transform .12s ease, background .15s ease, border-color .15s ease, box-shadow .15s ease;
+      border: 1px solid transparent
+    }
+
+    .feed-btn:active {
+      transform: scale(.97)
+    }
+
+    .feed-btn.pri {
+      background: var(--text);
+      color: #0a0a0b;
+      font-weight: 500
+    }
+
+    .feed-btn.pri:hover {
+      background: #fff;
+      box-shadow: 0 4px 14px rgba(255, 255, 255, 0.12)
+    }
+
+    .feed-btn.sec {
+      background: var(--surface-2);
+      border-color: var(--border2);
+      color: var(--text2)
+    }
+
+    .feed-btn.sec:hover {
+      background: var(--surface-3);
+      border-color: var(--border3);
+      color: var(--text)
+    }
+
+    .feed-btn.ico {
+      flex: 0 0 44px;
+      padding: 0;
+      background: var(--surface-2);
+      border-color: var(--border2);
+      color: var(--text2)
+    }
+
+    .feed-btn.ico svg {
+      width: 17px;
+      height: 17px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round
+    }
+
+    .feed-btn.ico:hover {
+      background: var(--surface-3);
+      color: var(--text)
+    }
+
+    .feed-btn.ico.on {
+      background: var(--accent-soft);
+      border-color: rgba(139, 140, 248, 0.45);
+      color: var(--accent)
+    }
+
+    .feed-btn.ico.on svg {
+      fill: currentColor
+    }
+
+    .feed-btn:disabled {
+      opacity: .5;
+      cursor: not-allowed
+    }
+
+    /* Stati: setup / loading / errore / fine */
+    .feed-state {
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      gap: 12px;
+      padding: 32px 24px
+    }
+
+    .feed-state-icon {
+      width: 52px;
+      height: 52px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--accent-soft);
+      border: 1px solid rgba(139, 140, 248, 0.3);
+      color: var(--accent);
+      font-size: 22px;
+      margin-bottom: 4px
+    }
+
+    .feed-state-icon svg {
+      width: 24px;
+      height: 24px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.8
+    }
+
+    .feed-state h3 {
+      font-size: 20px;
+      font-weight: 600;
+      letter-spacing: -.02em
+    }
+
+    .feed-state p {
+      font-size: 14px;
+      line-height: 1.55;
+      color: var(--text2);
+      max-width: 340px
+    }
+
+    .feed-state .feed-actions {
+      width: 100%;
+      max-width: 340px;
+      flex-direction: column
+    }
+
+    .feed-state .feed-form {
+      width: 100%;
+      max-width: 340px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 6px
+    }
+
+    .feed-key-wrap {
+      position: relative;
+      display: flex
+    }
+
+    .feed-key-wrap .form-input {
+      padding-right: 44px;
+      font-family: var(--mono);
+      font-size: 13px
+    }
+
+    .feed-eye {
+      position: absolute;
+      right: 6px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: var(--text3);
+      cursor: pointer;
+      width: 32px;
+      height: 32px;
+      border-radius: 7px;
+      display: flex;
+      align-items: center;
+      justify-content: center
+    }
+
+    .feed-eye:hover {
+      color: var(--text);
+      background: var(--surface-3)
+    }
+
+    .feed-eye svg {
+      width: 16px;
+      height: 16px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.8
+    }
+
+    .feed-link {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--accent);
+      letter-spacing: .03em;
+      text-decoration: none;
+      border-bottom: 1px solid rgba(139, 140, 248, 0.35);
+      padding-bottom: 1px
+    }
+
+    .feed-link:hover {
+      border-bottom-color: var(--accent)
+    }
+
+    .feed-hint {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text3);
+      letter-spacing: .03em;
+      line-height: 1.5
+    }
+
+    .feed-disclaimer {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--text3);
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      margin-top: 8px
+    }
+
+    .feed-stale {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin: 10px 20px 0;
+      padding: 10px 14px;
+      border-radius: 10px;
+      background: rgba(245, 158, 11, 0.08);
+      border: 1px solid rgba(245, 158, 11, 0.25);
+      color: var(--orange);
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: .04em;
+      flex-shrink: 0
+    }
+
+    .feed-stale button {
+      background: rgba(245, 158, 11, 0.15);
+      border: 1px solid rgba(245, 158, 11, 0.35);
+      color: var(--orange);
+      border-radius: 7px;
+      padding: 5px 10px;
+      font-family: var(--mono);
+      font-size: 11px;
+      cursor: pointer
+    }
+
+    /* Skeleton */
+    .sk-line {
+      height: 12px;
+      border-radius: 6px;
+      background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 50%, var(--surface-2) 75%);
+      background-size: 200% 100%;
+      animation: skShimmer 1.4s ease infinite
+    }
+
+    .sk-line.w40 { width: 40% }
+    .sk-line.w70 { width: 70% }
+    .sk-line.w90 { width: 90% }
+    .sk-line.tall { height: 24px }
+
+    @keyframes skShimmer {
+      0% { background-position: 200% 0 }
+      100% { background-position: -200% 0 }
+    }
+
+    .feed-spinner {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 2px solid var(--border2);
+      border-top-color: var(--accent);
+      animation: spin .8s linear infinite
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg) }
+    }
+
+    /* Bottom sheet articolo / chat / argomenti / impostazioni */
+    .fsheet-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.55);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      display: none;
+      align-items: flex-end;
+      z-index: 110;
+      opacity: 0;
+      transition: opacity .25s ease
+    }
+
+    .fsheet-overlay.open {
+      display: flex;
+      opacity: 1
+    }
+
+    .fsheet {
+      background: var(--surface-1);
+      border-top: 1px solid var(--border2);
+      border-radius: 20px 20px 0 0;
+      width: 100%;
+      height: 88%;
+      display: flex;
+      flex-direction: column;
+      transform: translateY(100%);
+      transition: transform .35s var(--ease-out);
+      box-shadow: var(--hairline), 0 -10px 40px rgba(0, 0, 0, 0.5);
+      overflow: hidden
+    }
+
+    .fsheet-overlay.open .fsheet {
+      transform: translateY(0)
+    }
+
+    .fsheet-head {
+      padding: 16px 20px 12px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-shrink: 0
+    }
+
+    .fsheet-title {
+      font-family: var(--mono);
+      font-size: 12px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--text2);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0
+    }
+
+    .fsheet-tabs {
+      display: flex;
+      gap: 4px;
+      padding: 4px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      margin: 12px 20px 0;
+      flex-shrink: 0
+    }
+
+    .fsheet-tab {
+      flex: 1;
+      background: none;
+      border: none;
+      border-radius: 6px;
+      color: var(--text3);
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      padding: 8px 0;
+      cursor: pointer;
+      transition: all .15s
+    }
+
+    .fsheet-tab.on {
+      color: var(--text);
+      background: var(--surface-3);
+      box-shadow: var(--hairline), 0 1px 2px rgba(0, 0, 0, .4)
+    }
+
+    .fsheet-body {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      padding: 20px;
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain
+    }
+
+    .fsheet-body::-webkit-scrollbar {
+      display: none
+    }
+
+    .fsheet-foot {
+      flex-shrink: 0;
+      border-top: 1px solid var(--border);
+      padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+      display: none;
+      gap: 8px;
+      background: var(--surface-1)
+    }
+
+    .fsheet-foot.on {
+      display: flex
+    }
+
+    .fsheet-foot .form-input {
+      flex: 1;
+      padding: 11px 14px;
+      font-size: 14px;
+      border-radius: 10px
+    }
+
+    .fsheet-send {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      background: var(--text);
+      color: #0a0a0b;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: transform .12s, background .15s
+    }
+
+    .fsheet-send:hover {
+      background: #fff
+    }
+
+    .fsheet-send:active {
+      transform: scale(.92)
+    }
+
+    .fsheet-send:disabled {
+      opacity: .4;
+      cursor: not-allowed
+    }
+
+    .fsheet-send svg {
+      width: 18px;
+      height: 18px;
       stroke: currentColor;
       fill: none;
       stroke-width: 2
     }
 
-    .ai-txt {
-      font-size: 14px;
+    /* Articolo */
+    .article h2 {
+      font-size: 22px;
+      font-weight: 600;
+      letter-spacing: -.02em;
+      line-height: 1.25;
+      margin-bottom: 6px
+    }
+
+    .article .feed-meta {
+      margin-bottom: 20px
+    }
+
+    .article h3 {
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: -.01em;
+      margin: 22px 0 8px;
+      color: var(--text)
+    }
+
+    .article p {
+      font-size: 15px;
+      line-height: 1.65;
       color: var(--text2);
-      line-height: 1.6;
-      font-style: italic
+      margin-bottom: 12px
+    }
+
+    /* Chat */
+    .chat-log {
+      display: flex;
+      flex-direction: column;
+      gap: 10px
+    }
+
+    .chat-ctx {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text3);
+      letter-spacing: .03em;
+      line-height: 1.5;
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      margin-bottom: 6px
+    }
+
+    .chat-msg {
+      max-width: 88%;
+      padding: 11px 14px;
+      border-radius: 14px;
+      font-size: 14px;
+      line-height: 1.55;
+      white-space: pre-wrap;
+      word-break: break-word;
+      animation: slideUp .25s var(--ease-out) both
+    }
+
+    .chat-msg.user {
+      align-self: flex-end;
+      background: var(--accent-soft);
+      border: 1px solid rgba(139, 140, 248, 0.3);
+      color: var(--text);
+      border-bottom-right-radius: 4px
+    }
+
+    .chat-msg.model {
+      align-self: flex-start;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      color: var(--text2);
+      border-bottom-left-radius: 4px
+    }
+
+    .chat-msg.typing {
+      display: flex;
+      gap: 4px;
+      padding: 14px 16px
+    }
+
+    .chat-msg.typing i {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--text3);
+      animation: typingDot 1.2s ease infinite
+    }
+
+    .chat-msg.typing i:nth-child(2) { animation-delay: .2s }
+    .chat-msg.typing i:nth-child(3) { animation-delay: .4s }
+
+    @keyframes typingDot {
+      0%, 60%, 100% { opacity: .3; transform: translateY(0) }
+      30% { opacity: 1; transform: translateY(-3px) }
+    }
+
+    .chat-sugg {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 4px
+    }
+
+    /* Argomenti */
+    .topic-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      border-radius: 10px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      margin-bottom: 8px
+    }
+
+    .topic-row .t-emoji {
+      width: 30px;
+      height: 30px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      background: color-mix(in srgb, var(--tc) 14%, transparent);
+      border: 1px solid color-mix(in srgb, var(--tc) 35%, transparent);
+      flex-shrink: 0
+    }
+
+    .topic-row .t-name {
+      flex: 1;
+      font-size: 15px
+    }
+
+    .topic-del {
+      background: none;
+      border: none;
+      color: var(--text3);
+      cursor: pointer;
+      width: 30px;
+      height: 30px;
+      border-radius: 7px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      transition: all .15s
+    }
+
+    .topic-del:hover {
+      color: var(--red);
+      background: rgba(239, 68, 68, 0.1)
+    }
+
+    .topic-del:disabled {
+      opacity: .25;
+      cursor: not-allowed
+    }
+
+    .topic-form {
+      display: flex;
+      gap: 8px;
+      margin-top: 14px
+    }
+
+    .topic-form .form-input.emoji {
+      width: 56px;
+      flex: none;
+      text-align: center;
+      padding-left: 6px;
+      padding-right: 6px
+    }
+
+    .topic-form .btn-pri {
+      flex: none;
+      padding: 13px 16px
+    }
+
+    .settings-row {
+      padding: 14px 0;
+      border-bottom: 1px solid var(--border)
+    }
+
+    .settings-row:last-child {
+      border-bottom: none
+    }
+
+    .settings-lbl {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text3);
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      margin-bottom: 8px
+    }
+
+    .settings-val {
+      font-family: var(--mono);
+      font-size: 13px;
+      color: var(--text2);
+      margin-bottom: 10px
     }
 
     /* ANALYTICS */
@@ -1765,16 +2612,21 @@
 
     .an-lbl {
       font-family: var(--mono);
-      font-size: 9px;
-      color: var(--text2);
-      letter-spacing: .1em;
+      font-size: 11px;
+      color: var(--text3);
+      letter-spacing: .08em;
       text-transform: uppercase;
       margin-top: 6px
     }
 
     .heatmap-wrap {
-      padding: 24px 20px;
-      border-bottom: 1px solid var(--border)
+      margin: 4px 16px 8px;
+      padding: 20px 18px;
+      background: var(--surface-1);
+      border: 1px solid var(--border2);
+      border-radius: var(--r-lg);
+      box-shadow: var(--hairline), var(--shadow-card);
+      position: relative
     }
 
     .hm-nav {
@@ -1785,14 +2637,14 @@
     }
 
     .hm-month {
-      font-size: 18px;
-      font-weight: 700;
+      font-size: 17px;
+      font-weight: 600;
       letter-spacing: -.02em;
       text-transform: capitalize
     }
 
     .hm-arrow {
-      background: rgba(255, 255, 255, 0.05);
+      background: var(--surface-2);
       border: 1px solid var(--border2);
       border-radius: 8px;
       color: var(--text2);
@@ -1802,13 +2654,17 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: all .2s
+      transition: all .15s
     }
 
     .hm-arrow:hover {
-      border-color: var(--text);
+      border-color: var(--border3);
       color: var(--text);
-      background: rgba(255, 255, 255, 0.1)
+      background: var(--surface-3)
+    }
+
+    .hm-arrow:active {
+      transform: scale(.92)
     }
 
     .hm-arrow svg {
@@ -1822,13 +2678,13 @@
     .hm-days-head {
       display: grid;
       grid-template-columns: repeat(7, 1fr);
-      gap: 4px;
+      gap: 6px;
       margin-bottom: 8px
     }
 
     .hm-dlbl {
       font-family: var(--mono);
-      font-size: 8px;
+      font-size: 10px;
       color: var(--text3);
       text-align: center;
       text-transform: uppercase
@@ -1837,23 +2693,23 @@
     .hm-grid {
       display: grid;
       grid-template-columns: repeat(7, 1fr);
-      gap: 4px
+      gap: 6px
     }
 
     .hm-cell {
       position: relative;
       aspect-ratio: 1;
       cursor: pointer;
-      transition: all .2s;
-      border-radius: 4px;
-      border: 1px solid rgba(255, 255, 255, 0.02)
+      transition: transform .15s var(--ease-spring), box-shadow .15s;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.03)
     }
 
     .hm-cell:hover {
-      transform: scale(1.1);
+      transform: scale(1.08);
       z-index: 2;
-      box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
-      border-color: rgba(255, 255, 255, 0.1)
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+      border-color: rgba(255, 255, 255, 0.12)
     }
 
     .hm-cell.empty {
@@ -1863,37 +2719,37 @@
     }
 
     .hm-cell.no-data {
-      background: rgba(39, 39, 42, 0.3)
+      background: var(--surface-2)
     }
 
     .hm-cell.today {
-      outline: 2px solid var(--text);
+      outline: 2px solid var(--accent);
       outline-offset: 2px;
       z-index: 1
     }
 
     .day-popup {
       position: absolute;
-      background: rgba(24, 24, 27, 0.95);
+      background: var(--surface-2);
       backdrop-filter: blur(8px);
-      border: 1px solid var(--border2);
-      border-radius: 12px;
+      border: 1px solid var(--border3);
+      border-radius: var(--r-md);
       padding: 16px;
       z-index: 50;
-      min-width: 180px;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
-      pointer-events: auto; /* changed from none to auto to allow clicks */
+      min-width: 200px;
+      box-shadow: var(--hairline), 0 12px 32px rgba(0, 0, 0, 0.6);
+      pointer-events: auto;
       font-size: 13px;
       transform: translateY(5px);
       transition: opacity .2s, transform .2s;
-      animation: slideUp .2s ease forwards
+      animation: slideUp .2s var(--ease-out) forwards
     }
 
     .dp-date {
       font-family: var(--mono);
-      font-size: 9px;
-      color: var(--text2);
-      letter-spacing: .1em;
+      font-size: 11px;
+      color: var(--text3);
+      letter-spacing: .08em;
       margin-bottom: 6px;
       text-transform: uppercase
     }
@@ -2110,26 +2966,28 @@
     }
 
     .wh-dot {
-      width: 14px;
-      height: 14px;
-      border: 2px solid var(--border3);
-      border-radius: 4px;
-      background: rgba(0, 0, 0, 0.2)
+      width: 18px;
+      height: 18px;
+      border: 1.5px solid var(--border3);
+      border-radius: 5px;
+      background: var(--surface-1);
+      transition: all .2s var(--ease-spring)
     }
 
     .wh-dot.done {
       background: var(--green);
       border-color: var(--green);
-      box-shadow: 0 0 8px rgba(16, 185, 129, 0.3)
+      box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15)
     }
 
     .wh-count {
       font-family: var(--mono);
-      font-size: 10px;
+      font-size: 11px;
       color: var(--text2);
       min-width: 36px;
       text-align: right;
-      font-weight: 500
+      font-weight: 500;
+      font-variant-numeric: tabular-nums
     }
 
     .empty-state {
@@ -2139,9 +2997,9 @@
 
     .empty-lbl {
       font-family: var(--mono);
-      font-size: 10px;
+      font-size: 11px;
       color: var(--text3);
-      letter-spacing: .12em;
+      letter-spacing: .08em;
       text-transform: uppercase
     }
 
@@ -2160,9 +3018,9 @@
 
     .toast {
       font-family: var(--mono);
-      font-size: 10px;
-      letter-spacing: .08em;
-      padding: 10px 18px;
+      font-size: 12px;
+      letter-spacing: .04em;
+      padding: 11px 18px;
       border-radius: 10px;
       backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
@@ -2272,8 +3130,8 @@
         min-height: 600px;
         border-radius: 20px;
         margin: auto;
-        border: 1px solid var(--border);
-        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+        border: 1px solid var(--border2);
+        box-shadow: var(--hairline), 0 24px 80px rgba(0, 0, 0, 0.6);
       }
 
       /* Sidebar Navigation */
@@ -2282,12 +3140,14 @@
         flex-direction: column;
         justify-content: flex-start;
         align-items: center;
-        padding-top: 24px;
-        padding-bottom: 32px;
+        padding: 24px 8px 32px;
         width: var(--sidebar-w);
         min-width: var(--sidebar-w);
         border-top: none;
         border-right: 1px solid var(--border);
+        background: var(--surface-1);
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
         gap: 4px;
         order: -1;
         overflow: hidden;
@@ -2356,26 +3216,29 @@
 
       .nav-btn {
         flex-direction: row;
-        padding: 13px 20px;
-        border-top: none;
-        border-left: 3px solid transparent;
-        font-size: 10px;
+        padding: 11px 12px;
+        font-size: 11px;
         font-weight: 500;
-        letter-spacing: .1em;
+        letter-spacing: .06em;
         gap: 14px;
         width: 100%;
         align-items: center;
         justify-content: center;
         white-space: nowrap;
         overflow: hidden;
-        border-radius: 0;
-        transition: background 0.15s, border-color 0.15s;
+        border-radius: 10px;
+        transition: background 0.15s, color 0.15s;
         position: relative;
+      }
+
+      .nav-btn:hover {
+        background: var(--surface-2);
+        color: var(--text2);
       }
 
       #nav.expanded .nav-btn {
         justify-content: flex-start;
-        padding-left: 20px;
+        padding-left: 14px;
       }
 
       .nav-btn svg {
@@ -2400,9 +3263,9 @@
       }
 
       .nav-btn.active {
-        border-top-color: transparent;
-        border-left-color: var(--green);
-        background: linear-gradient(90deg, rgba(16, 185, 129, 0.1), transparent);
+        background: var(--surface-3);
+        color: var(--text);
+        box-shadow: var(--hairline);
       }
 
       .nav-btn.active svg {
@@ -2415,12 +3278,12 @@
         left: calc(var(--sidebar-w) - 8px);
         top: 50%;
         transform: translateY(-50%);
-        background: var(--bg2);
-        border: 1px solid var(--border);
+        background: var(--surface-3);
+        border: 1px solid var(--border2);
         color: var(--text);
         font-family: var(--mono);
-        font-size: 10px;
-        letter-spacing: .08em;
+        font-size: 11px;
+        letter-spacing: .06em;
         padding: 6px 10px;
         border-radius: 6px;
         white-space: nowrap;
@@ -2434,20 +3297,60 @@
         opacity: 1;
       }
 
+      /* Barra progresso: fuori dal flusso row, sovrapposta al bordo superiore dello shell */
+      #top-progress-track {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        border-radius: 20px 20px 0 0;
+      }
+
       /* Adjust Main Content Area */
       #screen-area {
         flex: 1;
+        min-width: 0;
         display: flex;
         flex-direction: row;
-        background: rgba(9, 9, 11, 0.2);
+        background: var(--bg);
       }
 
       .topbar {
-        padding: 40px 40px 24px;
+        padding: 30px 40px 12px;
       }
 
-      .sync-bar {
-        padding: 10px 40px;
+      .sync-txt {
+        display: inline;
+      }
+
+      .dn-long {
+        display: inline;
+      }
+
+      .dn-short {
+        display: none;
+      }
+
+      .chip-bar {
+        padding-left: 40px;
+        padding-right: 40px;
+      }
+
+      .feed-slide {
+        padding: 16px 40px 20px;
+      }
+
+      .feed-card {
+        padding: 32px 32px 26px;
+      }
+
+      .feed-title {
+        font-size: 26px;
+      }
+
+      .feed-stale {
+        margin-left: 40px;
+        margin-right: 40px;
       }
 
       .prog-wrap,
@@ -2455,20 +3358,21 @@
       .habit-row,
       .plan-task,
       .hplan-row,
-      .sum-row,
       .an-stats,
-      .heatmap-wrap,
       .wh-section {
         padding-left: 40px;
         padding-right: 40px;
       }
 
-      .tasks-row {
-        margin: 12px 40px;
+      .heatmap-wrap {
+        margin: 8px 40px 12px;
+        padding: 24px;
       }
 
-      .notes-wrap,
-      .ai-box,
+      .tasks-row {
+        margin: 8px 40px 12px;
+      }
+
       .priority-banner,
       .slot-add {
         margin-left: 40px;
@@ -2477,28 +3381,45 @@
       }
 
       .save-btn {
-        margin: 32px 40px 16px;
+        margin: 28px 40px 16px;
         width: calc(100% - 80px);
-        padding: 18px;
+        padding: 16px;
         font-size: 11px;
       }
 
       /* Modal Adjustments for PC */
-      .modal-overlay {
+      .modal-overlay,
+      .fsheet-overlay {
         align-items: center;
         justify-content: center;
       }
 
       .modal {
         width: 540px;
-        border-radius: 24px;
-        border: 1px solid var(--border);
+        border-radius: 20px;
+        border: 1px solid var(--border2);
         max-height: 80vh;
-        transform: scale(0.95);
+        transform: scale(0.96);
         opacity: 0;
+        transition: transform .25s var(--ease-out), opacity .2s ease;
       }
 
       .modal-overlay.open .modal {
+        transform: scale(1);
+        opacity: 1;
+      }
+
+      .fsheet {
+        width: 600px;
+        height: 82vh;
+        border-radius: 20px;
+        border: 1px solid var(--border2);
+        transform: scale(0.96);
+        opacity: 0;
+        transition: transform .25s var(--ease-out), opacity .2s ease;
+      }
+
+      .fsheet-overlay.open .fsheet {
         transform: scale(1);
         opacity: 1;
       }
@@ -2507,10 +3428,6 @@
       .hm-grid,
       .hm-days-head {
         max-width: 600px;
-      }
-
-      .hm-cell {
-        border-radius: 6px;
       }
     }
   </style>
@@ -2565,12 +3482,13 @@
         <div class="topbar">
           <div class="topbar-left">
             <div id="plan-date-nav"></div>
-            <div class="topbar-title">Pianifica.</div>
           </div>
-          <button class="logout-btn" onclick="doLogout()">esci</button>
-        </div>
-        <div class="sync-bar">
-          <div class="sync-dot offline" id="sd-plan"></div><span class="sync-txt" id="st-plan">—</span>
+          <div class="topbar-actions">
+            <div class="sync-bar" role="status">
+              <div class="sync-dot offline" id="sd-plan"></div><span class="sync-txt" id="st-plan">—</span>
+            </div>
+            <button class="logout-btn" onclick="doLogout()">esci</button>
+          </div>
         </div>
         <div class="priority-banner" id="pri-banner"><span>⚠ priorità alta attiva</span></div>
         <div class="section-head"><span class="section-label">Attività importanti</span></div>
@@ -2593,39 +3511,47 @@
         <div class="topbar">
           <div class="topbar-left">
             <div id="oggi-date-nav"></div>
-            <div class="topbar-title">Oggi.</div>
           </div>
-          <button class="logout-btn" onclick="doLogout()">esci</button>
-        </div>
-        <div class="sync-bar">
-          <div class="sync-dot offline" id="sd-oggi"></div><span class="sync-txt" id="st-oggi-sync">—</span>
+          <div class="topbar-actions">
+            <div class="sync-bar" role="status">
+              <div class="sync-dot offline" id="sd-oggi"></div><span class="sync-txt" id="st-oggi-sync">—</span>
+            </div>
+            <button class="logout-btn" onclick="doLogout()">esci</button>
+          </div>
         </div>
         <div class="section-head"><span class="section-label" id="habit-count-lbl">Abitudini</span><button class="focus-btn" id="focus-toggle-btn" onclick="toggleFocusMode()">focus</button></div>
         <div id="hoggi-list"></div>
       </div>
 
-      <div class="screen" id="screen-recap">
+      <div class="screen discover" id="screen-recap">
         <div class="topbar">
           <div class="topbar-left">
-            <div id="recap-date-nav"></div>
-            <div class="topbar-title">Riepilogo.</div>
+            <div class="topbar-date" id="disc-date"></div>
           </div>
-          <button class="logout-btn" onclick="doLogout()">esci</button>
+          <div class="topbar-actions">
+            <div class="sync-bar" role="status">
+              <div class="sync-dot offline" id="sd-recap"></div><span class="sync-txt" id="st-recap-sync">—</span>
+            </div>
+            <button class="icon-btn" id="disc-regen" onclick="regenerateFeed()" aria-label="Rigenera feed" title="Rigenera">
+              <svg viewBox="0 0 24 24">
+                <polyline points="23 4 23 10 17 10" />
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+              </svg>
+            </button>
+            <button class="icon-btn" onclick="openFeedSheet('settings')" aria-label="Impostazioni Discover" title="Impostazioni">
+              <svg viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+            </button>
+            <button class="logout-btn" onclick="doLogout()">esci</button>
+          </div>
         </div>
-        <div class="sync-bar">
-          <div class="sync-dot offline" id="sd-recap"></div><span class="sync-txt" id="st-recap-sync">—</span>
-        </div>
-        <div class="section-head"><span class="section-label">Abitudini</span></div>
-        <div id="sum-list"></div>
-        <div class="section-head" style="margin-top:8px"><span class="section-label">Note del giorno</span></div>
-        <div class="notes-wrap"><textarea id="notes-ta" placeholder="Cosa è successo oggi? Come ti senti?" rows="4"
-            oninput="saveNotes()"></textarea></div>
-        <div class="ai-box">
-          <div class="ai-lbl"><svg viewBox="0 0 24 24">
-              <path
-                d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
-            </svg> Motivazione del giorno</div>
-          <div class="ai-txt" id="ai-motiv-txt"></div>
+        <div class="chip-bar" id="disc-chips"></div>
+        <div id="disc-stale"></div>
+        <div class="feed-wrap">
+          <div class="feed-ptr" id="disc-ptr" aria-hidden="true"><div class="feed-ptr-pill"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg><span id="disc-ptr-txt">Trascina per aggiornare</span></div></div>
+          <div class="feed" id="disc-feed"></div>
         </div>
       </div>
 
@@ -2633,12 +3559,13 @@
         <div class="topbar">
           <div class="topbar-left">
             <div class="topbar-date" id="an-date"></div>
-            <div class="topbar-title">Calendario.</div>
           </div>
-          <button class="logout-btn" onclick="doLogout()">esci</button>
-        </div>
-        <div class="sync-bar">
-          <div class="sync-dot offline" id="sd-an"></div><span class="sync-txt" id="st-an-sync">—</span>
+          <div class="topbar-actions">
+            <div class="sync-bar" role="status">
+              <div class="sync-dot offline" id="sd-an"></div><span class="sync-txt" id="st-an-sync">—</span>
+            </div>
+            <button class="logout-btn" onclick="doLogout()">esci</button>
+          </div>
         </div>
         <div class="heatmap-wrap">
           <div class="hm-nav">
@@ -2701,11 +3628,11 @@
           <line x1="7" y1="16" x2="11" y2="16" />
         </svg><span class="nav-label">Oggi</span>
       </button>
-      <button class="nav-btn" onclick="goScreen('recap')" id="nav-recap" data-tooltip="Riepilogo">
+      <button class="nav-btn" onclick="goScreen('recap')" id="nav-recap" data-tooltip="Discover">
         <svg viewBox="0 0 24 24">
           <circle cx="12" cy="12" r="9" />
-          <polyline points="12,7 12,12 15,15" />
-        </svg><span class="nav-label">Riepilogo</span>
+          <polygon points="16.24,7.76 14.12,14.12 7.76,16.24 9.88,9.88" />
+        </svg><span class="nav-label">Discover</span>
       </button>
       <button class="nav-btn" onclick="goScreen('calendario')" id="nav-calendario" data-tooltip="Calendario">
         <svg viewBox="0 0 24 24">
@@ -2724,6 +3651,27 @@
           <button class="modal-close" onclick="closeModal()">×</button>
         </div>
         <div id="modal-body"></div>
+      </div>
+    </div>
+
+    <div class="fsheet-overlay" id="feed-sheet" onclick="feedSheetOverlayClick(event)">
+      <div class="fsheet">
+        <div class="fsheet-head">
+          <span class="fsheet-title" id="fsheet-title">Discover</span>
+          <button class="modal-close" onclick="closeFeedSheet()" aria-label="Chiudi">×</button>
+        </div>
+        <div class="fsheet-tabs" id="fsheet-tabs" style="display:none">
+          <button class="fsheet-tab on" id="fsheet-tab-article" onclick="switchFeedSheet('article')">Articolo</button>
+          <button class="fsheet-tab" id="fsheet-tab-chat" onclick="switchFeedSheet('chat')">Chat</button>
+        </div>
+        <div class="fsheet-body" id="fsheet-body"></div>
+        <div class="fsheet-foot" id="fsheet-foot">
+          <input class="form-input" id="fsheet-input" type="text" placeholder="Chiedi qualcosa su questa notizia…" autocomplete="off"
+            onkeydown="if(event.key==='Enter'){event.preventDefault();sendFeedChat();}">
+          <button class="fsheet-send" id="fsheet-send" onclick="sendFeedChat()" aria-label="Invia">
+            <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -2753,14 +3701,37 @@
     let pendingSync = new Set(); // giorni in attesa di sync
     let allDaysLoaded = false;
 
+    // Discover feed (Gemini) — stato e costanti
+    const GEMINI_MODEL = 'gemini-2.5-flash';
+    const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/' + GEMINI_MODEL + ':generateContent';
+    const FEED_KEY_LS = 'dayflow_gemini_key';
+    const FEED_TOPICS_LS = 'dayflow_feed_topics';
+    const FEED_CARDS_N = 8;
+    const FEED_SEEN_LS = 'dayflow_feed_seen';   // titoli già mostrati (dedupe)
+    const FEED_SEEN_TTL = 72 * 60 * 60 * 1000;  // memoria 72h
+    const FEED_SEEN_MAX = 80;                   // max titoli passati a Gemini
+    const FEED_SAVED_LS = 'dayflow_feed_saved'; // notizie salvate "per dopo"
+    const FEED_PREFS_LS = 'dayflow_feed_prefs'; // interessi impliciti (articoli aperti / chat)
+    const FEED_PREFS_TTL = 14 * 24 * 60 * 60 * 1000;
+    const FEED_PREFS_MAX = 30;
+    const FEED_PTR_THRESHOLD = 72;              // px di trascinamento per aggiornare
+    const FEED_PALETTE = ['#60a5fa', '#34d399', '#fbbf24', '#c084fc', '#f472b6', '#fb923c', '#2dd4bf', '#a3e635'];
+    const FEED_DEFAULT_TOPICS = [
+      { id: 'tech', label: 'Tech', emoji: '🔵', color: '#60a5fa' },
+      { id: 'sport', label: 'Sport', emoji: '⚽', color: '#34d399' },
+      { id: 'crypto', label: 'Crypto', emoji: '📈', color: '#fbbf24' },
+      { id: 'scienza', label: 'Scienza', emoji: '🧬', color: '#c084fc' }
+    ];
+    const FEED = { topics: [], activeTopic: 'all', data: null, loading: false, error: null, more: false, moreError: null, sheet: null, card: null, chat: [], chatBusy: false, articleBusy: false, pullInit: false, endObs: null, saved: null };
+
     // ── UTILS ──────────────────────────────────────────────────
     function todayStr() { const d = new Date(); return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}` }
     function setSelectedDate(ds) {
       selectedDate = ds;
       if (curScreen === 'plan') renderPlan();
       else if (curScreen === 'oggi') renderOggi();
-      else if (curScreen === 'recap') renderRecap();
-      
+      else if (curScreen === 'recap') renderDiscover();
+
       // Caricamento incrementale in background della nuova finestra temporale
       loadWindowForDate(ds);
     }
@@ -2769,19 +3740,29 @@
       d.setDate(d.getDate() + giorni);
       return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
     }
+    // Data di testata: niente anno (è nel day picker e in Calendario); giorno della settimana
+    // abbreviato sotto i 768px (.dn-short) per stare in una riga con sync + esci a 375px.
+    function fmtHeaderDate(ds) {
+      const d = new Date(ds + 'T12:00:00');
+      const dayMonth = d.toLocaleDateString('it-IT', { day: 'numeric', month: 'long' }).toLowerCase();
+      const wdLong = d.toLocaleDateString('it-IT', { weekday: 'long' }).toLowerCase();
+      const wdShort = d.toLocaleDateString('it-IT', { weekday: 'short' }).toLowerCase().replace('.', '');
+      return `<span class="dn-long">${wdLong}</span><span class="dn-short">${wdShort}</span> ${dayMonth}`;
+    }
     function renderDateNavHeader(ds, containerId) {
       const c = document.getElementById(containerId);
       if (!c) return;
       const today = todayStr();
       c.innerHTML = `
         <div class="date-nav">
-          <button class="date-nav-arrow" onclick="setSelectedDate(offsetDate('${ds}', -1))">
+          <button class="date-nav-arrow" onclick="setSelectedDate(offsetDate('${ds}', -1))" aria-label="Giorno precedente">
             <svg viewBox="0 0 24 24"><polyline points="15,18 9,12 15,6" /></svg>
           </button>
           <div class="date-nav-label">
-            ${fmtDate(ds)} ${ds === today ? '<span class="today-badge">Oggi</span>' : ''}
+            <span class="date-nav-txt">${fmtHeaderDate(ds)}</span>
+            ${ds === today ? '<span class="today-badge">Oggi</span>' : ''}
           </div>
-          <button class="date-nav-arrow" onclick="setSelectedDate(offsetDate('${ds}', 1))">
+          <button class="date-nav-arrow" onclick="setSelectedDate(offsetDate('${ds}', 1))" aria-label="Giorno successivo">
             <svg viewBox="0 0 24 24"><polyline points="9,18 15,12 9,6" /></svg>
           </button>
         </div>
@@ -2907,7 +3888,7 @@
     function setRing(ringId, pctId, pct) { const el = document.getElementById(ringId); el.style.strokeDashoffset = 213.6 * (1 - pct / 100); el.style.stroke = pctColor(pct); const p = document.getElementById(pctId); p.textContent = pct + '%'; p.style.color = pctColor(pct); }
     let focusMode = localStorage.getItem('dayflow_focusMode') === 'true';
     function toggleFocusMode() { focusMode = !focusMode; localStorage.setItem('dayflow_focusMode', focusMode); const btn = document.getElementById('focus-toggle-btn'); if (btn) { btn.classList.toggle('active', focusMode); btn.textContent = focusMode ? '🎯 focus' : 'focus'; } const today = todayStr(); renderHOggiList(getDay(today), today); }
-    function setSS(dotId, txtId, status, msg) { const d = document.getElementById(dotId); const t = document.getElementById(txtId); if (!d || !t) return; d.className = 'sync-dot ' + status; t.textContent = msg; }
+    function setSS(dotId, txtId, status, msg) { const d = document.getElementById(dotId); const t = document.getElementById(txtId); if (!d || !t) return; d.className = 'sync-dot ' + status; t.textContent = msg; d.title = msg; d.setAttribute('aria-label', msg); }
     function shootConfetti() {
       const colors = ['#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#a855f7'];
       for (let i = 0; i < 40; i++) {
@@ -3024,7 +4005,7 @@
           } else if (curScreen === 'plan') {
             renderPlan();
           } else if (curScreen === 'recap') {
-            renderRecap();
+            renderDiscover();
           }
         }
       } catch (e) { console.error('sbLoadHabits', e); }
@@ -3101,7 +4082,7 @@
           persist();
           if (curScreen === 'plan') renderPlan();
           else if (curScreen === 'oggi') renderOggi();
-          else if (curScreen === 'recap') renderRecap();
+          else if (curScreen === 'recap') renderDiscover();
         }
       }
     }
@@ -3133,6 +4114,26 @@
       persist();
       clearTimeout(syncDebounce);
       syncDebounce = setTimeout(() => sbSaveDay(ds, dotId, txtId), 1200);
+    }
+    // Argomenti Discover su profiles.feed_topics — colonna opzionale: se manca, resta solo localStorage
+    async function sbSaveFeedTopics() {
+      if (!curUser || !sb) return;
+      try {
+        const { error } = await sb.from('profiles').upsert({ id: curUser.id, habits: S.habits, feed_topics: FEED.topics, updated_at: new Date().toISOString() });
+        if (error) console.info('feed_topics non salvati su Supabase (colonna assente?)');
+      } catch (e) { }
+    }
+    async function sbLoadFeedTopics() {
+      if (!curUser || !sb) return;
+      try {
+        const res = await sb.from('profiles').select('feed_topics').eq('id', curUser.id).maybeSingle();
+        const t = res?.data?.feed_topics;
+        if (!res.error && Array.isArray(t) && t.length) {
+          FEED.topics = t.filter(x => x && x.id && x.label).map(normalizeTopic);
+          try { localStorage.setItem(FEED_TOPICS_LS, JSON.stringify(FEED.topics)); } catch (e) { }
+          if (curScreen === 'recap') renderDiscover();
+        }
+      } catch (e) { }
     }
 
     // Sync pendenti quando torna online
@@ -3192,21 +4193,6 @@
       }
       return streak;
     }
-    // ── MOTIVATIONAL PHRASES ──────────────────────────────────
-    const motivPhrases = [
-      'Ogni giorno è un passo avanti. Continua così! 💪',
-      'La costanza batte il talento quando il talento non è costante.',
-      'Non contare i giorni, fai che i giorni contino. ✨',
-      'Piccoli passi ogni giorno portano a grandi risultati.',
-      'Il segreto del successo è la costanza dello scopo.',
-      'Sei più forte di quanto pensi. Domani ti ringrazierai. 🌟',
-      'Le abitudini definiscono chi siamo. Tu stai scegliendo bene.',
-      'Un giorno alla volta. Un\'abitudine alla volta. Avanti! 🔥',
-      'Il cambiamento non avviene tutto insieme, avviene un giorno alla volta.',
-      'Credi nel processo. I risultati arriveranno. 🎯',
-      'Non devi essere perfetto, devi solo essere presente.',
-      'Ogni check completato è una vittoria su te stesso. 🏆'
-    ];
     function toggleSidebar() {
       const nav = document.getElementById('nav');
       nav.classList.toggle('expanded');
@@ -3240,13 +4226,15 @@
       }
       if (curScreen === 'oggi') renderOggi();
       else if (curScreen === 'plan') renderPlan();
-      else if (curScreen === 'recap') renderRecap();
+      else if (curScreen === 'recap') renderDiscover();
       else if (curScreen === 'calendario') renderCalendario();
 
       setSS('sd-oggi', 'st-oggi-sync', windowDays ? 'ok' : 'err', windowDays ? 'sincronizzato' : 'locale — nessuna rete');
-      
+
       // Carica il resto dei dati storici in background per Streak e Calendario
       sbLoadAllDaysInBackground();
+      // Argomenti Discover dal profilo (non bloccante, fallback localStorage)
+      sbLoadFeedTopics();
     }
 
     // ── AUTH LISTENER ─────────────────────────────────────────
@@ -3317,7 +4305,7 @@
 
       if (name === 'plan') renderPlan();
       if (name === 'oggi') renderOggi();
-      if (name === 'recap') renderRecap();
+      if (name === 'recap') renderDiscover();
       if (name === 'calendario') renderCalendario();
     }
 
@@ -3542,38 +4530,700 @@
     function updateOggiStats(today) { const pct = calcPct(today) || 0; updateTopProgressBar(pct); if (pct === 100 && lastTopPct < 100) shootConfetti(); lastTopPct = pct; }
     function addRipple(el, e) { const r = document.createElement('span'); r.className = 'ripple'; const rect = el.getBoundingClientRect(); const sz = Math.max(rect.width, rect.height) * 2; r.style.cssText = `width:${sz}px;height:${sz}px;left:${e.clientX - rect.left - sz / 2}px;top:${e.clientY - rect.top - sz / 2}px`; el.appendChild(r); setTimeout(() => r.remove(), 520); }
 
-    // ── RECAP ─────────────────────────────────────────────────
-    async function renderRecap() {
-      renderDateNavHeader(selectedDate, 'recap-date-nav');
-      setSS('sd-recap', 'st-recap-sync', 'syncing', 'aggiornamento...');
-      const remote = await sbLoadDay(selectedDate);
-      if (remote) { const local = S.days[selectedDate]; if (!local || (remote.timestamp > (local.timestamp || 0))) { S.days[selectedDate] = remote; persist(); } }
-      setSS('sd-recap', 'st-recap-sync', 'ok', 'sincronizzato');
-      const day = getDay(selectedDate); const pct = calcPct(selectedDate) || 0; updateTopProgressBar(pct);
-      const list = document.getElementById('sum-list'); list.innerHTML = '';
-      activeHabits().forEach(h => { const rec = day.abitudini[h.id] || {}; const row = document.createElement('div'); row.className = 'sum-row'; const icon = document.createElement('div'); icon.className = 'sum-icon ' + (rec.saltato ? 'sk' : rec.completato ? 'ok' : 'ko'); icon.innerHTML = rec.saltato ? '—' : rec.completato ? '<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="3" fill="none"><polyline points="20 6 9 17 4 12"/></svg>' : '<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="3" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'; const nm = document.createElement('span'); nm.className = 'sum-name'; nm.textContent = h.nome; const badge = document.createElement('span'); badge.className = 'sum-badge ' + (rec.saltato ? 'bs' : rec.completato ? 'bd' : 'bm'); badge.textContent = rec.saltato ? 'saltata' : rec.completato ? 'completata' : 'mancata'; row.appendChild(icon); row.appendChild(nm); row.appendChild(badge); list.appendChild(row); });
-      ensureSlotArrays(day);
-      getImpegniDelGiorno(selectedDate).forEach(r => {
-        const completato = !!day.impegniRicorrentiCompletati[r.id];
-        const row = document.createElement('div'); row.className = 'sum-row';
-        const icon = document.createElement('div'); icon.className = 'sum-icon ' + (completato ? 'ok' : 'ko');
-        icon.innerHTML = completato
-          ? '<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="3" fill="none"><polyline points="20 6 9 17 4 12"/></svg>'
-          : '<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="3" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
-        const nm = document.createElement('span'); nm.className = 'sum-name';
-        nm.textContent = '🔁 ' + r.titolo + (r.ora ? ` · ${r.ora}` : '');
-        const badge = document.createElement('span'); badge.className = 'sum-badge ' + (completato ? 'bd' : 'bm');
-        badge.textContent = completato ? 'completato' : 'mancato';
-        row.appendChild(icon); row.appendChild(nm); row.appendChild(badge);
-        list.appendChild(row);
-      });
-      const tr = document.createElement('div'); tr.className = 'sum-row'; const ti = document.createElement('div'); const rAtdNE = day.attivitaDelGiorno.compiti.filter(t => t.trim()).length; const rAtdCnt = atdDoneCount(day); const rAtdFull = rAtdNE > 0 && rAtdCnt >= rAtdNE; ti.className = 'sum-icon ' + (rAtdFull ? 'ok' : 'ko'); ti.innerHTML = rAtdFull ? '<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="3" fill="none"><polyline points="20 6 9 17 4 12"/></svg>' : '<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="3" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'; const tn = document.createElement('span'); tn.className = 'sum-name'; tn.textContent = 'Attività del giorno'; const tb = document.createElement('span'); tb.className = 'sum-badge ' + (rAtdFull ? 'bd' : 'bm'); tb.textContent = rAtdFull ? 'completata' : rAtdCnt > 0 && rAtdNE > 0 ? `${rAtdCnt}/${rAtdNE} completate` : 'mancata'; tr.appendChild(ti); tr.appendChild(tn); tr.appendChild(tb); list.appendChild(tr);
-      document.getElementById('notes-ta').value = day.note || '';
-      // Motivational phrase
-      const motivEl = document.getElementById('ai-motiv-txt');
-      if (motivEl) motivEl.textContent = motivPhrases[Math.floor(Math.random() * motivPhrases.length)];
+
+    // ── DISCOVER FEED (Gemini) ────────────────────────────────
+    // (costanti e stato FEED dichiarati in testa allo script, sezione STATE)
+    function escFeed(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+    function feedKey() { try { return (localStorage.getItem(FEED_KEY_LS) || '').trim(); } catch (e) { return ''; } }
+    function feedCacheKey(ds) { return 'dayflow_feed_' + (ds || todayStr()); }
+    function normalizeTopic(t, i) {
+      const label = String(t.label || '').trim().slice(0, 24);
+      return { id: String(t.id || label.toLowerCase().replace(/[^a-z0-9]+/g, '-') || uid()), label, emoji: String(t.emoji || '✦').trim().slice(0, 4) || '✦', color: t.color || FEED_PALETTE[(i || 0) % FEED_PALETTE.length] };
     }
-    function saveNotes() { const d = getDay(selectedDate); d.note = document.getElementById('notes-ta').value; scheduleSync(selectedDate, 'sd-recap', 'st-recap-sync'); }
+    function loadFeedTopics() {
+      let t = null;
+      try { t = JSON.parse(localStorage.getItem(FEED_TOPICS_LS) || 'null'); } catch (e) { }
+      FEED.topics = (Array.isArray(t) && t.length ? t : FEED_DEFAULT_TOPICS).map(normalizeTopic);
+    }
+    function saveFeedTopics() {
+      try { localStorage.setItem(FEED_TOPICS_LS, JSON.stringify(FEED.topics)); } catch (e) { }
+      sbSaveFeedTopics();
+    }
+    function feedTopic(id) { return FEED.topics.find(t => t.id === id) || { id, label: id, emoji: '✦', color: '#8b8cf8' }; }
+    function loadFeedCache() {
+      const key = feedCacheKey();
+      try {
+        // pulizia cache dei giorni precedenti
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith('dayflow_feed_') && k !== key) localStorage.removeItem(k);
+        }
+        const raw = localStorage.getItem(key);
+        const d = raw ? JSON.parse(raw) : null;
+        FEED.data = d && Array.isArray(d.cards) && d.cards.length ? d : null;
+      } catch (e) { FEED.data = null; }
+    }
+    function saveFeedCache() { try { if (FEED.data) localStorage.setItem(feedCacheKey(), JSON.stringify(FEED.data)); else localStorage.removeItem(feedCacheKey()); } catch (e) { } }
+    // ── Memoria notizie già viste (24h) ──
+    function loadFeedSeen() {
+      let list = [];
+      try { list = JSON.parse(localStorage.getItem(FEED_SEEN_LS) || '[]'); } catch (e) { }
+      const cutoff = Date.now() - FEED_SEEN_TTL;
+      return (Array.isArray(list) ? list : []).filter(x => x && x.t && x.ts > cutoff);
+    }
+    function saveFeedSeen(list) { try { localStorage.setItem(FEED_SEEN_LS, JSON.stringify(list)); } catch (e) { } }
+    function addFeedSeen(cards) {
+      const now = Date.now();
+      const list = loadFeedSeen();
+      const known = new Set(list.map(x => x.t.toLowerCase()));
+      cards.forEach(c => { const t = c.title.trim(); if (t && !known.has(t.toLowerCase())) { list.push({ t, ts: now, topicId: c.topicId }); known.add(t.toLowerCase()); } });
+      saveFeedSeen(list.slice(-300));
+    }
+    function clearFeedSeen() {
+      try { localStorage.removeItem(FEED_SEEN_LS); } catch (e) { }
+      showToast('Cronologia svuotata', 'info');
+      if (FEED.sheet === 'settings') renderFeedSheet();
+    }
+
+    // ── Salvati per dopo ──
+    function loadFeedSaved() {
+      if (FEED.saved) return FEED.saved;
+      let l = [];
+      try { l = JSON.parse(localStorage.getItem(FEED_SAVED_LS) || '[]'); } catch (e) { }
+      FEED.saved = (Array.isArray(l) ? l : []).filter(c => c && c.id && c.title);
+      return FEED.saved;
+    }
+    function persistFeedSaved() { try { localStorage.setItem(FEED_SAVED_LS, JSON.stringify(loadFeedSaved().slice(-100))); } catch (e) { } }
+    function isFeedSaved(id) { return loadFeedSaved().some(c => c.id === id); }
+    function toggleFeedSaved(id) {
+      const list = loadFeedSaved();
+      const idx = list.findIndex(c => c.id === id);
+      if (idx >= 0) {
+        list.splice(idx, 1);
+        showToast('Rimossa dai salvati', 'info', 1800);
+      } else {
+        const card = feedCardById(id); if (!card) return;
+        list.push(Object.assign({}, card, { savedAt: Date.now() }));
+        showToast('Salvata per dopo', 'info', 1800);
+      }
+      persistFeedSaved();
+      if (FEED.activeTopic === 'saved') { renderFeedChips(); renderFeed(); return; }
+      document.querySelectorAll(`.feed-slide[data-id="${CSS.escape(id)}"] .feed-save`).forEach(b => b.classList.toggle('on', idx < 0));
+      renderFeedChips();
+    }
+    function syncFeedSaved(card) {
+      const list = loadFeedSaved();
+      const i = list.findIndex(c => c.id === card.id);
+      if (i >= 0) { list[i] = Object.assign({}, list[i], card); persistFeedSaved(); }
+    }
+
+    // ── Interessi impliciti (articoli aperti, chat) → personalizzazione feed ──
+    function loadFeedPrefs() {
+      let l = [];
+      try { l = JSON.parse(localStorage.getItem(FEED_PREFS_LS) || '[]'); } catch (e) { }
+      const cutoff = Date.now() - FEED_PREFS_TTL;
+      return (Array.isArray(l) ? l : []).filter(x => x && x.t && x.ts > cutoff);
+    }
+    function recordFeedPref(card, kind) {
+      if (!card) return;
+      const list = loadFeedPrefs().filter(x => x.t !== card.title);
+      list.push({ t: card.title, topicId: card.topicId, kind, ts: Date.now() });
+      try { localStorage.setItem(FEED_PREFS_LS, JSON.stringify(list.slice(-FEED_PREFS_MAX))); } catch (e) { }
+    }
+    function clearFeedPrefs() {
+      try { localStorage.removeItem(FEED_PREFS_LS); } catch (e) { }
+      showToast('Interessi azzerati', 'info');
+      if (FEED.sheet === 'settings') renderFeedSheet();
+    }
+
+    // ── Condividi ──
+    async function shareFeedCard(id) {
+      const c = feedCardById(id); if (!c) return;
+      const text = `${c.title}\n\n${c.summary}\n\n${c.source} · via DayFlow Discover`;
+      try {
+        if (navigator.share) { await navigator.share({ title: c.title, text }); return; }
+        await navigator.clipboard.writeText(text);
+        showToast('Copiata negli appunti', 'info', 1800);
+      } catch (e) { if (e && e.name !== 'AbortError') showToast('Condivisione non riuscita', 'error'); }
+    }
+    function feedRelTime(card) {
+      const gen = card.genAt || (FEED.data ? FEED.data.generatedAt : Date.now());
+      const mins = Math.max(1, Math.round((card.ageMinutes || 60) + (Date.now() - gen) / 60000));
+      if (mins < 60) return mins + ' min fa';
+      const h = Math.round(mins / 60);
+      if (h < 24) return h + ' h fa';
+      const g = Math.round(h / 24);
+      return g === 1 ? 'ieri' : g + ' giorni fa';
+    }
+
+    // ── Gemini REST ──
+    async function geminiRequest(body) {
+      const key = feedKey();
+      if (!key) throw Object.assign(new Error('nokey'), { code: 'nokey' });
+      let res;
+      try {
+        res = await fetch(GEMINI_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify(body) });
+      } catch (e) { throw Object.assign(new Error('network'), { code: 'network' }); }
+      if (!res.ok) {
+        const err = Object.assign(new Error('http ' + res.status), { code: 'http', status: res.status });
+        try { const j = await res.json(); err.detail = j?.error?.message || ''; } catch (e) { }
+        throw err;
+      }
+      const json = await res.json();
+      const parts = json?.candidates?.[0]?.content?.parts || [];
+      const text = parts.map(p => p.text || '').join('').trim();
+      if (!text) throw Object.assign(new Error('empty'), { code: 'empty', reason: json?.candidates?.[0]?.finishReason || json?.promptFeedback?.blockReason || '' });
+      return text;
+    }
+    async function geminiJSON(prompt, schema, temperature = 0.9) {
+      const text = await geminiRequest({ contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json', responseSchema: schema, temperature } });
+      const clean = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+      try { return JSON.parse(clean); } catch (e) { throw Object.assign(new Error('parse'), { code: 'parse' }); }
+    }
+    async function geminiText(contents, system) {
+      return geminiRequest({ systemInstruction: { parts: [{ text: system }] }, contents, generationConfig: { temperature: 0.7 } });
+    }
+    function feedErrorMessage(e) {
+      if (!e) return 'Errore sconosciuto.';
+      if (e.code === 'nokey') return 'Nessuna chiave API configurata.';
+      if (e.code === 'network') return navigator.onLine ? 'La rete non risponde. Riprova tra poco.' : 'Sei offline. Il feed torna quando sei connesso.';
+      if (e.code === 'parse' || e.code === 'empty') return 'Risposta dell\'AI non valida. Riprova.';
+      if (e.code === 'http') {
+        if (e.status === 400 || e.status === 401 || e.status === 403) return 'Chiave API non valida o non autorizzata.';
+        if (e.status === 404) return 'Modello ' + GEMINI_MODEL + ' non disponibile per questa chiave.';
+        if (e.status === 429) return 'Quota Gemini esaurita. Riprova più tardi.';
+        if (e.status >= 500) return 'Gemini è temporaneamente non disponibile.';
+        return 'Errore ' + e.status + (e.detail ? ': ' + e.detail : '');
+      }
+      return 'Errore: ' + (e.message || e);
+    }
+
+    // ── Render ──
+    function renderDiscover() {
+      const dEl = document.getElementById('disc-date');
+      if (dEl) dEl.innerHTML = fmtHeaderDate(todayStr());
+      if (!FEED.topics.length) loadFeedTopics();
+      if (!FEED.data && !FEED.loading) loadFeedCache();
+      if (!FEED.pullInit) initFeedPull();
+      updateTopProgressBar(calcPct(todayStr()) || 0);
+      renderFeedChips();
+      renderFeed();
+      if (feedKey() && !FEED.data && !FEED.loading && !FEED.error) generateFeed();
+    }
+
+    // ── Pull-to-refresh (touch) + rotella in cima (desktop) ──
+    function initFeedPull() {
+      const f = document.getElementById('disc-feed'); const ptr = document.getElementById('disc-ptr');
+      if (!f || !ptr) return;
+      FEED.pullInit = true;
+      const txt = document.getElementById('disc-ptr-txt');
+      const st = { active: false, pulling: false, startY: 0, dist: 0, wheel: 0, wheelT: null };
+      const canPull = () => !!FEED.data && !FEED.loading && !FEED.sheet && FEED.activeTopic !== 'saved' && f.scrollTop <= 0;
+      const setPtr = (dist, label) => {
+        const ready = dist >= FEED_PTR_THRESHOLD;
+        ptr.style.transform = `translateY(${Math.min(dist, 96) - 56}px)`;
+        ptr.style.opacity = dist > 8 ? '1' : '0';
+        ptr.classList.toggle('ready', ready);
+        if (txt) txt.textContent = label || (ready ? 'Rilascia per aggiornare' : 'Trascina per aggiornare');
+      };
+      const reset = () => {
+        st.active = false; st.pulling = false; st.dist = 0;
+        f.classList.remove('pulling'); f.style.transform = '';
+        ptr.classList.remove('ready', 'busy');
+        ptr.style.transform = ''; ptr.style.opacity = '';
+      };
+      const fire = () => {
+        ptr.classList.add('busy'); ptr.classList.remove('ready');
+        setPtr(FEED_PTR_THRESHOLD, 'Aggiornamento…');
+        f.classList.remove('pulling'); f.style.transform = '';
+        setTimeout(() => { reset(); regenerateFeed(); }, 150);
+      };
+      f.addEventListener('touchstart', e => {
+        if (!canPull() || e.touches.length !== 1) return;
+        st.active = true; st.startY = e.touches[0].clientY; st.dist = 0;
+      }, { passive: true });
+      f.addEventListener('touchmove', e => {
+        if (!st.active) return;
+        const dy = e.touches[0].clientY - st.startY;
+        if (dy <= 0 || f.scrollTop > 0) { if (st.pulling) reset(); return; }
+        st.pulling = true;
+        st.dist = Math.min(120, dy * 0.55);
+        f.classList.add('pulling');
+        f.style.transform = `translateY(${Math.min(st.dist, 96) * 0.6}px)`;
+        setPtr(st.dist);
+        e.preventDefault();
+      }, { passive: false });
+      const end = () => { if (!st.active) return; if (st.pulling && st.dist >= FEED_PTR_THRESHOLD) fire(); else reset(); };
+      f.addEventListener('touchend', end, { passive: true });
+      f.addEventListener('touchcancel', reset, { passive: true });
+      // desktop: rotella verso l'alto quando sei già in cima
+      f.addEventListener('wheel', e => {
+        if (e.deltaY >= 0 || !canPull()) { if (st.wheel) { st.wheel = 0; reset(); } return; }
+        st.wheel = Math.min(140, st.wheel + Math.abs(e.deltaY) * 0.35);
+        setPtr(st.wheel);
+        clearTimeout(st.wheelT);
+        if (st.wheel >= FEED_PTR_THRESHOLD) { st.wheel = 0; fire(); return; }
+        st.wheelT = setTimeout(() => { st.wheel = 0; reset(); }, 500);
+      }, { passive: true });
+    }
+    function renderFeedChips() {
+      const c = document.getElementById('disc-chips'); if (!c) return;
+      const chip = (id, emoji, label) => `<button class="chip${FEED.activeTopic === id ? ' on' : ''}" onclick="setFeedTopic('${escFeed(id)}')">${emoji ? `<span>${escFeed(emoji)}</span>` : ''}${escFeed(label)}</button>`;
+      const nSaved = loadFeedSaved().length;
+      c.innerHTML = chip('all', '', 'Tutti') + FEED.topics.map(t => chip(t.id, t.emoji, t.label)).join('') + chip('saved', '🔖', nSaved ? `Salvati (${nSaved})` : 'Salvati') + `<button class="chip add" onclick="openFeedSheet('topics')" aria-label="Gestisci argomenti">＋ argomenti</button>`;
+    }
+    function setFeedTopic(id) {
+      FEED.activeTopic = id;
+      renderFeedChips(); renderFeed();
+      const f = document.getElementById('disc-feed'); if (f) f.scrollTo({ top: 0, behavior: 'instant' });
+    }
+    function setFeedStatus(status, msg) { setSS('sd-recap', 'st-recap-sync', status, msg); }
+    function renderFeed() {
+      const f = document.getElementById('disc-feed'); if (!f) return;
+      if (FEED.endObs) { FEED.endObs.disconnect(); FEED.endObs = null; }
+      const stale = document.getElementById('disc-stale');
+      const regen = document.getElementById('disc-regen');
+      if (regen) regen.disabled = FEED.loading;
+      const key = feedKey();
+      if (stale) stale.innerHTML = (FEED.data && FEED.data.stale && !FEED.loading) ? `<div class="feed-stale"><span>Argomenti cambiati</span><button onclick="regenerateFeed()">↻ Rigenera</button></div>` : '';
+
+      if (!key) {
+        setFeedStatus('offline', 'chiave api mancante');
+        f.innerHTML = `
+          <div class="feed-slide"><div class="feed-card feed-state">
+            <div class="feed-state-icon"><svg viewBox="0 0 24 24"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg></div>
+            <h3>Collega Gemini</h3>
+            <p>Discover genera ogni giorno un feed di notizie e fatti sui tuoi argomenti. Serve una chiave API di Google Gemini: resta solo su questo dispositivo.</p>
+            <div class="feed-form">
+              <div class="feed-key-wrap">
+                <input class="form-input" id="disc-key-input" type="password" placeholder="AIza…" autocomplete="off" spellcheck="false" onkeydown="if(event.key==='Enter') saveFeedKey()">
+                <button class="feed-eye" type="button" onclick="toggleFeedKeyVis('disc-key-input')" aria-label="Mostra chiave"><svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+              </div>
+              <button class="feed-btn pri" onclick="saveFeedKey()">Salva e genera il feed</button>
+              <a class="feed-link" href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer">Ottieni una chiave su Google AI Studio →</a>
+            </div>
+          </div></div>`;
+        return;
+      }
+      if (FEED.loading) {
+        setFeedStatus('syncing', 'generazione feed…');
+        f.innerHTML = `
+          <div class="feed-slide"><div class="feed-card">
+            <div class="sk-line w40"></div>
+            <div class="sk-line tall w90"></div>
+            <div class="sk-line tall w70"></div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:10px;margin-top:8px"><div class="sk-line w90"></div><div class="sk-line w90"></div><div class="sk-line w70"></div></div>
+            <div class="feed-meta"><div class="feed-spinner"></div><span>Gemini sta preparando il tuo feed…</span></div>
+          </div></div>`;
+        return;
+      }
+      if (FEED.error && !FEED.data) {
+        setFeedStatus('err', 'errore feed');
+        f.innerHTML = `
+          <div class="feed-slide"><div class="feed-card feed-state">
+            <div class="feed-state-icon" style="color:var(--red);background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.3)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+            <h3>Feed non disponibile</h3>
+            <p>${escFeed(FEED.error)}</p>
+            <div class="feed-actions">
+              <button class="feed-btn pri" onclick="generateFeed(true)">↻ Riprova</button>
+              <button class="feed-btn sec" onclick="openFeedSheet('settings')">Cambia chiave</button>
+            </div>
+          </div></div>`;
+        return;
+      }
+      if (FEED.activeTopic === 'saved') {
+        const saved = loadFeedSaved().slice().reverse();
+        setFeedStatus('ok', saved.length + ' salvat' + (saved.length === 1 ? 'a' : 'e'));
+        if (!saved.length) {
+          f.innerHTML = `<div class="feed-slide"><div class="feed-card feed-state"><div class="feed-state-icon"><svg viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg></div><h3>Nessuna notizia salvata</h3><p>Tocca il segnalibro su una card per ritrovarla qui, anche nei giorni successivi.</p><div class="feed-actions"><button class="feed-btn sec" onclick="setFeedTopic('all')">Torna al feed</button></div></div></div>`;
+          return;
+        }
+        f.innerHTML = saved.map((c, i) => feedCardHTML(c, i)).join('');
+        renumberFeed();
+        return;
+      }
+      if (!FEED.data) { f.innerHTML = ''; return; }
+
+      setFeedStatus('ok', 'feed di oggi · ' + new Date(FEED.data.generatedAt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }));
+      const cards = FEED.data.cards.filter(c => FEED.activeTopic === 'all' || c.topicId === FEED.activeTopic);
+      if (!cards.length) {
+        const t = feedTopic(FEED.activeTopic);
+        f.innerHTML = `<div class="feed-slide"><div class="feed-card feed-state"><h3>Niente qui</h3><p>Nessuna notizia su ${escFeed(t.label)} nel feed di oggi.</p><div class="feed-actions"><button class="feed-btn pri" onclick="loadMoreFeed()" ${FEED.more ? 'disabled' : ''}>${FEED.more ? 'Generazione…' : '✦ Genera notizie su ' + escFeed(t.label)}</button></div></div></div>`;
+        return;
+      }
+      f.innerHTML = cards.map((c, i) => feedCardHTML(c, i)).join('') + feedEndHTML();
+      renumberFeed();
+      attachFeedEndObserver();
+    }
+    function feedCardHTML(c, i) {
+      const t = feedTopic(c.topicId);
+      return `
+          <article class="feed-slide card" data-id="${escFeed(c.id)}"><div class="feed-card" style="--tc:${escFeed(t.color)};animation-delay:${Math.min(i, 3) * 40}ms">
+            <div class="feed-badge"><span>${escFeed(t.emoji)}</span>${escFeed(t.label)}</div>
+            <h2 class="feed-title">${escFeed(c.title)}</h2>
+            <p class="feed-summary">${escFeed(c.summary)}</p>
+            <div class="feed-meta"><span>${escFeed(c.source)}</span><span class="feed-meta-dot"></span><span>${escFeed(feedRelTime(c))}</span><span class="feed-meta-dot"></span><span class="feed-idx"></span></div>
+            <div class="feed-actions">
+              <button class="feed-btn pri" onclick="expandArticle('${escFeed(c.id)}')">📖 Leggi</button>
+              <button class="feed-btn sec" onclick="openFeedChat('${escFeed(c.id)}')">💬 Chiedi</button>
+              <button class="feed-btn ico feed-save${isFeedSaved(c.id) ? ' on' : ''}" onclick="toggleFeedSaved('${escFeed(c.id)}')" aria-label="Salva per dopo" title="Salva per dopo"><svg viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg></button>
+              <button class="feed-btn ico" onclick="shareFeedCard('${escFeed(c.id)}')" aria-label="Condividi" title="Condividi"><svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg></button>
+            </div>
+          </div></article>`;
+    }
+    function feedEndHTML() {
+      return `<div class="feed-slide" id="disc-end"><div class="feed-card feed-state">${feedEndInner()}</div></div>`;
+    }
+    function feedEndInner() {
+      if (FEED.moreError) return `
+            <div class="feed-state-icon" style="color:var(--red);background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.3)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+            <h3>Non riesco a caricare altro</h3>
+            <p>${escFeed(FEED.moreError)}</p>
+            <div class="feed-actions"><button class="feed-btn pri" onclick="loadMoreFeed(true)">↻ Riprova</button></div>`;
+      return `
+            <div class="feed-state-icon"><div class="feed-spinner"></div></div>
+            <h3>Altre notizie in arrivo…</h3>
+            <p>Gemini sta cercando qualcosa che non hai ancora visto.</p>
+            <div class="feed-disclaimer">Contenuti generati dall'AI · possono contenere imprecisioni</div>`;
+    }
+    function renumberFeed() {
+      const f = document.getElementById('disc-feed'); if (!f) return;
+      const slides = f.querySelectorAll('.feed-slide.card');
+      slides.forEach((s, i) => { const el = s.querySelector('.feed-idx'); if (el) el.textContent = (i + 1) + '/' + slides.length; });
+    }
+    function attachFeedEndObserver() {
+      const f = document.getElementById('disc-feed'); const end = document.getElementById('disc-end');
+      if (FEED.endObs) { FEED.endObs.disconnect(); FEED.endObs = null; }
+      if (!f || !end || !('IntersectionObserver' in window)) return;
+      FEED.endObs = new IntersectionObserver(entries => {
+        if (entries.some(e => e.isIntersecting) && !FEED.moreError) loadMoreFeed();
+      }, { root: f, threshold: 0.5 });
+      FEED.endObs.observe(end);
+      // prefetch: parte già dall'ultima card vera, così lo spinner si vede di rado
+      const lastCard = f.querySelector('.feed-slide.card:last-of-type');
+      if (lastCard && lastCard !== end) FEED.endObs.observe(lastCard);
+    }
+    function toggleFeedKeyVis(id) { const i = document.getElementById(id); if (i) i.type = i.type === 'password' ? 'text' : 'password'; }
+    function saveFeedKey(inputId = 'disc-key-input') {
+      const i = document.getElementById(inputId); const v = (i ? i.value : '').trim();
+      if (!v || v.length < 20) { showToast('Chiave API non valida', 'error'); return; }
+      try { localStorage.setItem(FEED_KEY_LS, v); } catch (e) { showToast('Impossibile salvare la chiave', 'error'); return; }
+      FEED.error = null;
+      showToast('Chiave salvata', 'info');
+      if (FEED.sheet) closeFeedSheet();
+      renderDiscover();
+    }
+    function removeFeedKey() {
+      try { localStorage.removeItem(FEED_KEY_LS); } catch (e) { }
+      FEED.error = null;
+      closeFeedSheet();
+      renderDiscover();
+    }
+
+    // ── Generazione ──
+    async function generateFeed(force = false) {
+      if (!feedKey()) { renderFeed(); return; }
+      if (FEED.loading) return;
+      if (!FEED.topics.length) loadFeedTopics();
+      const topics = FEED.topics;
+      FEED.loading = true; FEED.error = null;
+      if (force) FEED.data = null;
+      FEED.moreError = null;
+      renderFeed();
+      try {
+        const cards = await fetchFeedCards(topics, FEED_CARDS_N);
+        FEED.data = { generatedAt: Date.now(), topicIds: topics.map(t => t.id), cards, stale: false };
+        saveFeedCache();
+        if (FEED.activeTopic !== 'all' && !topics.some(t => t.id === FEED.activeTopic)) FEED.activeTopic = 'all';
+      } catch (e) {
+        console.error('generateFeed', e);
+        FEED.error = feedErrorMessage(e);
+        if (FEED.data) showToast(FEED.error, 'error');
+      }
+      FEED.loading = false;
+      renderFeedChips();
+      renderFeed();
+      const f = document.getElementById('disc-feed'); if (f) f.scrollTo({ top: 0, behavior: 'instant' });
+    }
+    // Chiede a Gemini n card sui topic indicati, escludendo i titoli già visti nelle ultime 24h.
+    async function fetchFeedCards(topics, n) {
+      const today = new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+      const topicList = topics.map(t => `- id "${t.id}" → ${t.label}`).join('\n');
+      const seen = loadFeedSeen().slice(-FEED_SEEN_MAX);
+      const seenBlock = seen.length
+        ? `\n\nNOTIZIE GIÀ MOSTRATE ALL'UTENTE (non riproporle, nemmeno riformulate o con un angolo diverso sullo stesso fatto; cerca fatti, protagonisti e sottotemi DIVERSI):\n${seen.map(s => '- ' + s.t).join('\n')}`
+        : '';
+      const prefs = loadFeedPrefs().filter(p => topics.some(t => t.id === p.topicId)).slice(-15);
+      const prefBlock = prefs.length
+        ? `\n\nINTERESSI DELL'UTENTE (notizie che ha aperto o su cui ha fatto domande di recente; privilegia sottotemi affini, senza ripetere questi fatti):\n${prefs.map(p => `- ${p.t} [${feedTopic(p.topicId).label}]`).join('\n')}`
+        : '';
+      const distrib = topics.length > 1 ? 'distribuiti in modo equilibrato tra questi argomenti' : 'tutti su questo argomento';
+      const prompt = `Oggi è ${today}. Genera un feed di ${n} notizie e fatti interessanti, recenti e verosimili, scritti in italiano, ${distrib}:\n${topicList}\n\nRegole per ogni voce:\n- "topicId": esattamente uno degli id elencati.\n- "title": titolo d'impatto, massimo 12 parole, niente clickbait né punti esclamativi.\n- "summary": 2-3 frasi chiare e concrete che spiegano cosa è successo e perché conta.\n- "source": nome di una testata o fonte plausibile per quell'argomento (es. una testata italiana o internazionale, un'agenzia, una rivista scientifica).\n- "ageMinutes": minuti trascorsi dalla pubblicazione, tra 20 e 1440.\nVaria toni e sottotemi, evita ripetizioni e non inventare dichiarazioni virgolettate di persone reali.${prefBlock}${seenBlock}`;
+      const schema = { type: 'ARRAY', items: { type: 'OBJECT', properties: { topicId: { type: 'STRING' }, title: { type: 'STRING' }, summary: { type: 'STRING' }, source: { type: 'STRING' }, ageMinutes: { type: 'INTEGER' } }, required: ['topicId', 'title', 'summary', 'source', 'ageMinutes'] } };
+      const out = await geminiJSON(prompt, schema, 1.0);
+      const seenSet = new Set(seen.map(s => s.t.toLowerCase()));
+      const inFeed = new Set((FEED.data ? FEED.data.cards : []).map(c => c.title.toLowerCase()));
+      const now = Date.now();
+      const cards = (Array.isArray(out) ? out : []).filter(c => c && c.title).map(c => ({
+        id: uid(),
+        genAt: now,
+        topicId: topics.some(t => t.id === c.topicId) ? c.topicId : topics[0].id,
+        title: String(c.title).trim(),
+        summary: String(c.summary || '').trim(),
+        source: String(c.source || 'Fonte').trim(),
+        ageMinutes: Math.min(1440, Math.max(5, parseInt(c.ageMinutes) || 60))
+      })).filter(c => !seenSet.has(c.title.toLowerCase()) && !inFeed.has(c.title.toLowerCase()));
+      if (!cards.length) throw Object.assign(new Error('empty'), { code: 'empty' });
+      addFeedSeen(cards);
+      return cards;
+    }
+    // Scroll infinito: accoda nuove card in fondo senza toccare lo scroll corrente.
+    async function loadMoreFeed(retry = false) {
+      if (FEED.more || FEED.loading || !FEED.data || !feedKey()) return;
+      if (FEED.moreError && !retry) return;
+      if (FEED.activeTopic === 'saved') return;
+      const topics = FEED.activeTopic === 'all' ? FEED.topics : [feedTopic(FEED.activeTopic)];
+      FEED.more = true; FEED.moreError = null;
+      const f = document.getElementById('disc-feed');
+      let end = document.getElementById('disc-end');
+      if (end) end.querySelector('.feed-card').innerHTML = feedEndInner();
+      else renderFeed();
+      try {
+        const cards = await fetchFeedCards(topics, FEED_CARDS_N);
+        FEED.data.cards.push(...cards);
+        saveFeedCache();
+        end = document.getElementById('disc-end');
+        if (f && end && curScreen === 'recap') {
+          const shown = cards.filter(c => FEED.activeTopic === 'all' || c.topicId === FEED.activeTopic);
+          const tpl = document.createElement('template');
+          tpl.innerHTML = shown.map((c, i) => feedCardHTML(c, i)).join('') + feedEndHTML();
+          const nodes = [...tpl.content.children];
+          // La slide "fine" è quella agganciata dallo snap: la trasformo in-place nella prima
+          // nuova card (Chrome mantiene in vista l'elemento snappato anche dopo modifiche al DOM),
+          // poi accodo le altre card e una nuova slide "fine".
+          const first = nodes.shift();
+          const wasOnEnd = Math.abs(f.scrollTop - end.offsetTop) < 4;
+          end.removeAttribute('id');
+          end.className = first.className;
+          end.dataset.id = first.dataset.id;
+          end.innerHTML = first.innerHTML;
+          end.after(...nodes);
+          if (wasOnEnd && Math.abs(f.scrollTop - end.offsetTop) > 2) f.scrollTo({ top: end.offsetTop, behavior: 'instant' });
+          renumberFeed();
+          attachFeedEndObserver();
+        } else renderFeed();
+      } catch (e) {
+        console.error('loadMoreFeed', e);
+        FEED.moreError = feedErrorMessage(e);
+        end = document.getElementById('disc-end');
+        if (end) end.querySelector('.feed-card').innerHTML = feedEndInner(); else renderFeed();
+      }
+      FEED.more = false;
+    }
+    function regenerateFeed() {
+      if (FEED.loading) return;
+      if (!feedKey()) { openFeedSheet('settings'); return; }
+      generateFeed(true);
+    }
+
+    // ── Bottom sheet ──
+    function openFeedSheet(mode, card) {
+      FEED.sheet = mode;
+      if (card) FEED.card = card;
+      const ov = document.getElementById('feed-sheet');
+      const tabs = document.getElementById('fsheet-tabs');
+      const foot = document.getElementById('fsheet-foot');
+      const title = document.getElementById('fsheet-title');
+      const isCard = mode === 'article' || mode === 'chat';
+      tabs.style.display = isCard ? 'flex' : 'none';
+      document.getElementById('fsheet-tab-article').classList.toggle('on', mode === 'article');
+      document.getElementById('fsheet-tab-chat').classList.toggle('on', mode === 'chat');
+      foot.classList.toggle('on', mode === 'chat');
+      title.textContent = isCard ? (feedTopic(FEED.card.topicId).emoji + ' ' + feedTopic(FEED.card.topicId).label) : mode === 'topics' ? 'Argomenti' : 'Impostazioni Discover';
+      ov.classList.add('open');
+      renderFeedSheet();
+    }
+    function switchFeedSheet(mode) { openFeedSheet(mode); }
+    function closeFeedSheet() { FEED.sheet = null; document.getElementById('feed-sheet').classList.remove('open'); }
+    function feedSheetOverlayClick(e) { if (e.target === document.getElementById('feed-sheet')) closeFeedSheet(); }
+    function renderFeedSheet() {
+      const b = document.getElementById('fsheet-body'); if (!b) return;
+      if (FEED.sheet === 'article') renderFeedArticle(b);
+      else if (FEED.sheet === 'chat') renderFeedChatLog(b);
+      else if (FEED.sheet === 'topics') renderFeedTopicsSheet(b);
+      else if (FEED.sheet === 'settings') renderFeedSettingsSheet(b);
+    }
+    function feedCardById(id) { return (FEED.data && FEED.data.cards.find(c => c.id === id)) || loadFeedSaved().find(c => c.id === id) || null; }
+
+    // Articolo esteso
+    async function expandArticle(id) {
+      const card = feedCardById(id); if (!card) return;
+      if (FEED.card && FEED.card.id !== id) FEED.chat = [];
+      recordFeedPref(card, 'article');
+      openFeedSheet('article', card);
+      if (card.fullArticle || FEED.articleBusy) return;
+      FEED.articleBusy = true; renderFeedSheet();
+      try {
+        const schema = { type: 'OBJECT', properties: { title: { type: 'STRING' }, sections: { type: 'ARRAY', items: { type: 'OBJECT', properties: { heading: { type: 'STRING' }, paragraphs: { type: 'ARRAY', items: { type: 'STRING' } } }, required: ['heading', 'paragraphs'] } } }, required: ['title', 'sections'] };
+        const prompt = `Scrivi in italiano un articolo di approfondimento (400-600 parole) a partire da questa notizia.\nTitolo: ${card.title}\nRiassunto: ${card.summary}\nFonte: ${card.source}\nArgomento: ${feedTopic(card.topicId).label}\n\nStruttura: 3-4 sezioni con un sottotitolo breve ciascuna e 1-3 paragrafi. Tono giornalistico, chiaro, senza retorica. Contestualizza, spiega le implicazioni e chiudi con cosa aspettarsi. Non inventare citazioni virgolettate attribuite a persone reali.`;
+        const out = await geminiJSON(prompt, schema, 0.7);
+        card.fullArticle = { title: String(out.title || card.title), sections: (out.sections || []).map(s => ({ heading: String(s.heading || ''), paragraphs: (s.paragraphs || []).map(String) })) };
+        saveFeedCache();
+        syncFeedSaved(card);
+      } catch (e) {
+        console.error('expandArticle', e);
+        card.articleError = feedErrorMessage(e);
+      }
+      FEED.articleBusy = false;
+      if (FEED.sheet === 'article' && FEED.card && FEED.card.id === id) renderFeedSheet();
+    }
+    function renderFeedArticle(b) {
+      const c = FEED.card; if (!c) { b.innerHTML = ''; return; }
+      const t = feedTopic(c.topicId);
+      const head = `<h2>${escFeed(c.fullArticle ? c.fullArticle.title : c.title)}</h2><div class="feed-meta"><span>${escFeed(c.source)}</span><span class="feed-meta-dot"></span><span>${escFeed(feedRelTime(c))}</span><span class="feed-meta-dot"></span><span>${escFeed(t.label)}</span></div>`;
+      if (c.fullArticle) {
+        b.innerHTML = `<div class="article">${head}${c.fullArticle.sections.map(s => `<h3>${escFeed(s.heading)}</h3>${s.paragraphs.map(p => `<p>${escFeed(p)}</p>`).join('')}`).join('')}<div class="feed-disclaimer">Articolo generato dall'AI · può contenere imprecisioni</div></div>`;
+        return;
+      }
+      if (FEED.articleBusy) {
+        b.innerHTML = `<div class="article">${head}<p>${escFeed(c.summary)}</p><div style="display:flex;flex-direction:column;gap:12px;margin-top:20px"><div class="sk-line w40"></div><div class="sk-line w90"></div><div class="sk-line w90"></div><div class="sk-line w70"></div><div class="sk-line w40" style="margin-top:10px"></div><div class="sk-line w90"></div><div class="sk-line w70"></div></div><div class="feed-meta" style="margin-top:20px"><div class="feed-spinner"></div><span>Gemini sta scrivendo l'articolo…</span></div></div>`;
+        return;
+      }
+      b.innerHTML = `<div class="article">${head}<p>${escFeed(c.summary)}</p>${c.articleError ? `<p style="color:var(--red)">${escFeed(c.articleError)}</p>` : ''}<div class="feed-actions"><button class="feed-btn pri" onclick="delete FEED.card.articleError; expandArticle('${escFeed(c.id)}')">↻ Genera l'articolo</button></div></div>`;
+    }
+
+    // Chat contestuale
+    function openFeedChat(id) {
+      const card = feedCardById(id); if (!card) return;
+      if (!FEED.card || FEED.card.id !== id) FEED.chat = [];
+      recordFeedPref(card, 'chat');
+      openFeedSheet('chat', card);
+      setTimeout(() => { const i = document.getElementById('fsheet-input'); if (i) i.focus(); }, 350);
+    }
+    function renderFeedChatLog(b) {
+      const c = FEED.card; if (!c) { b.innerHTML = ''; return; }
+      const sugg = ['Spiegamelo in parole semplici', 'Perché è importante?', 'Quali sono le conseguenze?'];
+      b.innerHTML = `<div class="chat-log">
+        <div class="chat-ctx">Contesto: ${escFeed(c.title)}</div>
+        ${FEED.chat.map(m => `<div class="chat-msg ${m.role}">${escFeed(m.text)}</div>`).join('')}
+        ${FEED.chatBusy ? '<div class="chat-msg model typing"><i></i><i></i><i></i></div>' : ''}
+        ${!FEED.chat.length && !FEED.chatBusy ? `<div class="chat-sugg">${sugg.map(s => `<button class="chip" onclick="sendFeedChat('${escFeed(s)}')">${escFeed(s)}</button>`).join('')}</div>` : ''}
+      </div>`;
+      b.scrollTop = b.scrollHeight;
+      const send = document.getElementById('fsheet-send'); if (send) send.disabled = FEED.chatBusy;
+    }
+    async function sendFeedChat(preset) {
+      const c = FEED.card; if (!c || FEED.chatBusy) return;
+      const input = document.getElementById('fsheet-input');
+      const text = (preset || (input ? input.value : '')).trim();
+      if (!text) return;
+      if (input) input.value = '';
+      FEED.chat.push({ role: 'user', text });
+      FEED.chatBusy = true;
+      if (FEED.sheet === 'chat') renderFeedSheet();
+      try {
+        const article = c.fullArticle ? '\n\nArticolo esteso:\n' + c.fullArticle.sections.map(s => s.heading + '\n' + s.paragraphs.join('\n')).join('\n\n') : '';
+        const system = `Sei l'assistente di DayFlow. Rispondi in italiano, in modo chiaro e conciso (massimo 120 parole), restando ancorato alla notizia seguente. Se non sai qualcosa, dillo. Non inventare citazioni di persone reali.\n\nNotizia: ${c.title}\nRiassunto: ${c.summary}\nFonte: ${c.source}\nArgomento: ${feedTopic(c.topicId).label}${article}`;
+        const contents = FEED.chat.map(m => ({ role: m.role, parts: [{ text: m.text }] }));
+        const reply = await geminiText(contents, system);
+        FEED.chat.push({ role: 'model', text: reply });
+      } catch (e) {
+        console.error('sendFeedChat', e);
+        FEED.chat.push({ role: 'model', text: '⚠ ' + feedErrorMessage(e) });
+      }
+      FEED.chatBusy = false;
+      if (FEED.sheet === 'chat') renderFeedSheet();
+    }
+
+    // Argomenti
+    function renderFeedTopicsSheet(b) {
+      b.innerHTML = `
+        <div class="feed-hint" style="margin-bottom:14px">Il feed viene generato sugli argomenti attivi. Dopo una modifica, rigenera per aggiornarlo.</div>
+        ${FEED.topics.map(t => `<div class="topic-row" style="--tc:${escFeed(t.color)}"><div class="t-emoji">${escFeed(t.emoji)}</div><div class="t-name">${escFeed(t.label)}</div><button class="topic-del" onclick="removeFeedTopic('${escFeed(t.id)}')" ${FEED.topics.length <= 1 ? 'disabled' : ''} aria-label="Rimuovi">×</button></div>`).join('')}
+        <div class="topic-form">
+          <input class="form-input emoji" id="topic-emoji" maxlength="4" placeholder="✦" aria-label="Emoji">
+          <input class="form-input" id="topic-label" maxlength="24" placeholder="Nuovo argomento (es. Cinema)" onkeydown="if(event.key==='Enter') addFeedTopic()">
+          <button class="btn-pri" onclick="addFeedTopic()">Aggiungi</button>
+        </div>`;
+    }
+    function addFeedTopic() {
+      const lbl = (document.getElementById('topic-label')?.value || '').trim();
+      const emoji = (document.getElementById('topic-emoji')?.value || '').trim();
+      if (!lbl) return;
+      if (FEED.topics.length >= 10) { showToast('Massimo 10 argomenti', 'warn'); return; }
+      let id = lbl.toLowerCase().replace(/[^a-z0-9àèéìòù]+/g, '-').replace(/^-|-$/g, '') || uid();
+      if (FEED.topics.some(t => t.id === id)) id += '-' + Math.random().toString(36).slice(2, 5);
+      const used = new Set(FEED.topics.map(t => t.color));
+      const color = FEED_PALETTE.find(c => !used.has(c)) || FEED_PALETTE[FEED.topics.length % FEED_PALETTE.length];
+      FEED.topics.push(normalizeTopic({ id, label: lbl, emoji: emoji || '✦', color }));
+      afterFeedTopicsChange();
+    }
+    function removeFeedTopic(id) {
+      if (FEED.topics.length <= 1) return;
+      FEED.topics = FEED.topics.filter(t => t.id !== id);
+      if (FEED.activeTopic === id) FEED.activeTopic = 'all';
+      afterFeedTopicsChange();
+    }
+    function afterFeedTopicsChange() {
+      saveFeedTopics();
+      if (FEED.data) { FEED.data.stale = true; saveFeedCache(); }
+      renderFeedChips(); renderFeed();
+      if (FEED.sheet === 'topics') renderFeedSheet();
+    }
+
+    // Impostazioni
+    function renderFeedSettingsSheet(b) {
+      const key = feedKey();
+      const masked = key ? key.slice(0, 6) + '••••••••' + key.slice(-4) : '';
+      const seen = loadFeedSeen();
+      const prefs = loadFeedPrefs();
+      b.innerHTML = `
+        <div class="settings-row">
+          <div class="settings-lbl">Chiave API Gemini</div>
+          <div class="settings-val">${key ? escFeed(masked) : 'Nessuna chiave salvata'}</div>
+          <div class="feed-key-wrap">
+            <input class="form-input" id="settings-key-input" type="password" placeholder="${key ? 'Incolla una nuova chiave per sostituirla' : 'AIza…'}" autocomplete="off" spellcheck="false" onkeydown="if(event.key==='Enter') saveFeedKey('settings-key-input')">
+            <button class="feed-eye" type="button" onclick="toggleFeedKeyVis('settings-key-input')" aria-label="Mostra chiave"><svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+          </div>
+          <div class="form-btns" style="margin-top:10px">
+            <button class="btn-pri" onclick="saveFeedKey('settings-key-input')">Salva chiave</button>
+            ${key ? '<button class="btn-del" onclick="removeFeedKey()">Rimuovi</button>' : ''}
+          </div>
+          <div class="feed-hint" style="margin-top:10px">La chiave resta solo in questo browser (localStorage) e non viene mai inviata a DayFlow o Supabase. <a class="feed-link" href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer">Google AI Studio →</a></div>
+        </div>
+        <div class="settings-row">
+          <div class="settings-lbl">Modello</div>
+          <div class="settings-val">${escFeed(GEMINI_MODEL)}</div>
+        </div>
+        <div class="settings-row">
+          <div class="settings-lbl">Cache</div>
+          <div class="settings-val">${FEED.data ? `Feed di oggi generato alle ${new Date(FEED.data.generatedAt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })} · ${FEED.data.cards.length} card` : 'Nessun feed in cache'}</div>
+          <div class="form-btns" style="margin-top:0">
+            <button class="btn-sec" onclick="clearFeedCache()" ${FEED.data ? '' : 'disabled'}>Svuota cache di oggi</button>
+            <button class="btn-sec" onclick="closeFeedSheet(); openFeedSheet('topics')">Argomenti</button>
+          </div>
+        </div>
+        <div class="settings-row">
+          <div class="settings-lbl">Cronologia (72h)</div>
+          <div class="settings-val">${seen.length ? `${seen.length} notizie ricordate · Gemini evita di riproporle` : 'Nessuna notizia recente'}</div>
+          <div class="form-btns" style="margin-top:0">
+            <button class="btn-sec" onclick="clearFeedSeen()" ${seen.length ? '' : 'disabled'}>Dimentica tutto</button>
+          </div>
+          <div class="feed-hint" style="margin-top:10px">Trascina il feed verso il basso dalla prima card per aggiornarlo; arrivato in fondo, altre notizie si caricano da sole.</div>
+        </div>
+        <div class="settings-row">
+          <div class="settings-lbl">Interessi (14 giorni)</div>
+          <div class="settings-val">${prefs.length ? `${prefs.length} notizie aperte o discusse · guidano i prossimi feed` : 'Ancora nessun segnale: apri un articolo o fai una domanda'}</div>
+          <div class="form-btns" style="margin-top:0">
+            <button class="btn-sec" onclick="clearFeedPrefs()" ${prefs.length ? '' : 'disabled'}>Azzera interessi</button>
+          </div>
+        </div>`;
+    }
+    function clearFeedCache() {
+      FEED.data = null; FEED.error = null; saveFeedCache();
+      closeFeedSheet();
+      renderDiscover();
+    }
 
     // ── ANALYTICS ─────────────────────────────────────────────
     async function renderCalendario() {
@@ -3997,7 +5647,7 @@
           isScrollingTimer = setTimeout(() => {
             if (activeName === 'plan') renderPlan();
             else if (activeName === 'oggi') renderOggi();
-            else if (activeName === 'recap') renderRecap();
+            else if (activeName === 'recap') renderDiscover();
             else if (activeName === 'calendario') renderCalendario();
           }, 60);
         }

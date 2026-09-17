@@ -3,7 +3,13 @@
     "allow": [
       "Bash(gh repo *)",
       "Bash(gh api *)",
-      "Bash(git fetch *)"
+      "Bash(git fetch *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" https://adra696.github.io/dayflow/)",
+      "Bash(curl -sI https://adra696.github.io/dayflow/)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(git remote *)"
     ]
   }
 }

@@ -1,4 +1,4 @@
-const CACHE = 'dayflow-v7';
+const CACHE = 'dayflow-v10';
 const STATIC = [
   './dayflow1_0.html',
   './manifest.json',
@@ -27,8 +27,9 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
 
-  // Supabase → sempre network (dati real-time), niente cache
-  if (url.hostname.includes('supabase.co')) {
+  // Supabase e Gemini → sempre network (dati real-time / POST), niente cache
+  // NB: Gemini va gestito PRIMA della regola googleapis.com, altrimenti cache.put su una POST lancia errore
+  if (url.hostname.includes('supabase.co') || url.hostname === 'generativelanguage.googleapis.com') {
     e.respondWith(fetch(e.request).catch(() => new Response('', { status: 503 })));
     return;
   }
