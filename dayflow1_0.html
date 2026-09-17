@@ -2852,7 +2852,40 @@
         .slice()
         .sort((a, b) => (a.ordine || 0) - (b.ordine || 0));
     }
-    function calcPct(ds) { const day = S.days[ds]; if (!day) return null; ensureSlotArrays(day); const habits = activeHabits(); let total = 1, done = 0; habits.forEach(h => { const r = day.abitudini[h.id] || {}; if (!r.saltato) total++; if (!r.saltato && r.completato) done++; }); const atd = day.attivitaDelGiorno; const nonEmpty = atd.compiti.filter(t => t.trim()).length; done += nonEmpty > 0 ? atdDoneCount(day) / nonEmpty : 0; const imp = getImpegniDelGiorno(ds); total += imp.length; imp.forEach(r => { if (day.impegniRicorrentiCompletati[r.id]) done++; }); return Math.round((done / total) * 100); }
+    function calcPct(ds) {
+      const day = S.days[ds];
+      if (!day) return null;
+      ensureSlotArrays(day);
+      let total = 0, done = 0;
+
+      // Abitudini attive (non saltate)
+      const habits = activeHabits();
+      habits.forEach(h => {
+        const r = day.abitudini[h.id] || {};
+        if (!r.saltato) {
+          total++;
+          if (r.completato) done++;
+        }
+      });
+
+      // Attività del giorno: ogni compito compilato ha lo stesso peso (1) di un'abitudine
+      const atd = day.attivitaDelGiorno;
+      if (atd && Array.isArray(atd.compiti)) {
+        const nonEmpty = atd.compiti.filter(t => t.trim()).length;
+        total += nonEmpty;
+        done += atdDoneCount(day);
+      }
+
+      // Impegni ricorrenti del giorno
+      const imp = getImpegniDelGiorno(ds);
+      total += imp.length;
+      imp.forEach(r => {
+        if (day.impegniRicorrentiCompletati && day.impegniRicorrentiCompletati[r.id]) done++;
+      });
+
+      if (total === 0) return 0;
+      return Math.round((done / total) * 100);
+    }
     function pctColor(p) { return p <= 25 ? '#f87171' : p <= 50 ? '#fb923c' : p <= 75 ? '#facc15' : '#4ade80' }
     let lastTopPct = 0;
     function updateTopProgressBar(pct) {
