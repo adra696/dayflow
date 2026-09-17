@@ -26,10 +26,10 @@ Supabase is loaded via CDN: `<script src="https://cdn.jsdelivr.net/npm/@supabase
 
 | Screen ID | Nav label | Purpose |
 |---|---|---|
-| `#screen-plan` | Pianifica | Morning: set 3 daily tasks + review habits |
+| `#screen-plan` | Pianifica | Morning: set 3 daily tasks + review habits + recurring commitments + weekly habits |
 | `#screen-oggi` | Oggi | Dashboard: check off habits, progress bar, stats |
 | `#screen-recap` | Discover | AI news feed (Gemini): vertical snap cards, topic chips, article drill-down + contextual chat. The id is kept as `recap` for routing compatibility. |
-| `#screen-calendario` | Calendario | Monthly heatmap + recurring commitments + weekly habits |
+| `#screen-calendario` | Calendario | iOS-style calendar: week strip + single-day hourly timeline, events only |
 
 Navigation is a fixed bottom bar. `goScreen(id)` switches the active screen.
 
@@ -47,6 +47,7 @@ S = {
       data, timestamp,
       abitudini: { [habitId]: { completato: boolean, saltato?: boolean } },
       attivitaDelGiorno: { compiti: [str,str,str], altaPriorita: [bool,bool,bool], completato: boolean },
+      eventi: [ { id, titolo, tipo: "impegno"|"scadenza", tuttoIlGiorno: bool, ora: "HH:MM", durata: minuti, completato: bool } ],
       note: string
     }
   }
@@ -77,7 +78,8 @@ Days never opened contribute nothing to weekly/monthly averages. Weekly habits c
 | Data | `load()`, `persist()`, `getDay()`, `activeHabits()`, `calcPct()` |
 | Supabase sync | `sbSaveHabits()`, `sbLoadHabits()`, `sbSaveDay()`, `sbLoadDay()`, `sbLoadAllDays()`, `scheduleSync()` |
 | Navigation | `goScreen()`, `openModal()`, `closeModal()` |
-| Analytics | `calcAvg()`, `weekDays()`, `monthDays()`, heatmap rendering |
+| Calendario | `renderCalendario()`, `calBuildGrid()`, `renderCalStrip()`, `renderCalDay()`, `calLayoutEventi()`, `calSetDate()`, `updateCalNow()`, `openEventoModal()`, `saveEvento()`, `deleteEvento()`, `ensureEventi()`, `normalizeEvento()` |
+| Analytics | `calcAvg()`, `weekDays()` |
 | Discover | `renderDiscover()`, `generateFeed()`, `regenerateFeed()`, `expandArticle()`, `openFeedChat()`, `sendFeedChat()`, `openFeedSheet()`, `geminiRequest()`, `geminiStream()`, `streamArticle()`, `parseArticleText()` |
 | Utils | `todayStr()`, `uid()`, `fmtDate()`, `p2()`, `pctColor()`, `heatColor()` |
 
@@ -109,6 +111,14 @@ const SUPA_KEY = '...'; // public anon key, safe to expose
 
 The `SUPA_KEY` is the public anon key (read/write gated by Supabase RLS policies), not a secret.
 
+The `days` table needs an `eventi jsonb` column:
+
+```sql
+alter table public.days add column if not exists eventi jsonb not null default '[]'::jsonb;
+```
+
+If the column is missing, `sbSaveDay()` catches the error once, flips `eventiColumnOk` to `false` and keeps saving everything else; events then live in `localStorage` only. `adoptRemoteDay()` never lets a remote row without `eventi` wipe local events.
+
 ## Discover Feed (Gemini)
 
 - Model `gemini-2.5-flash` via REST `generateContent`; the API key goes in the `x-goog-api-key` header, never in the URL.
@@ -122,6 +132,18 @@ The `SUPA_KEY` is the public anon key (read/write gated by Supabase RLS policies
 - Implicit interests: `expandArticle()` / `openFeedChat()` call `recordFeedPref()` → `dayflow_feed_prefs` (14d TTL, max 30); last 15 matching active topics go into the prompt as "INTERESSI DELL'UTENTE". Reset button in settings.
 - Share: `shareFeedCard()` uses `navigator.share`, clipboard fallback.
 - CSP `connect-src` allows `generativelanguage.googleapis.com`; `sw.js` treats that host as network-only (POST bodies must never hit the Cache API).
+
+## Calendario (settimana + timeline)
+
+- One day at a time, iOS Calendar style. `CAL = { date, inited }` holds the viewed day; `selectedDate` (Pianifica/Oggi) is untouched.
+- **Week strip**: 7 buttons (Mon–Sun of `CAL.date`'s week). The day number sits in a circle tinted by `heatColor(calcPct(ds))` — that is the only trace left of the old monthly heatmap. Today = accent number, selected = ring, a dot below marks days with events.
+- **Timeline**: `calBuildGrid()` draws 25 hairlines + 24 hour labels once; `CAL_HOUR_H = 56` px per hour, so the body is 1368px tall. Events are absolutely positioned in `#cal-canvas` (`top = min/60*56`, min height `CAL_MIN_EV = 26`). `calLayoutEventi()` groups overlapping events into clusters and splits the width into columns.
+- **All-day band** (`#cal-allday`) shows `tuttoIlGiorno` events as chips above the timeline; hidden when empty.
+- **Now line** (`#cal-now`, red) only on today, repositioned every 30 s while the Calendario screen is active.
+- **Navigation**: tap a day in the strip, ‹ › arrows shift a week, `calGoToday()`, horizontal swipe on the timeline shifts one day and on the strip one week. `.cal-scroll` is `touch-action: pan-y` so a horizontal drag never moves the screen carousel.
+- **Events**: tap an empty slot (rounded to 30 min) or the FAB to create, tap a block to edit. The editor reuses `#modal-overlay` (`openEventoModal` / `renderEventoModal` / `saveEvento` / `deleteEvento`), state in `evDraft`.
+- `normalizeEvento()` migrates legacy events: missing `durata` → 60 min, missing or malformed `ora` → `tuttoIlGiorno`. `ensureEventi()` runs from `ensureSlotArrays()`, so every day read through `getDay()` is normalized.
+- Events do **not** feed `calcPct()`; progress still comes from habits, daily tasks and recurring commitments.
 
 ## Specifications
 
