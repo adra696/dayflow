@@ -2789,7 +2789,25 @@
     }
     function p2(n) { return String(n).padStart(2, '0') }
     function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2) }
-    function load() { try { const r = localStorage.getItem(SK); if (r) S = JSON.parse(r) } catch (e) { } if (!Array.isArray(S.impegniRicorrenti)) S.impegniRicorrenti = []; }
+    function load() {
+      try {
+        let r = localStorage.getItem(SK);
+        if (!r) {
+          r = localStorage.getItem('dayflow_v2') || localStorage.getItem('dayflow_v1') || localStorage.getItem('dayflow');
+        }
+        if (r) {
+          const parsed = JSON.parse(r);
+          if (parsed && typeof parsed === 'object') {
+            if (Array.isArray(parsed.habits)) S.habits = parsed.habits;
+            if (parsed.days && typeof parsed.days === 'object') S.days = parsed.days;
+            if (Array.isArray(parsed.impegniRicorrenti)) S.impegniRicorrenti = parsed.impegniRicorrenti;
+          }
+        }
+      } catch (e) { }
+      if (!Array.isArray(S.habits)) S.habits = [];
+      if (!S.days || typeof S.days !== 'object') S.days = {};
+      if (!Array.isArray(S.impegniRicorrenti)) S.impegniRicorrenti = [];
+    }
     function persist() { try { localStorage.setItem(SK, JSON.stringify(S)) } catch (e) { } }
     function getDay(ds) { if (!S.days[ds]) S.days[ds] = { data: ds, abitudini: {}, attivitaDelGiorno: { compiti: ['', '', ''], altaPriorita: [false, false, false], completatiTask: [false, false, false], completato: false, completatiCount: 0 }, note: '', timestamp: Date.now(), eventi: [], impegniRicorrentiCompletati: {} }; ensureSlotArrays(S.days[ds]); return S.days[ds]; }
     function ensureSlotArrays(day) {
@@ -2938,17 +2956,43 @@
     async function sbSaveHabits() {
       if (!curUser || !sb) return;
       try {
-        await sb.from('profiles').upsert({ id: curUser.id, habits: S.habits, impegni_ricorrenti: S.impegniRicorrenti || [], updated_at: new Date().toISOString() });
+        const payload = { id: curUser.id, habits: S.habits, updated_at: new Date().toISOString() };
+        if (Array.isArray(S.impegniRicorrenti) && S.impegniRicorrenti.length) {
+          payload.impegni_ricorrenti = S.impegniRicorrenti;
+        }
+        const { error } = await sb.from('profiles').upsert(payload);
+        if (error) {
+          // Se la colonna impegni_ricorrenti non esiste nella tabella profiles, salva solo habits
+          await sb.from('profiles').upsert({ id: curUser.id, habits: S.habits, updated_at: new Date().toISOString() });
+        }
       } catch (e) { console.error('sbSaveHabits', e); }
     }
     async function sbLoadHabits() {
       if (!curUser || !sb) return;
       try {
-        const { data } = await sb.from('profiles').select('habits, impegni_ricorrenti').eq('id', curUser.id).single();
+        let res = await sb.from('profiles').select('habits, impegni_ricorrenti').eq('id', curUser.id).maybeSingle();
+        if (res.error) {
+          // Fallback resiliente: se la colonna impegni_ricorrenti non esiste, carica solo le abitudini
+          res = await sb.from('profiles').select('habits').eq('id', curUser.id).maybeSingle();
+        }
+        const data = res?.data;
         if (data) {
-          if (data.habits && data.habits.length) S.habits = data.habits;
-          if (Array.isArray(data.impegni_ricorrenti)) S.impegniRicorrenti = data.impegni_ricorrenti;
+          if (Array.isArray(data.habits) && data.habits.length) {
+            S.habits = data.habits;
+          }
+          if (Array.isArray(data.impegni_ricorrenti) && data.impegni_ricorrenti.length) {
+            S.impegniRicorrenti = data.impegni_ricorrenti;
+          }
           persist();
+          // Aggiorna subito la schermata attiva per mostrare le abitudini senza ritardi
+          if (curScreen === 'oggi') {
+            renderHOggiList(getDay(selectedDate), selectedDate);
+            updateOggiStats(selectedDate);
+          } else if (curScreen === 'plan') {
+            renderPlan();
+          } else if (curScreen === 'recap') {
+            renderRecap();
+          }
         }
       } catch (e) { console.error('sbLoadHabits', e); }
     }
@@ -3160,10 +3204,12 @@
           if (!local || (remote.timestamp > (local.timestamp || 0))) S.days[ds] = remote;
         }
         persist();
-        if (curScreen === 'oggi') renderOggi();
-        else if (curScreen === 'plan') renderPlan();
-        else if (curScreen === 'recap') renderRecap();
       }
+      if (curScreen === 'oggi') renderOggi();
+      else if (curScreen === 'plan') renderPlan();
+      else if (curScreen === 'recap') renderRecap();
+      else if (curScreen === 'calendario') renderCalendario();
+
       setSS('sd-oggi', 'st-oggi-sync', windowDays ? 'ok' : 'err', windowDays ? 'sincronizzato' : 'locale — nessuna rete');
       
       // Carica il resto dei dati storici in background per Streak e Calendario
