@@ -508,4 +508,4 @@ function deleteEvento() {
   renderCalStrip(); renderCalDay();
 }
 
-export { CAL, ensureEventi, renderCalendario, renderCalStrip, renderCalDay, calShiftWeek, calGoToday, openEventoModal };
+export { CAL, normalizeEvento, ensureEventi, renderCalendario, renderCalStrip, renderCalDay, calShiftWeek, calGoToday, openEventoModal };

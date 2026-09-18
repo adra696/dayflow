@@ -224,5 +224,5 @@ export {
   lastTopPct, focusMode,
   setS, setCurUser, setCurScreen, setIsProgrammaticScroll, setSelectedDateOnly, setMMode, setEditId, setAllDaysLoaded, setLastTopPct,
   setStateHooks, setSelectedDate, load, persist, getDay, ensureSlotArrays, atdDoneCount, activeHabits, getImpegniDelGiorno,
-  calcPct, updateTopProgressBar, toggleFocusMode, calcHabitStreak, toggleSidebar, exportBackup
+  calcPct, calcAvg, updateTopProgressBar, toggleFocusMode, calcHabitStreak, toggleSidebar, exportBackup
 };
