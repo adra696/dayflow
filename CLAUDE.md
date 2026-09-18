@@ -118,10 +118,14 @@ S = {
 ### Progress Calculation
 
 ```
-totaleVoci     = active habits NOT skipped + 1  (the "daily tasks" item)
-vociCompletate = completed non-skipped habits + (attivitaCompletate ? 1 : 0)
-percentuale    = (vociCompletate / totaleVoci) * 100
+total = active habits NOT skipped
+      + non-empty daily tasks (each task weighs 1, like a habit)
+      + recurring commitments scheduled for that weekday
+done  = completed non-skipped habits + atdDoneCount(day) + completed commitments (impegniRicorrentiCompletati)
+pct   = total === 0 ? 0 : Math.round(done / total * 100)   // calcPct() returns null for a day never opened
 ```
+
+This supersedes the older formula in `istruzioni.txt` (daily tasks as a single "+1" item).
 
 Days never opened contribute nothing to weekly/monthly averages. Weekly habits can be marked `saltato` (skipped) so rest days don't penalize the daily percentage.
 
