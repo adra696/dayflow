@@ -35,20 +35,20 @@ async function doSignup() {
 }
 // Logout effettivo: da chiamare solo dopo requestLogout() (conferma + flush delle sync in coda).
 async function doLogout() {
-  clearTimeout(syncDebounce); syncDebounce = null;
+  clearTimeout(syncDebounce); setSyncDebounce(null);
   // chiude l'epoca: upload/load ancora in volo della sessione vengono ignorati al loro ritorno
-  syncEpoch++; dayInflight.clear(); habitsInflight = null; RETRY.running = false;
+  bumpSyncEpoch(); dayInflight.clear(); setHabitsInflight(null); RETRY.running = false;
   closeAppDialog(false);
   closeSettings(false);
   try { await sb.auth.signOut(); } catch (e) { console.error('signOut', e); }
-  pendingSync.clear(); dirtyGen.clear(); restoredPending.clear(); habitsDirty = false;
+  pendingSync.clear(); dirtyGen.clear(); restoredPending.clear(); setHabitsDirty(false);
   RETRY.until = 0; RETRY.delay = 0;
   try { localStorage.removeItem(PENDING_LS); } catch (e) { }
   SYNC_INFO.status = 'offline'; SYNC_INFO.msg = 'non ancora sincronizzato';
-  S = { habits: [], days: {}, impegniRicorrenti: [] };
-  allDaysLoaded = false;
+  setS({ habits: [], days: {}, impegniRicorrenti: [] });
+  setAllDaysLoaded(false);
   localStorage.removeItem(SK);
-  curUser = null;
+  setCurUser(null);
   document.getElementById('shell').style.display = 'none';
   document.getElementById('auth-screen').classList.remove('hidden');
 }

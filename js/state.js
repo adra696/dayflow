@@ -23,6 +23,17 @@ const SETTINGS = { open: false, trigger: null };             // pannello Imposta
 const DLG = { open: false, resolve: null, busy: false, keepOpen: false, trigger: null }; // dialog di conferma
 let allDaysLoaded = false;
 
+// Setter minimali per le riassegnazioni fatte da altri file: con gli ES module un binding
+// importato è di sola lettura, quindi chi sta in un altro modulo scrive solo tramite questi.
+function setS(v) { S = v; }
+function setCurUser(v) { curUser = v; }
+function setCurScreen(v) { curScreen = v; }
+function setIsProgrammaticScroll(v) { isProgrammaticScroll = v; }
+function setSelectedDateOnly(v) { selectedDate = v; } // sola assegnazione: setSelectedDate() ridisegna e carica anche la finestra remota
+function setMMode(v) { mMode = v; }
+function setEditId(v) { editId = v; }
+function setAllDaysLoaded(v) { allDaysLoaded = v; }
+
 function setSelectedDate(ds) {
   selectedDate = ds;
   if (curScreen === 'plan') renderPlan();
@@ -134,6 +145,7 @@ function calcPct(ds) {
 }
 
 let lastTopPct = 0;
+function setLastTopPct(v) { lastTopPct = v; }
 
 function updateTopProgressBar(pct) {
   const bar = document.getElementById('top-progress-bar');

@@ -250,7 +250,7 @@ function sbLoadAllDaysInBackground() {
         for (const [ds, remote] of Object.entries(allDays)) {
           if (adoptRemoteDay(ds, remote)) changed = true;
         }
-        allDaysLoaded = true;
+        setAllDaysLoaded(true);
         persist();
         if (curScreen === 'oggi') renderOggi();
         else if (curScreen === 'calendario') renderCalendario();
@@ -417,5 +417,12 @@ document.addEventListener('visibilitychange', () => {
   else if (curUser) { persist(); savePendingQueue(); if (syncDebounce) retryPendingSync(true); }
 });
 window.addEventListener('pagehide', () => { if (curUser) { persist(); savePendingQueue(); } });
+
+// Setter minimali per le riassegnazioni fatte da auth.js / app.js (logout, sessione corrotta):
+// con gli ES module un binding importato è di sola lettura.
+function setSyncDebounce(v) { syncDebounce = v; }
+function setHabitsDirty(v) { habitsDirty = v; }
+function setHabitsInflight(v) { habitsInflight = v; }
+function bumpSyncEpoch() { syncEpoch++; }
 
 // ── INIT ──────────────────────────────────────────────────

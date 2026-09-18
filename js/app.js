@@ -1,6 +1,6 @@
 async function initApp(user) {
   if (curUser && curUser.id === user.id) return;
-  curUser = user;
+  setCurUser(user);
   load();
   // Coda di sync della sessione precedente: ripristinata PRIMA di qualunque load remoto
   // (renderOggi/sbLoadHabits/finestra iniziale), così adoptRemoteDay e sbLoadHabits la rispettano.
@@ -46,7 +46,7 @@ sb.auth.onAuthStateChange(async (event, session) => {
       await initApp(session.user);
     }
   } else if (event === 'SIGNED_OUT') {
-    curUser = null;
+    setCurUser(null);
     document.getElementById('shell').style.display = 'none';
     document.getElementById('auth-screen').classList.remove('hidden');
   }
@@ -59,7 +59,7 @@ sb.auth.onAuthStateChange(async (event, session) => {
     const { data: { session }, error } = await sb.auth.getSession();
     if (error) {
       // Sessione corrotta: pulisci e mostra login
-      syncEpoch++; dayInflight.clear(); habitsInflight = null; RETRY.running = false;
+      bumpSyncEpoch(); dayInflight.clear(); setHabitsInflight(null); RETRY.running = false;
       await sb.auth.signOut();
       localStorage.removeItem(SK);
       localStorage.removeItem(PENDING_LS);
@@ -77,8 +77,8 @@ sb.auth.onAuthStateChange(async (event, session) => {
 function goScreen(name, keepDate = true, smooth = true) {
   const screenArea = document.getElementById('screen-area');
 
-  curScreen = name;
-  if (!keepDate) selectedDate = todayStr();
+  setCurScreen(name);
+  if (!keepDate) setSelectedDateOnly(todayStr());
 
   const screens = ['plan', 'oggi', 'recap', 'calendario'];
   const index = screens.indexOf(name);
@@ -89,12 +89,12 @@ function goScreen(name, keepDate = true, smooth = true) {
       if (width > 0) {
         const targetLeft = index * width;
         if (Math.abs(screenArea.scrollLeft - targetLeft) > 5) {
-          isProgrammaticScroll = true;
+          setIsProgrammaticScroll(true);
           screenArea.scrollTo({
             left: targetLeft,
             behavior: smooth ? 'smooth' : 'instant'
           });
-          setTimeout(() => { isProgrammaticScroll = false; }, smooth ? 350 : 50);
+          setTimeout(() => { setIsProgrammaticScroll(false); }, smooth ? 350 : 50);
         }
       } else {
         requestAnimationFrame(doScroll);
@@ -214,7 +214,7 @@ document.addEventListener('keydown', e => {
     const activeName = screens[index];
 
     if (activeName && activeName !== curScreen) {
-      curScreen = activeName;
+      setCurScreen(activeName);
       document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === 'screen-' + activeName));
       document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.id === 'nav-' + activeName));
 

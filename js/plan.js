@@ -77,7 +77,7 @@ function renderWeeklyHabits() {
 }
 
 // ── MODAL ABITUDINI ───────────────────────────────────────
-function openModal() { mMode = 'list'; renderModal(); }
+function openModal() { setMMode('list'); renderModal(); }
 function closeModal() { document.getElementById('modal-overlay').classList.remove('open'); }
 function overlayClick(e) { if (e.target === document.getElementById('modal-overlay')) closeModal(); }
 function renderModal() {
@@ -101,7 +101,7 @@ function renderModalList() {
         persist(); sbSaveHabits(); renderModalList(); if (curScreen === 'plan') renderHPlanList();
       }
     });
-    row.onclick = (e) => { if (e.target.closest('.arr-btn')) return; editId = h.id; mMode = 'edit'; renderModal(); };
+    row.onclick = (e) => { if (e.target.closest('.arr-btn')) return; setEditId(h.id); setMMode('edit'); renderModal(); };
     const handle = document.createElement('div'); handle.className = 'drag-handle'; handle.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>';
     const info = document.createElement('div'); info.className = 'hmanage-info';
     const nm = document.createElement('div'); nm.className = 'hmanage-name'; nm.textContent = h.nome;
@@ -113,7 +113,7 @@ function renderModalList() {
     arrows.appendChild(up); arrows.appendChild(dn);
     row.appendChild(handle); row.appendChild(info); row.appendChild(arrows); body.appendChild(row);
   });
-  const addBtn = document.createElement('button'); addBtn.className = 'add-habit-btn'; addBtn.innerHTML = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>Aggiungi abitudine'; addBtn.onclick = () => { mMode = 'add'; renderModal(); }; body.appendChild(addBtn);
+  const addBtn = document.createElement('button'); addBtn.className = 'add-habit-btn'; addBtn.innerHTML = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>Aggiungi abitudine'; addBtn.onclick = () => { setMMode('add'); renderModal(); }; body.appendChild(addBtn);
 }
 function moveHabit(id, dir) { const habits = activeHabits(); const idx = habits.findIndex(h => h.id === id); const nIdx = idx + dir; if (nIdx < 0 || nIdx >= habits.length) return; const tmp = habits[idx].ordine; habits[idx].ordine = habits[nIdx].ordine; habits[nIdx].ordine = tmp; persist(); sbSaveHabits(); renderModalList(); if (curScreen === 'plan') renderHPlanList(); }
 function renderModalForm(habit) {
@@ -122,7 +122,7 @@ function renderModalForm(habit) {
   form.innerHTML = `<div class="form-row"><label class="form-label">Nome</label><input class="form-input" id="f-nome" type="text" placeholder="Es. Bere acqua"></div><div class="form-row"><label class="form-label">Frequenza</label><select class="form-select" id="f-freq" onchange="document.getElementById('f-trow').style.display=this.value==='settimanale'?'block':'none'"><option value="giornaliera"${!isSett ? ' selected' : ''}>Giornaliera</option><option value="settimanale"${isSett ? ' selected' : ''}>Settimanale</option></select></div><div class="form-row" id="f-trow" style="display:${isSett ? 'block' : 'none'}"><label class="form-label">Obiettivo settimanale (volte)</label><input class="form-input" id="f-target" type="number" min="1" max="7" value="${habit ? habit.targetSettimanale || 3 : 3}"></div>`;
   const btns = document.createElement('div'); btns.className = 'form-btns';
   const sv = document.createElement('button'); sv.className = 'btn-pri'; sv.textContent = habit ? 'Salva' : 'Aggiungi'; sv.onclick = () => submitForm(habit ? habit.id : null);
-  const bk = document.createElement('button'); bk.className = 'btn-sec'; bk.textContent = 'Indietro'; bk.onclick = () => { mMode = 'list'; renderModal(); };
+  const bk = document.createElement('button'); bk.className = 'btn-sec'; bk.textContent = 'Indietro'; bk.onclick = () => { setMMode('list'); renderModal(); };
   btns.appendChild(sv); btns.appendChild(bk);
   if (habit) { const dl = document.createElement('button'); dl.className = 'btn-del'; dl.textContent = 'Elimina'; dl.onclick = () => deleteHabit(habit.id); btns.appendChild(dl); }
   form.appendChild(btns); body.appendChild(form);
@@ -135,9 +135,9 @@ function submitForm(id) {
   const freq = document.getElementById('f-freq').value; const target = parseInt(document.getElementById('f-target')?.value) || 3;
   if (id) { const h = S.habits.find(h => h.id === id); if (h) { h.nome = nome; h.frequenza = freq; h.targetSettimanale = target; } }
   else { const maxOrd = S.habits.length ? Math.max(...S.habits.map(h => h.ordine)) : 0; S.habits.push({ id: uid(), nome, frequenza: freq, targetSettimanale: target, ordine: maxOrd + 1, attiva: true }); }
-  persist(); sbSaveHabits(); mMode = 'list'; renderModal(); if (curScreen === 'plan') renderPlan(); if (curScreen === 'oggi') renderOggi();
+  persist(); sbSaveHabits(); setMMode('list'); renderModal(); if (curScreen === 'plan') renderPlan(); if (curScreen === 'oggi') renderOggi();
 }
-function deleteHabit(id) { if (!confirm('Eliminare questa abitudine?')) return; S.habits = S.habits.filter(h => h.id !== id); persist(); sbSaveHabits(); mMode = 'list'; renderModal(); if (curScreen === 'plan') renderPlan(); if (curScreen === 'oggi') renderOggi(); }
+function deleteHabit(id) { if (!confirm('Eliminare questa abitudine?')) return; S.habits = S.habits.filter(h => h.id !== id); persist(); sbSaveHabits(); setMMode('list'); renderModal(); if (curScreen === 'plan') renderPlan(); if (curScreen === 'oggi') renderOggi(); }
 
 // ── MODAL IMPEGNI RICORRENTI ──────────────────────────────
 let impegniMode = 'list';

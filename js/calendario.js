@@ -50,7 +50,7 @@ async function renderCalendario() {
   const allDays = await sbLoadAllDays();
   if (allDays) {
     for (const [ds, nd] of Object.entries(allDays)) adoptRemoteDay(ds, nd);
-    allDaysLoaded = true;
+    setAllDaysLoaded(true);
     persist();
   }
   setSS('sd-an', 'st-an-sync', 'ok', 'sincronizzato');
