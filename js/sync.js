@@ -1,3 +1,15 @@
+import { setSS, offsetDate } from './utils.js';
+import { S, curScreen, curUser, getDay, persist, sb, selectedDate, setAllDaysLoaded } from './state.js';
+
+// Dipendenze "verso l'alto" (schermate, Discover, Impostazioni) usate dal corpo di questo file:
+// sync.js importa solo utils.js e state.js (niente cicli), app.js le registra con setSyncHooks() all'avvio.
+let FEED, FEED_TOPICS_LS, ensureEventi, normalizeTopic, renderCalDay, renderCalStrip, renderCalendario,
+  renderDiscover, renderHOggiList, renderOggi, renderPlan, renderSettingsSync, updateOggiStats;
+function setSyncHooks(h) {
+  ({ FEED, FEED_TOPICS_LS, ensureEventi, normalizeTopic, renderCalDay, renderCalStrip, renderCalendario,
+    renderDiscover, renderHOggiList, renderOggi, renderPlan, renderSettingsSync, updateOggiStats } = h);
+}
+
 let syncDebounce = null;
 let pendingSync = new Set(); // giorni con modifiche non ancora confermate da Supabase (in coda o falliti)
 const dirtyGen = new Map();  // ds → contatore modifiche: un save concluso rimuove ds da pendingSync solo se nel frattempo non è cambiato
@@ -426,3 +438,10 @@ function setHabitsInflight(v) { habitsInflight = v; }
 function bumpSyncEpoch() { syncEpoch++; }
 
 // ── INIT ──────────────────────────────────────────────────
+
+export {
+  syncDebounce, pendingSync, dirtyGen, habitsDirty, PENDING_LS, restoredPending, RETRY, SYNC_INFO, eventiColumnOk, dayInflight,
+  setSyncDebounce, setHabitsDirty, setHabitsInflight, bumpSyncEpoch, setSyncHooks,
+  adoptRemoteDay, sbSaveHabits, sbLoadHabits, sbLoadDay, sbLoadAllDays, sbLoadDaysRange, loadWindowForDate, sbLoadAllDaysInBackground,
+  scheduleSync, restorePendingQueue, retryPendingSync, hasUnsyncedChanges, flushAllSync, noteSync, sbSaveFeedTopics, sbLoadFeedTopics
+};

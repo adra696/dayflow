@@ -1,3 +1,8 @@
+import { renderDateNavHeader, setSS, p2, weekDays, uid } from './utils.js';
+import { S, selectedDate, curScreen, mMode, editId, setMMode, setEditId, getDay, calcPct, updateTopProgressBar, ensureSlotArrays, getImpegniDelGiorno, activeHabits, persist } from './state.js';
+import { scheduleSync, sbSaveHabits } from './sync.js';
+import { renderOggi } from './oggi.js';
+
 // ── PLAN ──────────────────────────────────────────────────
 function renderPlan() {
   renderDateNavHeader(selectedDate, 'plan-date-nav');
@@ -276,3 +281,5 @@ function renderImpegniSection() {
     row.appendChild(nm); row.appendChild(track); row.appendChild(ora); c.appendChild(row);
   });
 }
+
+export { renderPlan, openModal, closeModal, overlayClick, openImpegniModal };

@@ -1,3 +1,8 @@
+import { todayStr, p2, uid, setSS, heatColor, fmtDate, offsetDate, showToast } from './utils.js';
+import { S, selectedDate, curScreen, getDay, setAllDaysLoaded, persist, updateTopProgressBar, calcPct } from './state.js';
+import { sbLoadAllDays, adoptRemoteDay, scheduleSync } from './sync.js';
+import { closeModal } from './plan.js';
+
 // ── ANALYTICS ─────────────────────────────────────────────
 // ── CALENDARIO — settimana + timeline ─────────────────────
 const CAL_HOUR_H = 56;          // px per ora
@@ -502,3 +507,5 @@ function deleteEvento() {
   scheduleSync(ds, 'sd-an', 'st-an-sync');
   renderCalStrip(); renderCalDay();
 }
+
+export { CAL, ensureEventi, renderCalendario, renderCalStrip, renderCalDay, calShiftWeek, calGoToday, openEventoModal };

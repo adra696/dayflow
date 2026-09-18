@@ -1,3 +1,34 @@
+import { todayStr, offsetDate, setSS, withTimeout } from './utils.js';
+import {
+  S, sb, SK, curUser, curScreen, selectedDate, isProgrammaticScroll, SETTINGS, DLG,
+  setCurUser, setCurScreen, setSelectedDateOnly, setIsProgrammaticScroll, setStateHooks,
+  load, persist, setSelectedDate, toggleFocusMode, toggleSidebar, exportBackup
+} from './state.js';
+import {
+  PENDING_LS, RETRY, dayInflight, eventiColumnOk, bumpSyncEpoch, setHabitsInflight, setSyncHooks,
+  adoptRemoteDay, flushAllSync, noteSync, restorePendingQueue, retryPendingSync, loadWindowForDate,
+  sbLoadAllDaysInBackground, sbLoadDaysRange, sbLoadFeedTopics, sbLoadHabits
+} from './sync.js';
+import { setAuthHooks, switchTab, doLogin, doSignup, doLogout, doResetPwd } from './auth.js';
+import { renderPlan, openModal, closeModal, overlayClick, openImpegniModal } from './plan.js';
+import { renderOggi, renderHOggiList, updateOggiStats } from './oggi.js';
+import { CAL, ensureEventi, renderCalendario, renderCalStrip, renderCalDay, calShiftWeek, calGoToday, openEventoModal } from './calendario.js';
+import {
+  FEED, FEED_TOPICS_LS, setDiscoverHooks, normalizeTopic, renderDiscover,
+  addFeedTopic, clearFeedCache, clearFeedPrefs, clearFeedSeen, closeFeedSheet, expandArticle, feedSheetOverlayClick, fetchGeminiModels,
+  generateFeed, loadMoreFeed, openFeedChat, openFeedSheet, regenerateFeed, removeFeedKey, removeFeedTopic, saveFeedKey, sendFeedChat,
+  setFeedModel, setFeedModelFromInput, setFeedTopic, shareFeedCard, switchFeedSheet, toggleFeedKeyVis, toggleFeedSaved
+} from './discover.js';
+import { openSettings, closeSettings, settingsOverlayClick, settingsGo, renderSettingsSync, settingsSyncNow } from './settings.js';
+
+// ── HOOK (dipendenze verso l'alto) ─────────────────────────
+// state.js, sync.js, auth.js e discover.js chiamano funzioni di moduli che non possono importare
+// (ciclo). Le registriamo qui, prima di qualunque bootstrap: i moduli sono già tutti valutati.
+setStateHooks({ ensureEventi, loadWindowForDate, renderPlan, renderOggi, renderDiscover, renderHOggiList });
+setSyncHooks({ FEED, FEED_TOPICS_LS, ensureEventi, normalizeTopic, renderCalDay, renderCalStrip, renderCalendario, renderDiscover, renderHOggiList, renderOggi, renderPlan, renderSettingsSync, updateOggiStats });
+setAuthHooks({ initApp, closeAppDialog });
+setDiscoverHooks({ openSettings });
+
 async function initApp(user) {
   if (curUser && curUser.id === user.id) return;
   setCurUser(user);
@@ -242,3 +273,58 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   });
 }
+
+// Ponte per gli handler inline (onclick="..." in index.html e nei template HTML dei moduli): resta finché esistono
+Object.assign(window, {
+  addFeedTopic,           // discover.js
+  appDialogOverlayClick,  // app.js
+  CAL,                    // calendario.js (FAB: openEventoModal(CAL.date))
+  calGoToday,             // calendario.js
+  calShiftWeek,           // calendario.js
+  clearFeedCache,         // discover.js
+  clearFeedPrefs,         // discover.js
+  clearFeedSeen,          // discover.js
+  closeAppDialog,         // app.js
+  closeFeedSheet,         // discover.js
+  closeModal,             // plan.js
+  closeSettings,          // settings.js
+  confirmAppDialog,       // app.js
+  doLogin,                // auth.js
+  doResetPwd,             // auth.js
+  doSignup,               // auth.js
+  expandArticle,          // discover.js
+  exportBackup,           // state.js
+  feedSheetOverlayClick,  // discover.js
+  fetchGeminiModels,      // discover.js
+  generateFeed,           // discover.js
+  goScreen,               // app.js
+  loadMoreFeed,           // discover.js
+  offsetDate,             // utils.js (frecce data: setSelectedDate(offsetDate(...)))
+  openEventoModal,        // calendario.js
+  openFeedChat,           // discover.js
+  openFeedSheet,          // discover.js
+  openImpegniModal,       // plan.js
+  openModal,              // plan.js
+  openSettings,           // settings.js
+  overlayClick,           // plan.js
+  regenerateFeed,         // discover.js
+  removeFeedKey,          // discover.js
+  removeFeedTopic,        // discover.js
+  requestLogout,          // app.js
+  saveFeedKey,            // discover.js
+  sendFeedChat,           // discover.js
+  setFeedModel,           // discover.js
+  setFeedModelFromInput,  // discover.js
+  setFeedTopic,           // discover.js
+  setSelectedDate,        // state.js
+  settingsGo,             // settings.js
+  settingsOverlayClick,   // settings.js
+  settingsSyncNow,        // settings.js
+  shareFeedCard,          // discover.js
+  switchFeedSheet,        // discover.js
+  switchTab,              // auth.js
+  toggleFeedKeyVis,       // discover.js
+  toggleFeedSaved,        // discover.js
+  toggleFocusMode,        // state.js
+  toggleSidebar,          // state.js
+});

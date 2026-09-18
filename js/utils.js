@@ -83,3 +83,8 @@ function withTimeout(promise, ms) {
 }
 
 function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
+
+export {
+  todayStr, offsetDate, fmtHeaderDate, renderDateNavHeader, p2, uid, pctColor, heatColor, fmtDate, weekDays,
+  setSS, shootConfetti, showToast, withTimeout, plural
+};

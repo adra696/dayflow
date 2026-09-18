@@ -1,3 +1,8 @@
+import { plural, showToast } from './utils.js';
+import { S, sb, curUser, SETTINGS, APP_VERSION, focusMode, activeHabits } from './state.js';
+import { pendingSync, habitsDirty, SYNC_INFO, hasUnsyncedChanges, noteSync, flushAllSync } from './sync.js';
+import { escFeed, renderFeedSettings } from './discover.js';
+
 // ── IMPOSTAZIONI (pannello globale) ───────────────────────
 // Schermo pieno su mobile, sheet centrato da 768px. Chiusura: X, tap fuori, Esc.
 // Focus sul primo controllo all'apertura, ritorno al trigger alla chiusura.
@@ -116,3 +121,5 @@ async function settingsSyncNow() {
   showToast(ok ? (had ? 'Modifiche sincronizzate' : 'Tutto sincronizzato') : 'Sincronizzazione non riuscita: le modifiche restano in locale', ok ? 'info' : 'error');
   btnSet(false, 'Sincronizza ora');
 }
+
+export { openSettings, closeSettings, settingsOverlayClick, settingsGo, renderSettingsSync, settingsSyncNow };

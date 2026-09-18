@@ -1,4 +1,13 @@
-﻿// Discover feed (Gemini) — stato e costanti
+﻿import { todayStr, uid, showToast, setSS, fmtHeaderDate } from './utils.js';
+import { SETTINGS, curScreen, calcPct, updateTopProgressBar } from './state.js';
+import { sbSaveFeedTopics } from './sync.js';
+
+// Dipendenza "verso l'alto" (settings.js importa già discover.js: importarla qui farebbe un ciclo):
+// app.js la registra con setDiscoverHooks() all'avvio.
+let openSettings;
+function setDiscoverHooks(h) { ({ openSettings } = h); }
+
+// Discover feed (Gemini) — stato e costanti
 const GEMINI_API = 'https://generativelanguage.googleapis.com/v1beta/';
 const GEMINI_DEFAULT_MODEL = 'gemini-2.5-flash';
 const GEMINI_MODEL_LS = 'dayflow_gemini_model';    // modello scelto (solo locale)
@@ -1064,3 +1073,10 @@ async function fetchGeminiModels() {
     refreshFeedSettings();
   }
 }
+
+export {
+  FEED, FEED_TOPICS_LS, setDiscoverHooks, escFeed, normalizeTopic, renderDiscover, renderFeedSettings,
+  addFeedTopic, clearFeedCache, clearFeedPrefs, clearFeedSeen, closeFeedSheet, expandArticle, feedSheetOverlayClick, fetchGeminiModels,
+  generateFeed, loadMoreFeed, openFeedChat, openFeedSheet, regenerateFeed, removeFeedKey, removeFeedTopic, saveFeedKey, sendFeedChat,
+  setFeedModel, setFeedModelFromInput, setFeedTopic, shareFeedCard, switchFeedSheet, toggleFeedKeyVis, toggleFeedSaved
+};

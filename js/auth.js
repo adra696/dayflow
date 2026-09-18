@@ -1,3 +1,11 @@
+import { sb, SK, setS, setAllDaysLoaded, setCurUser } from './state.js';
+import { syncDebounce, setSyncDebounce, bumpSyncEpoch, dayInflight, setHabitsInflight, RETRY, pendingSync, dirtyGen, restoredPending, setHabitsDirty, PENDING_LS, SYNC_INFO } from './sync.js';
+import { closeSettings } from './settings.js';
+
+// Dipendenze "verso l'alto" (app.js): registrate da app.js con setAuthHooks() all'avvio.
+let initApp, closeAppDialog;
+function setAuthHooks(h) { ({ initApp, closeAppDialog } = h); }
+
 // ── AUTH ───────────────────────────────────────────────────
 function switchTab(tab) {
   document.getElementById('tab-login').classList.toggle('active', tab === 'login');
@@ -69,3 +77,5 @@ async function doResetPwd() {
   if (error) { err.textContent = translateAuthError(error.message); }
   else { ok.textContent = 'Email di recupero inviata! Controlla la tua casella.'; }
 }
+
+export { setAuthHooks, switchTab, doLogin, doSignup, doLogout, doResetPwd };

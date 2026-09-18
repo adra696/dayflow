@@ -1,3 +1,10 @@
+import { todayStr, p2, pctColor, showToast } from './utils.js';
+
+// Dipendenze "verso l'alto" (schermate e sync) usate da setSelectedDate / toggleFocusMode / ensureSlotArrays:
+// state.js importa solo utils.js, quindi non le importa; app.js le registra con setStateHooks() all'avvio.
+let ensureEventi, loadWindowForDate, renderPlan, renderOggi, renderDiscover, renderHOggiList;
+function setStateHooks(h) { ({ ensureEventi, loadWindowForDate, renderPlan, renderOggi, renderDiscover, renderHOggiList } = h); }
+
 // ── SUPABASE ──────────────────────────────────────────────
 const SUPA_URL = 'https://iqlxjazrshqzqrltkjoz.supabase.co';
 const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlxbHhqYXpyc2hxenFybHRram96Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2MTUzMzUsImV4cCI6MjA5NDE5MTMzNX0.N5F7RW3ueIHFtwwZFBXkbeTxZMam_lh8hPshy7uX1MI';
@@ -211,3 +218,11 @@ function exportBackup() {
     showToast('Esportazione non riuscita', 'error');
   }
 }
+
+export {
+  sb, SK, S, curUser, curScreen, isProgrammaticScroll, selectedDate, mMode, editId, APP_VERSION, SETTINGS, DLG,
+  lastTopPct, focusMode,
+  setS, setCurUser, setCurScreen, setIsProgrammaticScroll, setSelectedDateOnly, setMMode, setEditId, setAllDaysLoaded, setLastTopPct,
+  setStateHooks, setSelectedDate, load, persist, getDay, ensureSlotArrays, atdDoneCount, activeHabits, getImpegniDelGiorno,
+  calcPct, updateTopProgressBar, toggleFocusMode, calcHabitStreak, toggleSidebar, exportBackup
+};
