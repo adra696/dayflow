@@ -14,17 +14,17 @@ No build step, no npm install, no bundler. Serve the folder with any static file
 
 ## Architecture
 
-Since 18 Sep 2026 the app is split into plain files (no modules yet; every script is a classic `<script defer>` sharing the global scope, and the HTML uses ~80 inline handlers such as `onclick="goScreen('oggi')"`):
+Since 18 Sep 2026 the app is split into native ES modules: `index.html` loads a single `<script type="module" src="js/app.js">` (plus one `<link rel="modulepreload">` per module so the browser fetches the whole graph in parallel); nothing is global any more except the Supabase CDN client and the `window` bridge described below. The HTML and the JS templates still use ~80 inline handlers such as `onclick="goScreen('oggi')"`.
 
 | File | Content |
 |---|---|
-| `index.html` | `<head>` (meta, CSP, manifest, fonts, Supabase CDN, 4 CSS links, 10 deferred scripts) + the whole `<body>`: auth screen, shell, 4 screens, modals, settings panel, app dialog |
+| `index.html` | `<head>` (meta, CSP, manifest, fonts, Supabase CDN, 4 CSS links, 10 `modulepreload` links, the `js/app.js` module script) + the whole `<body>`: auth screen, shell, 4 screens, modals, settings panel, app dialog |
 | `css/tokens.css` | Reset, `:root` custom properties (design tokens), `html`/`body`, the `max-width: 767px` 16px input rule |
 | `css/base.css` | Auth screen, shell, topbar, sync indicator, progress, focus mode, stats, habit rows, modals, toast, TAP TARGETS block, settings panel, app dialog |
 | `css/screens.css` | Pianifica, Oggi tasks, Discover (feed, sheet, article, chat, topics, model picker), Calendario (strip, all-day band, timeline, event editor) |
 | `css/desktop.css` | The single `@media (min-width: 768px)` block (sidebar, layout, desktop modals, Calendario). **Must stay last**: it overrides base rules of equal specificity in the other files |
 | `js/utils.js` | `todayStr`, `offsetDate`, `fmtDate`, `fmtShort`, `p2`, `uid`, `pctColor`, `heatColor`, `weekDays`, `monthDays`, `setBar`/`setRing`/`setSS`, `showToast`, `shootConfetti`, `withTimeout`, `plural` |
-| `js/state.js` | Constants (`SUPA_URL`, `SUPA_KEY`, `SK`, `APP_VERSION`), Supabase client `sb`, `S`, `curUser`, `curScreen`, `selectedDate`, `SETTINGS`, `DLG`, `load`, `persist`, `getDay`, `ensureSlotArrays`, `activeHabits`, `calcPct`, `calcAvg`, `calcStreak`, `toggleFocusMode`, `exportBackup` |
+| `js/state.js` | Constants (`SUPA_URL`, `SUPA_KEY`, `SK`, `APP_VERSION`), Supabase client `sb`, `S`, `curUser`, `curScreen`, `selectedDate`, `SETTINGS`, `DLG`, the state setters, `load`, `persist`, `getDay`, `ensureSlotArrays`, `activeHabits`, `getImpegniDelGiorno`, `calcPct`, `calcAvg` (unused by the app, exported for the tests), `calcStreak` (unused, not exported), `toggleFocusMode`, `exportBackup` |
 | `js/sync.js` | All Supabase sync in one block (see Persistence): queues, locks, epoch, `adoptRemoteDay`, `sbSave*`/`sbLoad*`, `scheduleSync`, `syncPendingDays`, `flushAllSync`, persisted queue, retry, `noteSync`, feed topics mirror, `online`/`visibilitychange`/`pagehide` listeners |
 | `js/auth.js` | `switchTab`, `doLogin`, `doSignup`, `doLogout`, `doResetPwd`, `translateAuthError` |
 | `js/plan.js` | Pianifica screen, habit management modal, recurring commitments modal |
@@ -32,11 +32,38 @@ Since 18 Sep 2026 the app is split into plain files (no modules yet; every scrip
 | `js/calendario.js` | Everything `cal*`, event editor, `normalizeEvento`, `ensureEventi` |
 | `js/discover.js` | `FEED` state, Gemini requests and streaming, feed generation, dedupe, saved, prefs, chat, model picker, Discover settings |
 | `js/settings.js` | Settings panel (`openSettings`, `closeSettings`, `renderSettings*`, `settingsSyncNow`, `settingsGo`) |
-| `js/app.js` | `initApp`, auth state listener, `goScreen`, `openModal`/`closeModal`, app dialog, `requestLogout`, keyboard handling (Esc, Tab trap), swipe/carousel navigation, service worker registration |
+| `js/app.js` | Entry module: hook registration, `initApp`, auth state listener, `goScreen`, app dialog, `requestLogout`, keyboard handling (Esc, Tab trap), swipe/carousel navigation, service worker registration, `window` bridge |
+| `package.json` | `"type": "module"` + the `test` script only; no dependencies, nothing to install |
+| `test/` | Node unit tests (see Tests) |
 
-Load order matters: `utils` → `state` → `sync` → `auth` → `plan` → `oggi` → `calendario` → `discover` → `settings` → `app`. A top-level `const`/`let` used by an earlier file must be declared in a file loaded before it; only `app.js` runs bootstrap code at top level.
+**Import graph** (no cycles; evaluation order follows the graph, not a script list):
 
-Planned next step (not done): convert the scripts to native ES modules with a `window` bridge for the inline handlers, `sync.js` moved as a block, import graph `utils ← state ← sync ← screens ← app` with no cycles. See `handoff-passo2-es-modules.md`.
+```
+utils ← state ← sync ← { auth, plan, oggi, calendario, discover, settings } ← app
+plan → oggi          calendario → plan (closeModal)
+settings → discover  auth → settings (closeSettings)
+```
+
+Every module exports through a single `export { … }` block at the bottom. `app.js` imports everything and is the only module with bootstrap code at top level (besides the `online`/`visibilitychange`/`pagehide` listeners in `sync.js` and the `localStorage` reads for `focusMode` in `state.js`).
+
+**Shared state is written only through setters.** An imported binding is read-only, so a module that needs to reassign a top-level variable of another module calls its setter: `state.js` exports `setS`, `setCurUser`, `setCurScreen`, `setIsProgrammaticScroll`, `setSelectedDateOnly` (assignment only; `setSelectedDate()` also re-renders and loads the remote window), `setMMode`, `setEditId`, `setAllDaysLoaded`, `setLastTopPct`; `sync.js` exports `setSyncDebounce`, `setHabitsDirty`, `setHabitsInflight`, `bumpSyncEpoch`. Mutating properties of an exported object (`S.days[ds] = …`, `SETTINGS.open = true`, `pendingSync.add(ds)`) needs no setter.
+
+**Upward dependencies are hooks registered by `app.js`.** Lower modules call functions of modules that would import them back (a cycle), so they hold them in module-level `let`s filled by a `set*Hooks()` call at the top of `app.js`, before any bootstrap (all modules are already evaluated at that point):
+
+| Hook | Filled with | Used by |
+|---|---|---|
+| `setStateHooks` | `ensureEventi`, `loadWindowForDate`, `renderPlan`, `renderOggi`, `renderDiscover`, `renderHOggiList` | `ensureSlotArrays`, `setSelectedDate`, `toggleFocusMode` |
+| `setSyncHooks` | `FEED`, `FEED_TOPICS_LS`, `ensureEventi`, `normalizeTopic`, `renderCalDay`, `renderCalStrip`, `renderCalendario`, `renderDiscover`, `renderHOggiList`, `renderOggi`, `renderPlan`, `renderSettingsSync`, `updateOggiStats` | remote loads that re-render the active screen, `sbSaveDay` payload, `noteSync`, feed topics mirror |
+| `setAuthHooks` | `initApp`, `closeAppDialog` | `doLogin`/`doSignup`, `doLogout` |
+| `setDiscoverHooks` | `openSettings` | `openFeedSheet('settings')` redirect |
+
+If you add a new upward call, add it to the matching hook object (and to the destructuring in the `set*Hooks` function) rather than importing the module.
+
+**`window` bridge.** Inline handlers (`onclick="…"` in `index.html` and in the HTML templates built by the modules) resolve names on `window`, so the last statement of `app.js` is an `Object.assign(window, { … })` listing every function/object they reference (`goScreen`, `openModal`, `setSelectedDate`, `offsetDate`, `CAL`, all Discover/settings actions…). **Any new function called from an inline handler must be added there, or the click throws `ReferenceError`.** Handlers attached from JS (`addEventListener`, `el.onclick = fn`) do not need it.
+
+### Tests
+
+`test/*.test.js` use only `node:test` + `node:assert/strict` (no npm dependencies). Run them with `npm test` (= `node --test test/*.test.js`, Node ≥ 22; the glob is expanded by Node, so it also works in PowerShell). `test/setup.js` must be the first import of every test file: it installs in-memory `localStorage`, an inert `supabase.createClient`, and `window`/`document` stubs so `state.js`/`sync.js` can be imported in Node; tests then register the real `ensureEventi` with `setStateHooks()` and reset `S.days`, `pendingSync`, `restoredPending` in `beforeEach`. Covered: `calcPct`, `calcAvg`, `normalizeEvento`, `ensureSlotArrays`/`ensureEventi`, `getDay`, `adoptRemoteDay`. Tests describe the current behaviour of the code; a function that is private only for the tests' sake is exported by adding its name to the module's `export {}` block.
 
 Supabase is loaded via CDN as a classic script before the app scripts: `<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">`.
 
@@ -109,7 +136,7 @@ Days never opened contribute nothing to weekly/monthly averages. Weekly habits c
 | Settings | `openSettings(section?)`, `closeSettings(restoreFocus = true)`, `renderSettings()`, `renderSettingsSync()`, `settingsSyncNow()`, `settingsGo()` |
 | Dialog | `openAppDialog({ title, msg, warn, okLabel, cancelLabel, keepOpen })` → `Promise<boolean>`, `confirmAppDialog()`, `closeAppDialog()`, `setAppDialogBusy()` |
 | Calendario | `renderCalendario()`, `calBuildGrid()`, `renderCalStrip()`, `renderCalDay()`, `calLayoutEventi()`, `calSetDate()`, `updateCalNow()`, `openEventoModal()`, `saveEvento()`, `deleteEvento()`, `ensureEventi()`, `normalizeEvento()` |
-| Analytics | `calcAvg()`, `weekDays()` |
+| Analytics | `calcAvg()` (exported for the tests, not called by the app), `weekDays()` |
 | Discover | `renderDiscover()`, `generateFeed()`, `regenerateFeed()`, `expandArticle()`, `openFeedChat()`, `sendFeedChat()`, `openFeedSheet()`, `feedSettingsHTML()`, `renderFeedSettings(el)`, `refreshFeedSettings()`, `geminiRequest()`, `geminiStream()`, `streamArticle()`, `parseArticleText()` |
 | Utils | `todayStr()`, `uid()`, `fmtDate()`, `p2()`, `pctColor()`, `heatColor()` |
 
@@ -146,7 +173,7 @@ Progress bar color thresholds: 0–25% red → 26–50% orange → 51–75% yell
 
 ## Supabase Configuration
 
-Credentials are hardcoded in the `<script>` section near the top of the JS block:
+Credentials are hardcoded at the top of `js/state.js`:
 
 ```javascript
 const SUPA_URL = 'https://iqlxjazrshqzqrltkjoz.supabase.co';
