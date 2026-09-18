@@ -1,4 +1,4 @@
-const CACHE = 'dayflow-v14';
+const CACHE = 'dayflow-v18';
 const STATIC = [
   './dayflow1_0.html',
   './manifest.json',
@@ -27,14 +27,14 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
 
-  // Supabase e Gemini â†’ sempre network (dati real-time / POST), niente cache
+  // Supabase e Gemini → sempre network (dati real-time / POST), niente cache
   // NB: Gemini va gestito PRIMA della regola googleapis.com, altrimenti cache.put su una POST lancia errore
   if (url.hostname.includes('supabase.co') || url.hostname === 'generativelanguage.googleapis.com') {
     e.respondWith(fetch(e.request).catch(() => new Response('', { status: 503 })));
     return;
   }
 
-  // Font Google e CDN â†’ stale-while-revalidate
+  // Font Google e CDN → stale-while-revalidate
   if (url.hostname.includes('googleapis.com') || url.hostname.includes('gstatic.com') || url.hostname.includes('jsdelivr.net')) {
     e.respondWith(
       caches.open(CACHE).then(async c => {
@@ -46,7 +46,7 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // HTML â†’ network-first (sempre versione fresca, fallback cache offline)
+  // HTML → network-first (sempre versione fresca, fallback cache offline)
   if (e.request.mode === 'navigate' || url.pathname.endsWith('.html')) {
     e.respondWith(
       fetch(e.request).then(r => {
@@ -58,7 +58,7 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // Manifest e icone â†’ cache-first
+  // Manifest e icone → cache-first
   e.respondWith(
     caches.match(e.request).then(cached => cached || fetch(e.request))
   );

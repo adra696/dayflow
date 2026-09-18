@@ -3,7 +3,7 @@
 
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
     script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net;
@@ -86,7 +86,18 @@
       align-items: center;
       background: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(139, 140, 248, 0.08) 0%, transparent 60%), var(--bg);
       -webkit-font-smoothing: antialiased;
-      -moz-osx-font-smoothing: grayscale
+      -moz-osx-font-smoothing: grayscale;
+      /* niente zoom da doppio tap, pinch-zoom consentito */
+      touch-action: manipulation
+    }
+
+    /* iOS Safari zooma sul focus se il campo ha font < 16px: su mobile tutti i campi a 16px */
+    @media (max-width: 767px) {
+      input:not([type="checkbox"]):not([type="radio"]),
+      textarea,
+      select {
+        font-size: 16px !important
+      }
     }
 
     button,
@@ -315,7 +326,8 @@
       scroll-behavior: smooth;
       -webkit-overflow-scrolling: touch;
       scrollbar-width: none;
-      touch-action: pan-x pan-y;
+      /* pan-x pan-y + pinch-zoom (prima era solo pan: bloccava il pinch) */
+      touch-action: manipulation;
     }
 
     #screen-area::-webkit-scrollbar {
@@ -382,7 +394,7 @@
       gap: 5px;
       transition: color .18s ease, background .18s ease, transform .12s ease;
       font-family: var(--mono);
-      font-size: 10px;
+      font-size: 11px;
       letter-spacing: .06em;
       text-transform: uppercase
     }
@@ -519,29 +531,9 @@
       border: 1px solid rgba(139, 140, 248, 0.3);
       padding: 2px 7px;
       border-radius: 5px;
-      font-size: 10px;
+      font-size: 11px;
       font-weight: 500;
       letter-spacing: .08em;
-    }
-
-    .logout-btn {
-      background: transparent;
-      border: 1px solid var(--border2);
-      border-radius: 8px;
-      color: var(--text3);
-      font-family: var(--mono);
-      font-size: 10px;
-      letter-spacing: .08em;
-      text-transform: uppercase;
-      padding: 7px 12px;
-      cursor: pointer;
-      transition: all .15s ease
-    }
-
-    .logout-btn:hover {
-      background: rgba(239, 68, 68, 0.08);
-      color: var(--red);
-      border-color: rgba(239, 68, 68, 0.3)
     }
 
     /* SYNC — indicatore compatto nella topbar: su mobile solo il dot (testo in title/aria-label),
@@ -588,7 +580,7 @@
     .sync-txt {
       display: none;
       font-family: var(--mono);
-      font-size: 10px;
+      font-size: 11px;
       color: var(--text3);
       letter-spacing: .06em;
       text-transform: uppercase;
@@ -953,7 +945,7 @@
 
     .hfreq {
       font-family: var(--mono);
-      font-size: 10px;
+      font-size: 11px;
       color: var(--text3);
       letter-spacing: .06em;
       margin-right: 4px;
@@ -1071,7 +1063,7 @@
       padding-left: 36px;
       display: flex;
       flex-direction: column;
-      gap: 6px
+      gap: 0
     }
 
     .task-item {
@@ -1098,9 +1090,11 @@
       box-shadow: 0 0 4px currentColor
     }
 
+    /* Tutta la riga del compito è il bersaglio del tap: alta almeno 44px (gap della lista a 0) */
     .task-item.clickable {
       cursor: pointer;
       padding: 4px 6px;
+      min-height: 44px;
       border-radius: 6px;
       align-items: center;
       transition: background .15s
@@ -1277,34 +1271,6 @@
       font-weight: 500
     }
 
-    .save-btn {
-      margin: 20px 20px 12px;
-      background: var(--text);
-      color: #0a0a0b;
-      border: none;
-      border-radius: var(--r-md);
-      padding: 15px 20px;
-      font-family: var(--mono);
-      font-size: 11px;
-      letter-spacing: .1em;
-      text-transform: uppercase;
-      cursor: pointer;
-      transition: transform .15s ease, box-shadow .15s ease, background .15s ease;
-      font-weight: 500;
-      width: calc(100% - 40px);
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4)
-    }
-
-    .save-btn:hover {
-      background: #ffffff;
-      box-shadow: 0 6px 20px rgba(255, 255, 255, 0.12)
-    }
-
-    .save-btn:active {
-      transform: scale(.985);
-      box-shadow: none
-    }
-
     /* PLAN HABIT ROW */
     .hplan-row {
       display: flex;
@@ -1321,7 +1287,7 @@
 
     .hplan-freq {
       font-family: var(--mono);
-      font-size: 10px;
+      font-size: 11px;
       color: var(--text3);
       letter-spacing: .06em;
       background: var(--surface-2);
@@ -1532,7 +1498,7 @@
       border: 1px solid var(--border2);
       color: var(--text3);
       font-family: var(--mono);
-      font-size: 9px;
+      font-size: 11px;
       font-weight: 600;
       display: flex;
       align-items: center;
@@ -2156,7 +2122,7 @@
 
     .feed-disclaimer {
       font-family: var(--mono);
-      font-size: 10px;
+      font-size: 11px;
       color: var(--text3);
       letter-spacing: .05em;
       text-transform: uppercase;
@@ -2629,6 +2595,46 @@
       margin-bottom: 10px
     }
 
+    /* Selettore modello Gemini: riusa .topic-row come opzione */
+    .model-opt {
+      width: 100%;
+      text-align: left;
+      color: var(--text);
+      font: inherit;
+      cursor: pointer;
+      transition: border-color .15s ease, background .15s ease
+    }
+
+    .model-opt:hover {
+      border-color: var(--border2)
+    }
+
+    .model-opt.on {
+      border-color: var(--accent);
+      background: var(--accent-soft)
+    }
+
+    .model-opt .t-name {
+      min-width: 0;
+      font-size: 14px
+    }
+
+    .model-opt .model-id {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text3);
+      margin-top: 2px;
+      overflow-wrap: anywhere
+    }
+
+    .model-opt .model-check {
+      width: 18px;
+      flex: none;
+      text-align: center;
+      color: var(--accent);
+      font-size: 14px
+    }
+
     /* ── CALENDARIO — settimana + timeline ──────────────────── */
     #screen-calendario {
       overflow: hidden;
@@ -2674,7 +2680,7 @@
 
     .cal-today-btn {
       font-family: var(--mono);
-      font-size: 9px;
+      font-size: 11px;
       letter-spacing: .1em;
       text-transform: uppercase;
       color: var(--accent);
@@ -2684,6 +2690,14 @@
       padding: 5px 9px;
       cursor: pointer;
       transition: opacity .2s ease
+    }
+
+    /* Area di tocco estesa (verticale) senza cambiare l'aspetto: vedi blocco TAP TARGETS */
+    .cal-today-btn::after {
+      top: -10px;
+      bottom: -10px;
+      left: -4px;
+      right: -4px
     }
 
     .cal-today-btn[hidden] {
@@ -2696,19 +2710,43 @@
       padding: 2px 6px 8px;
       border-bottom: 1px solid var(--border);
       user-select: none;
-      touch-action: pan-y
+      touch-action: pan-y pinch-zoom
     }
 
     .cal-strip-head,
-    .cal-strip-days {
+    .cal-strip-page {
       display: grid;
       grid-template-columns: repeat(7, 1fr)
+    }
+
+    /* Viewport + track a 3 pagine (settimana prec / corrente / succ) */
+    .cal-strip-days {
+      overflow: hidden
+    }
+
+    .cal-strip-track {
+      display: flex;
+      transform: translateX(-100%);
+      will-change: transform
+    }
+
+    .cal-strip-track.anim {
+      transition: transform .32s var(--ease-out)
+    }
+
+    .cal-strip-page {
+      flex: 0 0 100%;
+      min-width: 0
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .cal-strip-track.anim { transition: none }
     }
 
     .cal-dlbl {
       text-align: center;
       font-family: var(--mono);
-      font-size: 9px;
+      font-size: 11px;
       color: var(--text3);
       letter-spacing: .1em;
       padding-bottom: 5px
@@ -2818,7 +2856,7 @@
       overflow-y: auto;
       overflow-x: hidden;
       position: relative;
-      touch-action: pan-y;
+      touch-action: pan-y pinch-zoom;
       -webkit-overflow-scrolling: touch;
       scrollbar-width: none
     }
@@ -2847,7 +2885,7 @@
       text-align: right;
       transform: translateY(-50%);
       font-family: var(--mono);
-      font-size: 9px;
+      font-size: 11px;
       color: var(--text3);
       pointer-events: none
     }
@@ -2902,7 +2940,7 @@
 
     .cal-ev-h {
       font-family: var(--mono);
-      font-size: 9px;
+      font-size: 11px;
       color: var(--text3);
       margin-top: 1px;
       white-space: nowrap
@@ -3007,7 +3045,7 @@
     .ev-seg-btn {
       flex: 1;
       font-family: var(--mono);
-      font-size: 10px;
+      font-size: 11px;
       letter-spacing: .08em;
       text-transform: uppercase;
       color: var(--text3);
@@ -3250,8 +3288,257 @@
       color: var(--green)
     }
 
+    /* TAP TARGETS — area di tocco ≥44×44 senza cambiare l'aspetto: pseudo-elemento trasparente.
+       Le espansioni restano nello spazio libero tra i controlli (es. pri-toggle 5px + slot-del 6px < gap 12px),
+       così nessun controllo ruba i tap al vicino. */
+    .icon-btn,
+    .date-nav-arrow,
+    .cal-arrow,
+    .cal-today-btn,
+    .focus-btn,
+    .skip-btn,
+    .pri-toggle,
+    .slot-del,
+    .modal-close {
+      position: relative
+    }
+
+    .icon-btn::after,
+    .date-nav-arrow::after,
+    .cal-arrow::after,
+    .cal-today-btn::after,
+    .focus-btn::after,
+    .skip-btn::after,
+    .pri-toggle::after,
+    .slot-del::after,
+    .modal-close::after {
+      content: '';
+      position: absolute
+    }
+
+    .icon-btn::after,
+    .date-nav-arrow::after,
+    .cal-arrow::after,
+    .skip-btn::after,
+    .pri-toggle::after,
+    .modal-close::after {
+      left: 50%;
+      top: 50%;
+      width: 44px;
+      height: 44px;
+      transform: translate(-50%, -50%)
+    }
+
+    .focus-btn::after {
+      top: -10px;
+      bottom: -10px;
+      left: -4px;
+      right: -4px
+    }
+
+    /* slot-del: 6px a sinistra (verso pri-toggle), il resto a destra nel padding della riga */
+    .slot-del::after {
+      top: 50%;
+      left: -6px;
+      width: 44px;
+      height: 44px;
+      transform: translateY(-50%)
+    }
+
+    /* IMPOSTAZIONI — pannello globale: schermo pieno su mobile, sheet centrato da 768px (regole .fsheet) */
+    .settings-overlay {
+      z-index: 115
+    }
+
+    .settings-sheet {
+      height: 100%;
+      border-radius: 0;
+      border-top: none;
+      padding-top: env(safe-area-inset-top)
+    }
+
+    .settings-sheet .fsheet-body {
+      position: relative;
+      padding-bottom: calc(28px + env(safe-area-inset-bottom))
+    }
+
+    .settings-sec {
+      margin-bottom: 26px
+    }
+
+    .settings-sec:last-child {
+      margin-bottom: 0
+    }
+
+    .settings-sec-title {
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text);
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border2)
+    }
+
+    .settings-val .sync-dot {
+      display: inline-block;
+      vertical-align: middle;
+      margin-right: 8px
+    }
+
+    .settings-val {
+      overflow-wrap: anywhere
+    }
+
+    .settings-inline {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      min-height: 44px
+    }
+
+    .settings-inline-txt {
+      font-size: 14px;
+      color: var(--text)
+    }
+
+    .set-switch {
+      position: relative;
+      flex-shrink: 0;
+      width: 46px;
+      height: 28px;
+      border-radius: 14px;
+      background: var(--surface-3);
+      border: 1px solid var(--border2);
+      cursor: pointer;
+      transition: background .18s ease, border-color .18s ease
+    }
+
+    .set-switch::before {
+      content: '';
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: var(--text2);
+      transition: transform .22s var(--ease-out), background .18s ease
+    }
+
+    .set-switch::after {
+      content: '';
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 48px;
+      height: 44px;
+      transform: translate(-50%, -50%)
+    }
+
+    .set-switch[aria-checked="true"] {
+      background: var(--accent);
+      border-color: var(--accent)
+    }
+
+    .set-switch[aria-checked="true"]::before {
+      transform: translateX(18px);
+      background: #0a0a0b
+    }
+
+    .settings-sheet .form-btns .btn-del {
+      flex: 1
+    }
+
+    /* Voce Impostazioni nella sidebar: solo desktop (su mobile la bottom nav resta a 4 colonne) */
+    .nav-btn.nav-settings {
+      display: none
+    }
+
+    /* DIALOG di conferma (sopra impostazioni e sheet) */
+    .app-dlg-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 130;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px
+    }
+
+    .app-dlg-overlay.open {
+      display: flex
+    }
+
+    .app-dlg {
+      width: 100%;
+      max-width: 360px;
+      background: var(--surface-1);
+      border: 1px solid var(--border2);
+      border-radius: var(--r-lg);
+      box-shadow: var(--hairline), var(--shadow-card);
+      padding: 22px 20px 18px;
+      animation: slideUp .22s var(--ease-out)
+    }
+
+    .app-dlg-title {
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--text);
+      margin-bottom: 10px
+    }
+
+    .app-dlg-msg {
+      font-size: 14px;
+      line-height: 1.5;
+      color: var(--text2)
+    }
+
+    .app-dlg-warn {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: var(--r-sm);
+      background: rgba(239, 68, 68, 0.08);
+      border: 1px solid rgba(239, 68, 68, 0.25);
+      color: #fca5a5;
+      font-size: 13px;
+      line-height: 1.45
+    }
+
+    .app-dlg .form-btns {
+      margin-top: 20px
+    }
+
+    .app-dlg .form-btns > button {
+      flex: 1;
+      min-height: 44px
+    }
+
+    .btn-del.solid {
+      background: var(--red);
+      border-color: var(--red);
+      color: #fff
+    }
+
+    .btn-del.solid:hover {
+      background: #dc2626
+    }
+
+    .app-dlg button:disabled {
+      opacity: .55;
+      cursor: progress
+    }
+
     /* =========================================
-   DESKTOP RESPONSIVE LAYOUT 
+   DESKTOP RESPONSIVE LAYOUT
    ========================================= */
     @media (min-width: 768px) {
       body {
@@ -3434,6 +3721,12 @@
         opacity: 1;
       }
 
+      /* Impostazioni in fondo alla sidebar */
+      .nav-btn.nav-settings {
+        display: flex;
+        margin-top: auto;
+      }
+
       /* Barra progresso: fuori dal flusso row, sovrapposta al bordo superiore dello shell */
       #top-progress-track {
         position: absolute;
@@ -3509,13 +3802,6 @@
         margin-left: 40px;
         margin-right: 40px;
         width: calc(100% - 80px);
-      }
-
-      .save-btn {
-        margin: 28px 40px 16px;
-        width: calc(100% - 80px);
-        padding: 16px;
-        font-size: 11px;
       }
 
       /* Modal Adjustments for PC */
@@ -3617,13 +3903,12 @@
             <div class="sync-bar" role="status">
               <div class="sync-dot offline" id="sd-plan"></div><span class="sync-txt" id="st-plan">—</span>
             </div>
-            <button class="logout-btn" onclick="doLogout()">esci</button>
+            <button class="icon-btn settings-btn" onclick="openSettings()" aria-label="Impostazioni" title="Impostazioni"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg></button>
           </div>
         </div>
         <div class="priority-banner" id="pri-banner"><span>⚠ priorità alta attiva</span></div>
         <div class="section-head"><span class="section-label">Attività importanti</span></div>
         <div id="task-inputs"></div>
-        <button class="save-btn" id="save-btn" onclick="savePlan()">Salva giornata</button>
         <div class="section-head" style="margin-top:6px">
           <span class="section-label">Le tue abitudini</span>
           <button class="icon-btn" onclick="openModal()" aria-label="Gestisci abitudini">
@@ -3658,7 +3943,7 @@
             <div class="sync-bar" role="status">
               <div class="sync-dot offline" id="sd-oggi"></div><span class="sync-txt" id="st-oggi-sync">—</span>
             </div>
-            <button class="logout-btn" onclick="doLogout()">esci</button>
+            <button class="icon-btn settings-btn" onclick="openSettings()" aria-label="Impostazioni" title="Impostazioni"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg></button>
           </div>
         </div>
         <div class="section-head"><span class="section-label" id="habit-count-lbl">Abitudini</span><button class="focus-btn" id="focus-toggle-btn" onclick="toggleFocusMode()">focus</button></div>
@@ -3680,13 +3965,7 @@
                 <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
               </svg>
             </button>
-            <button class="icon-btn" onclick="openFeedSheet('settings')" aria-label="Impostazioni Discover" title="Impostazioni">
-              <svg viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="3" />
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-              </svg>
-            </button>
-            <button class="logout-btn" onclick="doLogout()">esci</button>
+            <button class="icon-btn settings-btn" onclick="openSettings()" aria-label="Impostazioni" title="Impostazioni"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg></button>
           </div>
         </div>
         <div class="chip-bar" id="disc-chips"></div>
@@ -3717,7 +3996,7 @@
             <div class="sync-bar" role="status">
               <div class="sync-dot offline" id="sd-an"></div><span class="sync-txt" id="st-an-sync">—</span>
             </div>
-            <button class="logout-btn" onclick="doLogout()">esci</button>
+            <button class="icon-btn settings-btn" onclick="openSettings()" aria-label="Impostazioni" title="Impostazioni"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg></button>
           </div>
         </div>
         <div class="cal-strip">
@@ -3783,6 +4062,12 @@
           <rect x="14" y="14" width="7" height="7" />
         </svg><span class="nav-label">Calendario</span>
       </button>
+      <button class="nav-btn nav-settings" onclick="openSettings()" id="nav-settings-btn" data-tooltip="Impostazioni" aria-label="Impostazioni">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="12" r="3" />
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+        </svg><span class="nav-label">Impostazioni</span>
+      </button>
     </nav>
 
     <div class="modal-overlay" id="modal-overlay" onclick="overlayClick(event)">
@@ -3815,6 +4100,30 @@
         </div>
       </div>
     </div>
+
+    <!-- IMPOSTAZIONI globali: schermo pieno su mobile, sheet centrato su desktop -->
+    <div class="fsheet-overlay settings-overlay" id="settings-panel" onclick="settingsOverlayClick(event)">
+      <div class="fsheet settings-sheet" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+        <div class="fsheet-head">
+          <span class="fsheet-title" id="settings-title">Impostazioni</span>
+          <button class="modal-close" onclick="closeSettings()" aria-label="Chiudi impostazioni">×</button>
+        </div>
+        <div class="fsheet-body" id="settings-body"></div>
+      </div>
+    </div>
+
+    <!-- Dialog di conferma dell'app (al posto di confirm() nativo) -->
+    <div class="app-dlg-overlay" id="app-dlg" onclick="appDialogOverlayClick(event)">
+      <div class="app-dlg" role="alertdialog" aria-modal="true" aria-labelledby="app-dlg-title" aria-describedby="app-dlg-msg">
+        <div class="app-dlg-title" id="app-dlg-title"></div>
+        <div class="app-dlg-msg" id="app-dlg-msg"></div>
+        <div class="app-dlg-warn" id="app-dlg-warn" hidden></div>
+        <div class="form-btns">
+          <button class="btn-sec" id="app-dlg-cancel" onclick="closeAppDialog(false)">Annulla</button>
+          <button class="btn-del solid" id="app-dlg-ok" onclick="confirmAppDialog()">OK</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -3838,13 +4147,34 @@
     let selectedDate = todayStr();
     let mMode = 'list', editId = null;
     let syncDebounce = null;
-    let pendingSync = new Set(); // giorni in attesa di sync
+    let pendingSync = new Set(); // giorni con modifiche non ancora confermate da Supabase (in coda o falliti)
+    const dirtyGen = new Map();  // ds → contatore modifiche: un save concluso rimuove ds da pendingSync solo se nel frattempo non è cambiato
+    let habitsDirty = false, habitsGen = 0; // profilo (abitudini + impegni ricorrenti) non ancora salvato
+    const PENDING_LS = 'dayflow_pending_sync';    // coda persistita: { uid, days: [ds], habits: bool }
+    const restoredPending = new Set();            // giorni in coda ripristinati da una sessione precedente (da riconciliare col remoto prima dell'upload)
+    const RETRY = { until: 0, delay: 0, running: false }; // backoff dei retry automatici (online / app visibile)
+    // Epoca di sessione: incrementata al logout. Ogni operazione di sync/load la cattura all'avvio e,
+    // dopo ogni await, se è cambiata esce senza toccare stato (coda, S, indicatori): una risposta
+    // della sessione precedente non può mai agire sulla sessione nuova.
+    let syncEpoch = 0;
+    let genSeq = 0; // contatore monotono per dirtyGen: mai riusato, nemmeno dopo il logout
+    const SYNC_INFO = { status: 'offline', msg: 'non ancora sincronizzato' }; // ultimo esito, mostrato in Impostazioni
+    const APP_VERSION = '1.0';
+    const SETTINGS = { open: false, trigger: null };             // pannello Impostazioni globale
+    const DLG = { open: false, resolve: null, busy: false, keepOpen: false, trigger: null }; // dialog di conferma
     let allDaysLoaded = false;
 
     // Discover feed (Gemini) — stato e costanti
-    const GEMINI_MODEL = 'gemini-2.5-flash';
-    const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/' + GEMINI_MODEL + ':generateContent';
-    const GEMINI_STREAM_URL = 'https://generativelanguage.googleapis.com/v1beta/models/' + GEMINI_MODEL + ':streamGenerateContent?alt=sse';
+    const GEMINI_API = 'https://generativelanguage.googleapis.com/v1beta/';
+    const GEMINI_DEFAULT_MODEL = 'gemini-2.5-flash';
+    const GEMINI_MODEL_LS = 'dayflow_gemini_model';    // modello scelto (solo locale)
+    const GEMINI_MODELS_LS = 'dayflow_gemini_models';  // elenco caricato dalla chiave { ts, models: [{ id, label }] }
+    const GEMINI_MODEL_RE = /^[a-z0-9][a-z0-9.\-]*$/i;
+    const GEMINI_PRESETS = [
+      { id: 'gemini-2.5-flash', label: 'Flash', note: 'bilanciato (default)' },
+      { id: 'gemini-2.5-flash-lite', label: 'Flash-Lite', note: 'più veloce, quota più alta' },
+      { id: 'gemini-2.5-pro', label: 'Pro', note: 'più qualità, più lento, quota bassa' }
+    ];
     const FEED_KEY_LS = 'dayflow_gemini_key';
     const FEED_TOPICS_LS = 'dayflow_feed_topics';
     const FEED_CARDS_N = 8;
@@ -3883,7 +4213,7 @@
       return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
     }
     // Data di testata: niente anno (è nel day picker e in Calendario); giorno della settimana
-    // abbreviato sotto i 768px (.dn-short) per stare in una riga con sync + esci a 375px.
+    // abbreviato sotto i 768px (.dn-short) per stare in una riga con sync + ingranaggio a 375px.
     function fmtHeaderDate(ds) {
       const d = new Date(ds + 'T12:00:00');
       const dayMonth = d.toLocaleDateString('it-IT', { day: 'numeric', month: 'long' }).toLowerCase();
@@ -3932,10 +4262,23 @@
       if (!Array.isArray(S.impegniRicorrenti)) S.impegniRicorrenti = [];
     }
     function persist() { try { localStorage.setItem(SK, JSON.stringify(S)) } catch (e) { } }
-    function getDay(ds) { if (!S.days[ds]) S.days[ds] = { data: ds, abitudini: {}, attivitaDelGiorno: { compiti: ['', '', ''], altaPriorita: [false, false, false], completatiTask: [false, false, false], completato: false, completatiCount: 0 }, note: '', timestamp: Date.now(), eventi: [], impegniRicorrentiCompletati: {} }; ensureSlotArrays(S.days[ds]); return S.days[ds]; }
+    function getDay(ds) { if (!S.days[ds]) S.days[ds] = { data: ds, abitudini: {}, attivitaDelGiorno: { compiti: ['', '', ''], altaPriorita: [false, false, false], completatiTask: [false, false, false], completato: false, completatiCount: 0 }, note: '', timestamp: 0, eventi: [], impegniRicorrentiCompletati: {} }; ensureSlotArrays(S.days[ds]); return S.days[ds]; }
+    // Merge giorno locale ↔ remoto (last-write-wins sul timestamp del client che ha scritto):
+    // - timestamp = Date.now() dell'ultima modifica locale, impostato SOLO da scheduleSync() (unico punto
+    //   di passaggio delle mutazioni di un giorno). Un giorno appena creato da getDay() vale 0 (mai modificato):
+    //   qualunque remoto lo sostituisce. Normalizzazioni in lettura (ensureSlotArrays/ensureEventi) non lo toccano.
+    // - il remoto vince solo se strettamente più recente; a parità (è il nostro stesso salvataggio) resta il locale.
+    // - un giorno in pendingSync modificato in QUESTA sessione non viene mai sovrascritto;
+    //   un giorno in coda RIPRISTINATO da una sessione precedente (restoredPending) segue last-write-wins:
+    //   se il remoto è strettamente più nuovo vince il remoto e il giorno esce dalla coda, altrimenti resta in coda.
+    // Orologi sfasati tra dispositivi possono far perdere la scrittura del dispositivo "indietro": accettato.
     function adoptRemoteDay(ds, remote) {
       if (!remote) return false;
       const local = S.days[ds];
+      if (local && pendingSync.has(ds)) {
+        if (!restoredPending.has(ds) || (remote.timestamp || 0) <= (local.timestamp || 0)) return false;
+        dropPendingDay(ds);
+      }
       if (!Array.isArray(remote.eventi)) remote.eventi = (local && Array.isArray(local.eventi)) ? local.eventi : [];
       if (!local || ((remote.timestamp || 0) > (local.timestamp || 0))) { S.days[ds] = remote; return true; }
       return false;
@@ -4037,7 +4380,7 @@
     function setBar(fId, pId, pct) { document.getElementById(fId).style.width = pct + '%'; document.getElementById(fId).style.background = pctColor(pct); const el = document.getElementById(pId); el.textContent = pct + '%'; el.style.color = pctColor(pct); }
     function setRing(ringId, pctId, pct) { const el = document.getElementById(ringId); el.style.strokeDashoffset = 213.6 * (1 - pct / 100); el.style.stroke = pctColor(pct); const p = document.getElementById(pctId); p.textContent = pct + '%'; p.style.color = pctColor(pct); }
     let focusMode = localStorage.getItem('dayflow_focusMode') === 'true';
-    function toggleFocusMode() { focusMode = !focusMode; localStorage.setItem('dayflow_focusMode', focusMode); const btn = document.getElementById('focus-toggle-btn'); if (btn) { btn.classList.toggle('active', focusMode); btn.textContent = focusMode ? '🎯 focus' : 'focus'; } const today = todayStr(); renderHOggiList(getDay(today), today); }
+    function toggleFocusMode() { focusMode = !focusMode; localStorage.setItem('dayflow_focusMode', focusMode); const btn = document.getElementById('focus-toggle-btn'); if (btn) { btn.classList.toggle('active', focusMode); btn.textContent = focusMode ? '🎯 focus' : 'focus'; } const sw = document.getElementById('set-focus'); if (sw) sw.setAttribute('aria-checked', String(focusMode)); /* ridisegna la data mostrata da Oggi (renderOggi usa selectedDate), anche se Oggi non è la schermata attiva */ if (document.getElementById('hoggi-list')) renderHOggiList(getDay(selectedDate), selectedDate); }
     function setSS(dotId, txtId, status, msg) { const d = document.getElementById(dotId); const t = document.getElementById(txtId); if (!d || !t) return; d.className = 'sync-dot ' + status; t.textContent = msg; d.title = msg; d.setAttribute('aria-label', msg); }
     function shootConfetti() {
       const colors = ['#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#a855f7'];
@@ -4089,8 +4432,18 @@
       if (error) { err.textContent = translateAuthError(error.message); }
       else { ok.textContent = 'Account creato! Controlla la tua email per confermare.'; err.textContent = ''; }
     }
+    // Logout effettivo: da chiamare solo dopo requestLogout() (conferma + flush delle sync in coda).
     async function doLogout() {
-      await sb.auth.signOut();
+      clearTimeout(syncDebounce); syncDebounce = null;
+      // chiude l'epoca: upload/load ancora in volo della sessione vengono ignorati al loro ritorno
+      syncEpoch++; dayInflight.clear(); habitsInflight = null; RETRY.running = false;
+      closeAppDialog(false);
+      closeSettings(false);
+      try { await sb.auth.signOut(); } catch (e) { console.error('signOut', e); }
+      pendingSync.clear(); dirtyGen.clear(); restoredPending.clear(); habitsDirty = false;
+      RETRY.until = 0; RETRY.delay = 0;
+      try { localStorage.removeItem(PENDING_LS); } catch (e) { }
+      SYNC_INFO.status = 'offline'; SYNC_INFO.msg = 'non ancora sincronizzato';
       S = { habits: [], days: {}, impegniRicorrenti: [] };
       allDaysLoaded = false;
       localStorage.removeItem(SK);
@@ -4117,29 +4470,75 @@
     }
 
     // ── SUPABASE SYNC ─────────────────────────────────────────
-    async function sbSaveHabits() {
-      if (!curUser || !sb) return;
+    // Ritorna (Promise) true se il profilo è stato salvato. habitsDirty resta true finché un salvataggio
+    // (non superato da uno più recente) va a buon fine: flushAllSync() lo ritenta.
+    // Un solo upload del profilo in volo alla volta: una chiamata durante l'upload segna la modifica
+    // (habitsGen++) e si aggancia alla promise in corso, che al termine riparte coi dati aggiornati se
+    // la generazione è cambiata. Su errore niente rerun immediato: restano le regole di retry/backoff.
+    let habitsInflight = null;
+    function sbSaveHabits() {
+      if (!curUser || !sb) return Promise.resolve(false);
+      habitsGen++;
+      habitsDirty = true; savePendingQueue();
+      if (habitsInflight) return habitsInflight;
+      const epoch = syncEpoch;
+      let p;
+      p = (async () => {
+        let ok;
+        try {
+          do {
+            ok = await sbSaveHabitsOnce(epoch);
+            if (epoch !== syncEpoch) return false; // sessione chiusa nel frattempo: nessun rerun
+          } while (ok && habitsDirty && curUser);
+        } finally { if (habitsInflight === p) habitsInflight = null; }
+        return ok;
+      })();
+      habitsInflight = p;
+      return p;
+    }
+    async function sbSaveHabitsOnce(epoch) {
+      if (!curUser || !sb || epoch !== syncEpoch) return false;
+      const gen = habitsGen;
+      const uid = curUser.id;
       try {
-        const payload = { id: curUser.id, habits: S.habits, updated_at: new Date().toISOString() };
+        const payload = { id: uid, habits: S.habits, updated_at: new Date().toISOString() };
         if (Array.isArray(S.impegniRicorrenti) && S.impegniRicorrenti.length) {
           payload.impegni_ricorrenti = S.impegniRicorrenti;
         }
-        const { error } = await sb.from('profiles').upsert(payload);
+        const habitsOnly = { id: uid, habits: S.habits, updated_at: payload.updated_at };
+        let { error } = await sb.from('profiles').upsert(payload);
+        if (epoch !== syncEpoch) return false;
         if (error) {
           // Se la colonna impegni_ricorrenti non esiste nella tabella profiles, salva solo habits
-          await sb.from('profiles').upsert({ id: curUser.id, habits: S.habits, updated_at: new Date().toISOString() });
+          ({ error } = await sb.from('profiles').upsert(habitsOnly));
+          if (epoch !== syncEpoch) return false;
         }
-      } catch (e) { console.error('sbSaveHabits', e); }
+        if (error) throw error;
+        if (gen === habitsGen) { habitsDirty = false; savePendingQueue(); }
+        noteSync('ok');
+        return true;
+      } catch (e) {
+        if (epoch !== syncEpoch) return false;
+        console.error('sbSaveHabits', e);
+        noteSync('err');
+        return false;
+      }
     }
     async function sbLoadHabits() {
       if (!curUser || !sb) return;
+      const epoch = syncEpoch, uid = curUser.id;
       try {
-        let res = await sb.from('profiles').select('habits, impegni_ricorrenti').eq('id', curUser.id).maybeSingle();
+        let res = await sb.from('profiles').select('habits, impegni_ricorrenti').eq('id', uid).maybeSingle();
+        if (epoch !== syncEpoch) return;
         if (res.error) {
           // Fallback resiliente: se la colonna impegni_ricorrenti non esiste, carica solo le abitudini
-          res = await sb.from('profiles').select('habits').eq('id', curUser.id).maybeSingle();
+          res = await sb.from('profiles').select('habits').eq('id', uid).maybeSingle();
+          if (epoch !== syncEpoch) return;
         }
         const data = res?.data;
+        // Profilo locale non ancora caricato (coda, anche ripristinata): il profilo non ha un timestamp
+        // per record, quindi vince il locale e verrà caricato dalla sync; il remoto non lo sovrascrive.
+        if (data && habitsDirty) return;
         if (data) {
           if (Array.isArray(data.habits) && data.habits.length) {
             S.habits = data.habits;
@@ -4161,9 +4560,33 @@
       } catch (e) { console.error('sbLoadHabits', e); }
     }
     let eventiColumnOk = true;
-    async function sbSaveDay(ds, dotId, txtId) {
-      if (!curUser || !sb) return;
-      const day = S.days[ds]; if (!day) return;
+    // Ritorna (Promise) true se il giorno è stato salvato su Supabase.
+    // Lock per giorno: al massimo un upsert di ds in volo. Una chiamata mentre ds è in volo si aggancia
+    // alla promise in corso; al termine, se il giorno è stato modificato nel frattempo (dirtyGen cambiato →
+    // ds ancora in pendingSync) l'upload riparte coi dati aggiornati, così l'ultimo payload arrivato al
+    // server è sempre il più recente. Su errore niente rerun immediato: ds resta in coda (retry/backoff).
+    const dayInflight = new Map(); // ds → Promise<boolean>
+    function sbSaveDay(ds, dotId, txtId) {
+      if (dayInflight.has(ds)) return dayInflight.get(ds);
+      const epoch = syncEpoch;
+      let p;
+      p = (async () => {
+        let ok;
+        try {
+          do {
+            ok = await sbSaveDayOnce(ds, dotId, txtId, epoch);
+            if (epoch !== syncEpoch) return false; // sessione chiusa nel frattempo: nessun rerun
+          } while (ok && pendingSync.has(ds) && curUser);
+        } finally { if (dayInflight.get(ds) === p) dayInflight.delete(ds); } // mai il lock di un'altra sessione
+        return ok;
+      })();
+      dayInflight.set(ds, p);
+      return p;
+    }
+    async function sbSaveDayOnce(ds, dotId, txtId, epoch) {
+      if (!curUser || !sb || epoch !== syncEpoch) return false;
+      const day = S.days[ds]; if (!day) { pendingSync.delete(ds); restoredPending.delete(ds); savePendingQueue(); return true; }
+      const gen = dirtyGen.get(ds) || 0;
       setSS(dotId, txtId, 'syncing', 'sincronizzazione...');
       const base = {
         user_id: curUser.id,
@@ -4177,33 +4600,42 @@
       try {
         const payload = eventiColumnOk ? Object.assign({ eventi: ensureEventi(day) }, base) : base;
         let { error } = await sb.from('days').upsert(payload, { onConflict: 'user_id,data' });
+        if (epoch !== syncEpoch) return false;
         if (error && eventiColumnOk && /eventi/i.test(error.message || '')) {
           eventiColumnOk = false;
           console.warn('Colonna "eventi" assente su Supabase: gli eventi restano solo in locale.');
           ({ error } = await sb.from('days').upsert(base, { onConflict: 'user_id,data' }));
+          if (epoch !== syncEpoch) return false;
         }
         if (error) throw error;
-        pendingSync.delete(ds);
+        if ((dirtyGen.get(ds) || 0) === gen) { pendingSync.delete(ds); restoredPending.delete(ds); savePendingQueue(); }
         setSS(dotId, txtId, 'ok', 'sincronizzato · ' + new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }));
+        noteSync('ok');
+        return true;
       } catch (e) {
+        if (epoch !== syncEpoch) return false;
         console.error('sbSaveDay', e);
-        pendingSync.add(ds);
+        pendingSync.add(ds); savePendingQueue();
         setSS(dotId, txtId, 'err', 'errore — salvato in locale');
+        noteSync('err');
+        return false;
       }
     }
     async function sbLoadDay(ds) {
       if (!curUser || !sb) return null;
       try {
+        const epoch = syncEpoch;
         const { data } = await sb.from('days').select('*').eq('user_id', curUser.id).eq('data', ds).single();
-        if (!data) return null;
+        if (epoch !== syncEpoch || !data) return null; // risposta di una sessione chiusa: ignorata
         return { data: ds, abitudini: data.abitudini || {}, attivitaDelGiorno: data.attivita_del_giorno || { compiti: ['', '', ''], altaPriorita: [false, false, false], completato: false }, impegniRicorrentiCompletati: data.impegni_ricorrenti_completati || {}, eventi: Array.isArray(data.eventi) ? data.eventi : undefined, note: data.note || '', timestamp: data.timestamp || Date.now() };
       } catch (e) { return null; }
     }
     async function sbLoadAllDays() {
       if (!curUser || !sb) return null;
       try {
+        const epoch = syncEpoch;
         const { data } = await sb.from('days').select('*').eq('user_id', curUser.id);
-        if (!data) return null;
+        if (epoch !== syncEpoch || !data) return null;
         const result = {};
         for (const row of data) {
           result[row.data] = { data: row.data, abitudini: row.abitudini || {}, attivitaDelGiorno: row.attivita_del_giorno || { compiti: ['', '', ''], altaPriorita: [false, false, false], completato: false }, impegniRicorrentiCompletati: row.impegni_ricorrenti_completati || {}, eventi: Array.isArray(row.eventi) ? row.eventi : undefined, note: row.note || '', timestamp: row.timestamp || Date.now() };
@@ -4214,8 +4646,9 @@
     async function sbLoadDaysRange(startDate, endDate) {
       if (!curUser || !sb) return null;
       try {
+        const epoch = syncEpoch;
         const { data } = await sb.from('days').select('*').eq('user_id', curUser.id).gte('data', startDate).lte('data', endDate);
-        if (!data) return null;
+        if (epoch !== syncEpoch || !data) return null;
         const result = {};
         for (const row of data) {
           result[row.data] = { data: row.data, abitudini: row.abitudini || {}, attivitaDelGiorno: row.attivita_del_giorno || { compiti: ['', '', ''], altaPriorita: [false, false, false], completato: false }, impegniRicorrentiCompletati: row.impegni_ricorrenti_completati || {}, eventi: Array.isArray(row.eventi) ? row.eventi : undefined, note: row.note || '', timestamp: row.timestamp || Date.now() };
@@ -4230,12 +4663,10 @@
       const windowDays = await sbLoadDaysRange(startD, endD);
       if (windowDays) {
         let changed = false;
+        // stessa regola di merge del resto dell'app (prima questo punto la bypassava: niente
+        // protezione di pendingSync e un remoto senza "eventi" cancellava gli eventi locali)
         for (const [dateStr, remote] of Object.entries(windowDays)) {
-          const local = S.days[dateStr];
-          if (!local || (remote.timestamp > (local.timestamp || 0))) {
-            S.days[dateStr] = remote;
-            changed = true;
-          }
+          if (adoptRemoteDay(dateStr, remote)) changed = true;
         }
         if (changed) {
           persist();
@@ -4265,10 +4696,132 @@
         }
       })();
     }
+    // Salva subito in locale e mette il giorno in coda; dopo 1,2 s di quiete salva su Supabase
+    // TUTTI i giorni in coda (prima veniva salvato solo l'ultimo giorno toccato).
     function scheduleSync(ds, dotId, txtId) {
+      if (S.days[ds]) S.days[ds].timestamp = Date.now(); // ultima modifica locale (vedi adoptRemoteDay)
       persist();
+      pendingSync.add(ds);
+      restoredPending.delete(ds); // modificato in questa sessione: è la scrittura più recente
+      dirtyGen.set(ds, ++genSeq);
+      savePendingQueue();
       clearTimeout(syncDebounce);
-      syncDebounce = setTimeout(() => sbSaveDay(ds, dotId, txtId), 1200);
+      syncDebounce = setTimeout(() => { syncDebounce = null; syncPendingDays(dotId, txtId); }, 1200);
+    }
+    async function syncPendingDays(dotId, txtId) {
+      const epoch = syncEpoch;
+      let ok = true;
+      for (const ds of [...pendingSync]) {
+        if (!(await reconcileRestoredDay(ds))) continue; // remoto più nuovo adottato: niente upload
+        if (epoch !== syncEpoch) return false; // sessione chiusa: la coda ora è di un'altra sessione
+        if (!pendingSync.has(ds)) continue;
+        if (!(await sbSaveDay(ds, dotId, txtId))) ok = false;
+        if (epoch !== syncEpoch) return false;
+      }
+      return ok;
+    }
+
+    // ── Coda di sync persistita ──
+    // La coda (giorni in pendingSync + habitsDirty) è scritta in localStorage a ogni cambiamento,
+    // legata all'utente: sopravvive a reload / chiusura della PWA entro il debounce / modifiche offline.
+    function savePendingQueue() {
+      if (!curUser) return;
+      try {
+        if (!pendingSync.size && !habitsDirty) localStorage.removeItem(PENDING_LS);
+        else localStorage.setItem(PENDING_LS, JSON.stringify({ uid: curUser.id, days: [...pendingSync], habits: habitsDirty }));
+      } catch (e) { }
+    }
+    // Da chiamare in initApp dopo load() e PRIMA dei load remoti: così adoptRemoteDay/sbLoadHabits
+    // vedono già i giorni/profilo in coda. Una coda di un altro utente viene ignorata.
+    function restorePendingQueue() {
+      let q = null;
+      try { q = JSON.parse(localStorage.getItem(PENDING_LS) || 'null'); } catch (e) { }
+      if (!q || !curUser || q.uid !== curUser.id) return;
+      (Array.isArray(q.days) ? q.days : []).forEach(ds => {
+        if (typeof ds === 'string' && S.days[ds] && !pendingSync.has(ds)) { pendingSync.add(ds); restoredPending.add(ds); }
+      });
+      // Profilo in coda solo se i dati locali ci sono davvero: mai caricare un profilo vuoto sopra quello remoto
+      if (q.habits && ((S.habits && S.habits.length) || (S.impegniRicorrenti && S.impegniRicorrenti.length))) habitsDirty = true;
+      savePendingQueue();
+    }
+    // Giorno ripristinato dalla coda: last-write-wins col remoto PRIMA dell'upload.
+    // remoto più nuovo → lo adotto e tolgo il giorno dalla coda (false = non caricare);
+    // remoto più vecchio/uguale, assente o non leggibile (offline) → si carica il locale (true).
+    // Il flag "ripristinato" resta finché l'upload riesce, così ogni retry ricontrolla il remoto.
+    async function reconcileRestoredDay(ds) {
+      if (!restoredPending.has(ds)) return true;
+      const epoch = syncEpoch;
+      const remote = await sbLoadDay(ds);
+      if (epoch !== syncEpoch) return false; // sessione chiusa: non tocco coda né S.days
+      if (!restoredPending.has(ds)) return true; // modificato nel frattempo: ora vince il locale
+      const local = S.days[ds];
+      if (remote && local && (remote.timestamp || 0) > (local.timestamp || 0)) {
+        adoptRemoteDay(ds, remote);
+        persist();
+        refreshDayViews(ds);
+        return false;
+      }
+      return true;
+    }
+    function dropPendingDay(ds) {
+      pendingSync.delete(ds); restoredPending.delete(ds);
+      dirtyGen.set(ds, ++genSeq);
+      savePendingQueue();
+    }
+    // Ridisegna la schermata attiva se mostra il giorno cambiato dal remoto
+    function refreshDayViews(ds) {
+      if (curScreen === 'calendario') { renderCalStrip(); renderCalDay(); }
+      else if (ds !== selectedDate) return;
+      else if (curScreen === 'plan') renderPlan();
+      else if (curScreen === 'oggi') { renderHOggiList(getDay(ds), ds); updateOggiStats(ds); }
+    }
+    // Retry automatico (online / app di nuovo visibile), solo su evento: niente timer, quindi niente loop.
+    // Backoff dopo un fallimento: 5 s, 10 s, 20 s… max 5 min; force (evento online) lo ignora.
+    async function retryPendingSync(force = false) {
+      if (!curUser || !sb || RETRY.running) return;
+      if (!pendingSync.size && !habitsDirty) return;
+      if (!force && Date.now() < RETRY.until) return;
+      RETRY.running = true;
+      const epoch = syncEpoch;
+      try {
+        const ok = await flushAllSync(15000);
+        if (epoch !== syncEpoch) return; // RETRY già azzerato dal logout
+        if (ok) { RETRY.delay = 0; RETRY.until = 0; }
+        else { RETRY.delay = Math.min(Math.max(RETRY.delay * 2, 5000), 300000); RETRY.until = Date.now() + RETRY.delay; }
+      } finally { if (epoch === syncEpoch) RETRY.running = false; }
+    }
+    function hasUnsyncedChanges() { return pendingSync.size > 0 || habitsDirty || !!syncDebounce; }
+    // Svuota subito la coda (timer annullato): profilo + tutti i giorni pendenti.
+    // true solo se alla fine non resta nulla da sincronizzare. Timeout = fallimento (rete appesa).
+    async function flushAllSync(timeoutMs = 10000) {
+      clearTimeout(syncDebounce); syncDebounce = null;
+      if (!curUser || !sb) return !pendingSync.size && !habitsDirty;
+      const ids = SYNC_IDS[curScreen] || SYNC_IDS.oggi;
+      const epoch = syncEpoch;
+      const run = (async () => {
+        if (habitsDirty) await sbSaveHabits(); else if (habitsInflight) await habitsInflight;
+        if (epoch !== syncEpoch) return false;
+        await syncPendingDays(ids[0], ids[1]);
+        // attende anche gli upload già in volo (e i loro rerun) partiti fuori da questo flush;
+        // le mappe contengono solo upload dell'epoca corrente (il logout le svuota)
+        while (epoch === syncEpoch && (dayInflight.size || habitsInflight)) {
+          await Promise.all([...dayInflight.values(), habitsInflight].filter(Boolean));
+        }
+        if (epoch !== syncEpoch) return false;
+        return !pendingSync.size && !habitsDirty;
+      })();
+      let timer;
+      const timeout = new Promise(res => { timer = setTimeout(() => res(false), timeoutMs); });
+      try { return await Promise.race([run, timeout]); }
+      catch (e) { console.error('flushAllSync', e); return false; }
+      finally { clearTimeout(timer); }
+    }
+    const SYNC_IDS = { plan: ['sd-plan', 'st-plan'], oggi: ['sd-oggi', 'st-oggi-sync'], recap: ['sd-recap', 'st-recap-sync'], calendario: ['sd-an', 'st-an-sync'] };
+    // Ultimo esito di sync per il pannello Impostazioni (aggiornato dal vivo se aperto)
+    function noteSync(status, msg) {
+      SYNC_INFO.status = status;
+      SYNC_INFO.msg = msg || (status === 'ok' ? 'sincronizzato · ' + new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : status === 'err' ? 'errore di sincronizzazione — dati salvati in locale' : status === 'syncing' ? 'sincronizzazione…' : 'non sincronizzato');
+      renderSettingsSync();
     }
     // Argomenti Discover su profiles.feed_topics — colonna opzionale: se manca, resta solo localStorage
     async function sbSaveFeedTopics() {
@@ -4291,14 +4844,15 @@
       } catch (e) { }
     }
 
-    // Sync pendenti quando torna online
-    window.addEventListener('online', async () => {
-      if (pendingSync.size > 0) {
-        for (const ds of pendingSync) {
-          await sbSaveDay(ds, 'sd-oggi', 'st-oggi-sync');
-        }
-      }
+    // Sync pendenti quando torna online (ignora il backoff: la rete è appena cambiata)
+    window.addEventListener('online', () => { retryPendingSync(true); });
+    // App di nuovo visibile → retry (con backoff). App nascosta / pagina chiusa: la coda è già
+    // in localStorage (scritta sincrona a ogni cambiamento); se c'è un debounce in corso provo subito l'upload.
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') retryPendingSync();
+      else if (curUser) { persist(); savePendingQueue(); if (syncDebounce) retryPendingSync(true); }
     });
+    window.addEventListener('pagehide', () => { if (curUser) { persist(); savePendingQueue(); } });
 
     // ── INIT ──────────────────────────────────────────────────
     function showToast(msg, type = 'warn', duration = 3500) {
@@ -4358,6 +4912,9 @@
       if (curUser && curUser.id === user.id) return;
       curUser = user;
       load();
+      // Coda di sync della sessione precedente: ripristinata PRIMA di qualunque load remoto
+      // (renderOggi/sbLoadHabits/finestra iniziale), così adoptRemoteDay e sbLoadHabits la rispettano.
+      restorePendingQueue();
       document.getElementById('auth-screen').classList.add('hidden');
       document.getElementById('shell').style.display = 'flex';
       if (window.innerWidth >= 768) {
@@ -4382,7 +4939,10 @@
       else if (curScreen === 'calendario') renderCalendario();
 
       setSS('sd-oggi', 'st-oggi-sync', windowDays ? 'ok' : 'err', windowDays ? 'sincronizzato' : 'locale — nessuna rete');
+      noteSync(windowDays ? 'ok' : 'err', windowDays ? undefined : 'dati locali — nessuna rete');
 
+      // Upload della coda ripristinata (non bloccante; i giorni ripristinati vengono prima riconciliati col remoto)
+      retryPendingSync(true);
       // Carica il resto dei dati storici in background per Streak e Calendario
       sbLoadAllDaysInBackground();
       // Argomenti Discover dal profilo (non bloccante, fallback localStorage)
@@ -4409,8 +4969,10 @@
         const { data: { session }, error } = await sb.auth.getSession();
         if (error) {
           // Sessione corrotta: pulisci e mostra login
+          syncEpoch++; dayInflight.clear(); habitsInflight = null; RETRY.running = false;
           await sb.auth.signOut();
           localStorage.removeItem(SK);
+          localStorage.removeItem(PENDING_LS);
           return;
         }
         if (session && session.user) {
@@ -4526,12 +5088,6 @@
       }
     }
     function checkPriBanner(day) { const has = day.attivitaDelGiorno.altaPriorita.some(v => v); document.getElementById('pri-banner').style.display = has ? 'flex' : 'none'; }
-    function savePlan() {
-      persist();
-      sbSaveDay(selectedDate, 'sd-plan', 'st-plan');
-      const btn = document.getElementById('save-btn'); btn.textContent = 'Salvato ✓'; btn.style.opacity = '.6';
-      setTimeout(() => { btn.textContent = 'Salva giornata'; btn.style.opacity = '1' }, 1300);
-    }
     function renderHPlanList() {
       const c = document.getElementById('hplan-list'); c.innerHTML = ''; const habits = activeHabits();
       if (!habits.length) { c.innerHTML = '<div class="empty-state"><div class="empty-lbl">Nessuna abitudine — premi ⚙ per aggiungerne</div></div>'; return; }
@@ -4654,8 +5210,8 @@
       const tc = document.createElement('div'); tc.className = 'hcheck' + (atdDone ? ' done' : ''); tc.innerHTML = '<svg viewBox="0 0 11 11" fill="none" stroke="#080808" stroke-width="2.5" stroke-linecap="round"><polyline points="1.5,5.5 4.5,8.5 9.5,2.5"/></svg>';
       const tl = document.createElement('span'); tl.className = 'hname' + (atdDone ? ' done' : ''); tl.textContent = 'Attività del giorno';
       th.appendChild(tc); th.appendChild(tl);
-      if (atdCount > 0 && atdNE > 0 && !atdDone) { const cb = document.createElement('span'); cb.style.cssText = 'font-family:var(--mono);font-size:9px;color:var(--green);margin-left:auto'; cb.textContent = `${atdCount}/${atdNE}`; th.appendChild(cb); }
-      if (hasP) { const pb = document.createElement('span'); pb.style.cssText = 'font-family:var(--mono);font-size:8px;color:var(--red);' + (atdCount > 0 && atdNE > 0 && !atdDone ? 'margin-left:4px' : 'margin-left:auto'); pb.textContent = '⚠ priorità'; th.appendChild(pb); }
+      if (atdCount > 0 && atdNE > 0 && !atdDone) { const cb = document.createElement('span'); cb.style.cssText = 'font-family:var(--mono);font-size:11px;color:var(--green);margin-left:auto;white-space:nowrap'; cb.textContent = `${atdCount}/${atdNE}`; th.appendChild(cb); }
+      if (hasP) { const pb = document.createElement('span'); pb.style.cssText = 'font-family:var(--mono);font-size:11px;color:var(--red);white-space:nowrap;' + (atdCount > 0 && atdNE > 0 && !atdDone ? 'margin-left:4px' : 'margin-left:auto'); pb.textContent = '⚠ priorità'; th.appendChild(pb); }
       tr.appendChild(th);
       const tlist = document.createElement('div'); tlist.className = 'tasks-list';
       day.attivitaDelGiorno.compiti.forEach((t, i) => {
@@ -4685,6 +5241,23 @@
     // (costanti e stato FEED dichiarati in testa allo script, sezione STATE)
     function escFeed(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
     function feedKey() { try { return (localStorage.getItem(FEED_KEY_LS) || '').trim(); } catch (e) { return ''; } }
+    function feedModel() {
+      let m = '';
+      try { m = (localStorage.getItem(GEMINI_MODEL_LS) || '').trim(); } catch (e) { }
+      return GEMINI_MODEL_RE.test(m) ? m : GEMINI_DEFAULT_MODEL;
+    }
+    // URL costruito al momento della richiesta (il modello può cambiare dalle impostazioni)
+    function geminiUrl(stream) {
+      return GEMINI_API + 'models/' + encodeURIComponent(feedModel()) + (stream ? ':streamGenerateContent?alt=sse' : ':generateContent');
+    }
+    // thinkingConfig compatibile col modello: 2.5 flash/flash-lite → thinking spento;
+    // gemini-3* → thinkingLevel low; pro/sconosciuti → campo omesso (il thinking non si può spegnere).
+    function geminiThinkingConfig(model = feedModel()) {
+      const m = String(model).toLowerCase();
+      if (/^gemini-2\.5-flash(-lite)?(-|$)/.test(m)) return { thinkingBudget: 0 };
+      if (m.startsWith('gemini-3')) return { thinkingLevel: 'low' };
+      return undefined;
+    }
     function feedCacheKey(ds) { return 'dayflow_feed_' + (ds || todayStr()); }
     function normalizeTopic(t, i) {
       const label = String(t.label || '').trim().slice(0, 24);
@@ -4732,7 +5305,7 @@
     function clearFeedSeen() {
       try { localStorage.removeItem(FEED_SEEN_LS); } catch (e) { }
       showToast('Cronologia svuotata', 'info');
-      if (FEED.sheet === 'settings') renderFeedSheet();
+      refreshFeedSettings();
     }
 
     // ── Salvati per dopo ──
@@ -4783,7 +5356,7 @@
     function clearFeedPrefs() {
       try { localStorage.removeItem(FEED_PREFS_LS); } catch (e) { }
       showToast('Interessi azzerati', 'info');
-      if (FEED.sheet === 'settings') renderFeedSheet();
+      refreshFeedSettings();
     }
 
     // ── Condividi ──
@@ -4812,7 +5385,7 @@
       if (!key) throw Object.assign(new Error('nokey'), { code: 'nokey' });
       let res;
       try {
-        res = await fetch(GEMINI_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify(body) });
+        res = await fetch(geminiUrl(false),{ method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify(body) });
       } catch (e) { throw Object.assign(new Error('network'), { code: 'network' }); }
       if (!res.ok) {
         const err = Object.assign(new Error('http ' + res.status), { code: 'http', status: res.status });
@@ -4854,7 +5427,7 @@
       const aborted = () => Object.assign(new Error('abort'), { code: 'abort' });
       let res;
       try {
-        res = await fetch(GEMINI_STREAM_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify(body), signal });
+        res = await fetch(geminiUrl(true),{ method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify(body), signal });
       } catch (e) { throw signal && signal.aborted ? aborted() : Object.assign(new Error('network'), { code: 'network' }); }
       if (!res.ok) {
         const err = Object.assign(new Error('http ' + res.status), { code: 'http', status: res.status });
@@ -4913,8 +5486,10 @@
       if (e.code === 'truncated') return 'Articolo interrotto.';
       if (e.code === 'parse' || e.code === 'empty') return 'Risposta dell\'AI non valida. Riprova.';
       if (e.code === 'http') {
-        if (e.status === 400 || e.status === 401 || e.status === 403) return 'Chiave API non valida o non autorizzata.';
-        if (e.status === 404) return 'Modello ' + GEMINI_MODEL + ' non disponibile per questa chiave.';
+        // Gemini risponde 400 INVALID_ARGUMENT anche per chiave errata: si distingue dal detail
+        if (e.status === 401 || e.status === 403 || (e.status === 400 && /api[ _-]?key/i.test(e.detail || ''))) return 'Chiave API non valida o non autorizzata.';
+        if (e.status === 400) return e.detail ? 'Richiesta rifiutata: ' + e.detail : 'Richiesta rifiutata dal modello ' + feedModel() + '. Prova un altro modello nelle impostazioni.';
+        if (e.status === 404) return 'Modello ' + feedModel() + ' non disponibile per questa chiave. Cambia modello nelle impostazioni.';
         if (e.status === 429) return 'Quota Gemini esaurita. Riprova più tardi.';
         if (e.status >= 500) return 'Gemini è temporaneamente non disponibile.';
         return 'Errore ' + e.status + (e.detail ? ': ' + e.detail : '');
@@ -5143,13 +5718,16 @@
       FEED.error = null;
       showToast('Chiave salvata', 'info');
       if (FEED.sheet) closeFeedSheet();
-      renderDiscover();
+      refreshFeedSettings();
+      // dalle Impostazioni si può essere su un'altra schermata: il feed si genera quando si apre Discover
+      if (curScreen === 'recap') renderDiscover();
     }
     function removeFeedKey() {
       try { localStorage.removeItem(FEED_KEY_LS); } catch (e) { }
       FEED.error = null;
-      closeFeedSheet();
-      renderDiscover();
+      if (FEED.sheet) closeFeedSheet();
+      refreshFeedSettings();
+      if (curScreen === 'recap') renderDiscover();
     }
 
     // ── Generazione ──
@@ -5278,6 +5856,8 @@
 
     // ── Bottom sheet ──
     function openFeedSheet(mode, card) {
+      // Le impostazioni Discover vivono nel pannello Impostazioni globale (sezione Discover)
+      if (mode === 'settings') { if (FEED.sheet) closeFeedSheet(); openSettings('discover'); return; }
       FEED.sheet = mode;
       if (card) FEED.card = card;
       const ov = document.getElementById('feed-sheet');
@@ -5302,7 +5882,6 @@
       if (FEED.sheet === 'article') renderFeedArticle(b);
       else if (FEED.sheet === 'chat') renderFeedChatLog(b);
       else if (FEED.sheet === 'topics') renderFeedTopicsSheet(b);
-      else if (FEED.sheet === 'settings') renderFeedSettingsSheet(b);
     }
     function feedCardById(id) { return (FEED.data && FEED.data.cards.find(c => c.id === id)) || loadFeedSaved().find(c => c.id === id) || null; }
 
@@ -5363,7 +5942,12 @@
       FEED.articleStream = st;
       if (FEED.sheet === 'article' && FEED.card && FEED.card.id === card.id) renderFeedSheet();
       const prompt = `Scrivi in italiano un articolo di approfondimento (400-600 parole) a partire da questa notizia.\nTitolo: ${card.title}\nRiassunto: ${card.summary}\nFonte: ${card.source}\nArgomento: ${feedTopic(card.topicId).label}\n\nTono giornalistico, chiaro, senza retorica. Contestualizza, spiega le implicazioni e chiudi con cosa aspettarsi. Non inventare citazioni virgolettate attribuite a persone reali.\n\nFORMATO DI OUTPUT (testo semplice, niente JSON, niente elenchi puntati, niente grassetti):\n- Prima riga: solo il titolo dell'articolo.\n- Poi una riga vuota.\n- 3-4 sezioni: ogni sezione inizia con una riga "## Sottotitolo breve", seguita da 1-3 paragrafi.\n- Separa ogni paragrafo e ogni sottotitolo con una riga vuota.`;
-      const body = { contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { temperature: 0.7, maxOutputTokens: 3072, thinkingConfig: { thinkingBudget: 0 } } }; // 400-600 parole ≈ 800-1100 token: margine ampio
+      // 400-600 parole ≈ 800-1100 token: 3072 basta a thinking spento; con thinking attivo (pro, gemini-3,
+      // sconosciuti) i token di ragionamento contano in maxOutputTokens → margine più alto.
+      const thinking = geminiThinkingConfig();
+      const generationConfig = { temperature: 0.7, maxOutputTokens: thinking && thinking.thinkingBudget === 0 ? 3072 : 8192 };
+      if (thinking) generationConfig.thinkingConfig = thinking;
+      const body = { contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig };
       try {
         const full = await geminiStream(body, (d, all) => {
           if (FEED.articleStream !== st) return;
@@ -5535,13 +6119,17 @@
       if (FEED.sheet === 'topics') renderFeedSheet();
     }
 
-    // Impostazioni
-    function renderFeedSettingsSheet(b) {
+    // Impostazioni Discover: markup unico, renderizzabile in qualsiasi contenitore.
+    // Oggi l'unico contenitore è #settings-discover-body (pannello Impostazioni globale);
+    // le azioni (chiave, modello, cache, cronologia, interessi) ri-renderizzano con refreshFeedSettings().
+    function renderFeedSettings(b) { if (b) b.innerHTML = feedSettingsHTML(); }
+    function refreshFeedSettings() { if (SETTINGS.open) renderFeedSettings(document.getElementById('settings-discover-body')); }
+    function feedSettingsHTML() {
       const key = feedKey();
       const masked = key ? key.slice(0, 6) + '••••••••' + key.slice(-4) : '';
       const seen = loadFeedSeen();
       const prefs = loadFeedPrefs();
-      b.innerHTML = `
+      return `
         <div class="settings-row">
           <div class="settings-lbl">Chiave API Gemini</div>
           <div class="settings-val">${key ? escFeed(masked) : 'Nessuna chiave salvata'}</div>
@@ -5557,14 +6145,14 @@
         </div>
         <div class="settings-row">
           <div class="settings-lbl">Modello</div>
-          <div class="settings-val">${escFeed(GEMINI_MODEL)}</div>
+          ${renderFeedModelPicker(key)}
         </div>
         <div class="settings-row">
           <div class="settings-lbl">Cache</div>
           <div class="settings-val">${FEED.data ? `Feed di oggi generato alle ${new Date(FEED.data.generatedAt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })} · ${FEED.data.cards.length} card` : 'Nessun feed in cache'}</div>
           <div class="form-btns" style="margin-top:0">
             <button class="btn-sec" onclick="clearFeedCache()" ${FEED.data ? '' : 'disabled'}>Svuota cache di oggi</button>
-            <button class="btn-sec" onclick="closeFeedSheet(); openFeedSheet('topics')">Argomenti</button>
+            <button class="btn-sec" onclick="closeSettings(false); openFeedSheet('topics')">Argomenti</button>
           </div>
         </div>
         <div class="settings-row">
@@ -5585,9 +6173,321 @@
     }
     function clearFeedCache() {
       FEED.data = null; FEED.error = null; saveFeedCache();
-      closeFeedSheet();
-      renderDiscover();
+      if (FEED.sheet) closeFeedSheet();
+      refreshFeedSettings();
+      if (curScreen === 'recap') renderDiscover();
     }
+
+    // Selettore modello Gemini (impostazioni feed). Il cambio non invalida feed né articoli in cache.
+    function loadGeminiModels() {
+      try {
+        const o = JSON.parse(localStorage.getItem(GEMINI_MODELS_LS) || 'null');
+        if (!o || !Array.isArray(o.models)) return { ts: 0, models: [] };
+        return { ts: +o.ts || 0, models: o.models.filter(m => m && GEMINI_MODEL_RE.test(m.id || '')).map(m => ({ id: m.id, label: String(m.label || m.id) })) };
+      } catch (e) { return { ts: 0, models: [] }; }
+    }
+    function renderFeedModelPicker(key) {
+      const cur = feedModel();
+      const loaded = loadGeminiModels();
+      const presetIds = new Set(GEMINI_PRESETS.map(p => p.id));
+      const extra = loaded.models.filter(m => !presetIds.has(m.id));
+      const known = new Set([...presetIds, ...extra.map(m => m.id)]);
+      const opt = (id, label, note) => `<button type="button" class="topic-row model-opt${id === cur ? ' on' : ''}" onclick="setFeedModel('${escFeed(id)}')" aria-pressed="${id === cur}">
+            <div class="t-name"><div>${escFeed(label)}</div><div class="model-id">${escFeed(id)}${note ? ' · ' + escFeed(note) : ''}</div></div>
+            <span class="model-check" aria-hidden="true">${id === cur ? '✓' : ''}</span>
+          </button>`;
+      let h = GEMINI_PRESETS.map(p => opt(p.id, p.label, p.note)).join('');
+      if (!known.has(cur)) h += opt(cur, 'Personalizzato', '');
+      if (extra.length) {
+        const when = loaded.ts ? new Date(loaded.ts).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' }) : '';
+        h += `<div class="settings-lbl" style="margin-top:14px">Dalla tua chiave${when ? ' · ' + escFeed(when) : ''}</div>`;
+        h += extra.map(m => opt(m.id, m.label, '')).join('');
+      }
+      h += `<div class="form-btns" style="margin-top:6px">
+            <button class="btn-sec" onclick="fetchGeminiModels()" ${key && !FEED.modelsLoading ? '' : 'disabled'}>${FEED.modelsLoading ? 'Caricamento…' : 'Carica modelli dalla chiave'}</button>
+          </div>
+          <div class="topic-form">
+            <input class="form-input" id="settings-model-input" type="text" placeholder="Altro modello (es. gemini-2.5-flash)" autocomplete="off" autocapitalize="off" spellcheck="false" onkeydown="if(event.key==='Enter') setFeedModelFromInput()">
+            <button class="btn-pri" onclick="setFeedModelFromInput()">Usa</button>
+          </div>
+          <div class="feed-hint" style="margin-top:10px">Vale per feed, articoli e chat. Il feed attuale resta: trascinalo verso il basso per rigenerarlo col nuovo modello.</div>`;
+      return h;
+    }
+    function setFeedModel(id) {
+      id = String(id || '').trim().replace(/^models\//, '');
+      if (!GEMINI_MODEL_RE.test(id)) { showToast('Nome modello non valido', 'error'); return false; }
+      try { localStorage.setItem(GEMINI_MODEL_LS, id); } catch (e) { showToast('Impossibile salvare il modello', 'error'); return false; }
+      showToast('Modello: ' + id, 'info', 2200);
+      refreshFeedSettings();
+      return true;
+    }
+    function setFeedModelFromInput() {
+      const i = document.getElementById('settings-model-input');
+      const v = (i ? i.value : '').trim();
+      if (!v) return;
+      setFeedModel(v);
+    }
+    const GEMINI_MODEL_EXCLUDE = /embed|tts|image|imagen|live|audio|veo|aqa|native|robotics|computer-use/i;
+    async function fetchGeminiModels() {
+      const key = feedKey();
+      if (!key) { showToast(feedErrorMessage({ code: 'nokey' }), 'error'); return; }
+      if (FEED.modelsLoading) return;
+      FEED.modelsLoading = true;
+      refreshFeedSettings();
+      try {
+        const all = [];
+        let token = '';
+        for (let page = 0; page < 5; page++) { // la chiave va solo nell'header, mai nell'URL
+          let res;
+          try {
+            res = await fetch(GEMINI_API + 'models?pageSize=200' + (token ? '&pageToken=' + encodeURIComponent(token) : ''), { headers: { 'x-goog-api-key': key } });
+          } catch (e) { throw Object.assign(new Error('network'), { code: 'network' }); }
+          if (!res.ok) {
+            const err = Object.assign(new Error('http ' + res.status), { code: 'http', status: res.status });
+            try { const j = await res.json(); err.detail = j?.error?.message || ''; } catch (e) { }
+            throw err;
+          }
+          let json;
+          try { json = await res.json(); } catch (e) { throw Object.assign(new Error('parse'), { code: 'parse' }); }
+          all.push(...(json.models || []));
+          token = json.nextPageToken || '';
+          if (!token) break;
+        }
+        const seen = new Set();
+        const models = all
+          .filter(m => m && typeof m.name === 'string' && m.name.startsWith('models/gemini')
+            && Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes('generateContent'))
+          .map(m => ({ id: m.name.slice(7), label: String(m.displayName || m.name.slice(7)) }))
+          .filter(m => GEMINI_MODEL_RE.test(m.id) && !GEMINI_MODEL_EXCLUDE.test(m.id) && !seen.has(m.id) && seen.add(m.id))
+          .sort((a, b) => b.id.localeCompare(a.id));
+        if (!models.length) { showToast('Nessun modello compatibile per questa chiave', 'warn'); return; }
+        try { localStorage.setItem(GEMINI_MODELS_LS, JSON.stringify({ ts: Date.now(), models })); } catch (e) { }
+        showToast(models.length + ' modelli caricati', 'info', 2200);
+      } catch (e) {
+        console.error('fetchGeminiModels', e);
+        showToast(feedErrorMessage(e), 'error');
+      } finally {
+        FEED.modelsLoading = false;
+        refreshFeedSettings();
+      }
+    }
+
+    // ── IMPOSTAZIONI (pannello globale) ───────────────────────
+    // Schermo pieno su mobile, sheet centrato da 768px. Chiusura: X, tap fuori, Esc.
+    // Focus sul primo controllo all'apertura, ritorno al trigger alla chiusura.
+    function settingsPanelEl() { return document.getElementById('settings-panel'); }
+    function openSettings(section) {
+      const ov = settingsPanelEl(); if (!ov) return;
+      if (!SETTINGS.open) SETTINGS.trigger = document.activeElement;
+      SETTINGS.open = true;
+      ov.classList.add('open');
+      renderSettings();
+      const body = document.getElementById('settings-body');
+      const sec = section ? document.getElementById('settings-sec-' + section) : null;
+      if (body) body.scrollTop = sec ? Math.max(0, sec.offsetTop - 8) : 0;
+      const first = ov.querySelector('.modal-close');
+      if (first) first.focus({ preventScroll: true });
+    }
+    // restoreFocus=false quando subito dopo si apre un altro pannello (modal abitudini, argomenti…)
+    function closeSettings(restoreFocus = true) {
+      if (!SETTINGS.open) return;
+      SETTINGS.open = false;
+      settingsPanelEl().classList.remove('open');
+      const t = SETTINGS.trigger; SETTINGS.trigger = null;
+      if (restoreFocus && t && typeof t.focus === 'function' && document.contains(t)) t.focus({ preventScroll: true });
+    }
+    function settingsOverlayClick(e) { if (e.target === settingsPanelEl()) closeSettings(); }
+    function settingsGo(fn) { closeSettings(false); fn(); }
+    function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
+    function renderSettings() {
+      const b = document.getElementById('settings-body'); if (!b) return;
+      const hab = activeHabits();
+      const nWeekly = hab.filter(h => h.frequenza === 'settimanale').length;
+      const nDaily = hab.length - nWeekly;
+      const nImp = (S.impegniRicorrenti || []).filter(r => r.attivo !== false).length;
+      const email = curUser && curUser.email ? curUser.email : '—';
+      b.innerHTML = `
+        <section class="settings-sec" id="settings-sec-account" aria-labelledby="st-h-account">
+          <h2 class="settings-sec-title" id="st-h-account">Account</h2>
+          <div class="settings-row">
+            <div class="settings-lbl">Email</div>
+            <div class="settings-val">${escFeed(email)}</div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-lbl">Sincronizzazione</div>
+            <div class="settings-val" id="settings-sync" role="status"></div>
+            <div class="form-btns" style="margin-top:0">
+              <button class="btn-sec" id="settings-sync-btn" onclick="settingsSyncNow()">Sincronizza ora</button>
+              <button class="btn-del" onclick="requestLogout()">Esci</button>
+            </div>
+          </div>
+        </section>
+        <section class="settings-sec" id="settings-sec-abitudini" aria-labelledby="st-h-abitudini">
+          <h2 class="settings-sec-title" id="st-h-abitudini">Abitudini</h2>
+          <div class="settings-row">
+            <div class="settings-val">${hab.length ? `Attive: ${plural(nDaily, 'giornaliera', 'giornaliere')} · ${plural(nWeekly, 'settimanale', 'settimanali')}` : 'Nessuna abitudine attiva'}</div>
+            <div class="form-btns" style="margin-top:0"><button class="btn-sec" onclick="settingsGo(openModal)">Gestisci abitudini</button></div>
+          </div>
+        </section>
+        <section class="settings-sec" id="settings-sec-impegni" aria-labelledby="st-h-impegni">
+          <h2 class="settings-sec-title" id="st-h-impegni">Impegni ricorrenti</h2>
+          <div class="settings-row">
+            <div class="settings-val">${nImp ? plural(nImp, 'impegno attivo', 'impegni attivi') : 'Nessun impegno ricorrente'}</div>
+            <div class="form-btns" style="margin-top:0"><button class="btn-sec" onclick="settingsGo(openImpegniModal)">Gestisci impegni</button></div>
+          </div>
+        </section>
+        <section class="settings-sec" id="settings-sec-oggi" aria-labelledby="st-h-oggi">
+          <h2 class="settings-sec-title" id="st-h-oggi">Oggi</h2>
+          <div class="settings-row">
+            <div class="settings-inline">
+              <span class="settings-inline-txt" id="set-focus-lbl">Mostra solo le abitudini da fare</span>
+              <button class="set-switch" id="set-focus" type="button" role="switch" aria-checked="${focusMode}" aria-labelledby="set-focus-lbl" onclick="toggleFocusMode()"></button>
+            </div>
+            <div class="feed-hint" style="margin-top:6px">Nasconde le voci già completate nella schermata Oggi (come il bottone "focus").</div>
+          </div>
+        </section>
+        <section class="settings-sec" id="settings-sec-discover" aria-labelledby="st-h-discover">
+          <h2 class="settings-sec-title" id="st-h-discover">Discover</h2>
+          <div id="settings-discover-body"></div>
+        </section>
+        <section class="settings-sec" id="settings-sec-dati" aria-labelledby="st-h-dati">
+          <h2 class="settings-sec-title" id="st-h-dati">Dati</h2>
+          <div class="settings-row">
+            <div class="settings-val">Scarica un file JSON con abitudini, giornate, eventi e impegni.</div>
+            <div class="form-btns" style="margin-top:0"><button class="btn-sec" onclick="exportBackup()">Esporta backup</button></div>
+          </div>
+        </section>
+        <section class="settings-sec" id="settings-sec-info" aria-labelledby="st-h-info">
+          <h2 class="settings-sec-title" id="st-h-info">Info</h2>
+          <div class="settings-row">
+            <div class="settings-val">DayFlow ${escFeed(APP_VERSION)}</div>
+          </div>
+        </section>`;
+      renderFeedSettings(document.getElementById('settings-discover-body'));
+      renderSettingsSync();
+    }
+    function renderSettingsSync() {
+      if (!SETTINGS.open) return;
+      const el = document.getElementById('settings-sync'); if (!el) return;
+      const pend = pendingSync.size + (habitsDirty ? 1 : 0);
+      const st = SYNC_INFO.status === 'ok' && pend ? 'syncing' : SYNC_INFO.status;
+      el.innerHTML = `<span class="sync-dot ${st}" aria-hidden="true"></span>${escFeed(SYNC_INFO.msg)}${pend ? ` · ${pend} in coda` : ''}`;
+    }
+    async function settingsSyncNow() {
+      const btnSet = (dis, txt) => { const b = document.getElementById('settings-sync-btn'); if (b) { b.disabled = dis; b.textContent = txt; } };
+      btnSet(true, 'Sincronizzazione…');
+      const had = hasUnsyncedChanges();
+      noteSync('syncing');
+      let ok = await flushAllSync();
+      // Nulla in coda: verifico comunque che Supabase risponda, per non mostrare un "ok" falso da offline
+      if (ok && !had && curUser && sb) {
+        ok = await Promise.race([
+          sb.from('profiles').select('id').eq('id', curUser.id).maybeSingle().then(r => !r.error, () => false),
+          new Promise(res => setTimeout(() => res(false), 8000))
+        ]);
+      }
+      noteSync(ok ? 'ok' : 'err');
+      showToast(ok ? (had ? 'Modifiche sincronizzate' : 'Tutto sincronizzato') : 'Sincronizzazione non riuscita: le modifiche restano in locale', ok ? 'info' : 'error');
+      btnSet(false, 'Sincronizza ora');
+    }
+    function exportBackup() {
+      try {
+        const blob = new Blob([JSON.stringify(S, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = `dayflow-backup-${todayStr()}.json`;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 4000);
+        showToast('Backup esportato', 'info', 2200);
+      } catch (e) {
+        console.error('exportBackup', e);
+        showToast('Esportazione non riuscita', 'error');
+      }
+    }
+
+    // ── DIALOG DI CONFERMA ────────────────────────────────────
+    // openAppDialog() → Promise<boolean>. Con keepOpen il dialog resta aperto dopo "OK"
+    // (il chiamante mostra lo stato busy e poi chiama closeAppDialog()).
+    function openAppDialog({ title, msg, warn = '', okLabel = 'OK', cancelLabel = 'Annulla', keepOpen = false }) {
+      if (DLG.open) closeAppDialog(false);
+      document.getElementById('app-dlg-title').textContent = title || '';
+      document.getElementById('app-dlg-msg').textContent = msg || '';
+      const w = document.getElementById('app-dlg-warn'); w.textContent = warn; w.hidden = !warn;
+      const ok = document.getElementById('app-dlg-ok'), cancel = document.getElementById('app-dlg-cancel');
+      ok.textContent = okLabel; cancel.textContent = cancelLabel;
+      ok.disabled = false; cancel.disabled = false;
+      DLG.trigger = document.activeElement; DLG.open = true; DLG.busy = false; DLG.keepOpen = keepOpen;
+      document.getElementById('app-dlg').classList.add('open');
+      cancel.focus({ preventScroll: true }); // azione sicura come default
+      return new Promise(res => { DLG.resolve = res; });
+    }
+    function confirmAppDialog() {
+      if (!DLG.open || DLG.busy) return;
+      const res = DLG.resolve; DLG.resolve = null;
+      if (!DLG.keepOpen) closeAppDialog();
+      if (res) res(true);
+    }
+    function closeAppDialog(result = false) {
+      if (!DLG.open) return;
+      DLG.open = false; DLG.busy = false;
+      document.getElementById('app-dlg').classList.remove('open');
+      const res = DLG.resolve; DLG.resolve = null;
+      if (res) res(result);
+      const t = DLG.trigger; DLG.trigger = null;
+      if (t && typeof t.focus === 'function' && document.contains(t)) t.focus({ preventScroll: true });
+    }
+    function setAppDialogBusy(label) {
+      DLG.busy = true;
+      const ok = document.getElementById('app-dlg-ok'), cancel = document.getElementById('app-dlg-cancel');
+      ok.textContent = label; ok.disabled = true; cancel.disabled = true;
+    }
+    function appDialogOverlayClick(e) { if (e.target === document.getElementById('app-dlg') && !DLG.busy) closeAppDialog(false); }
+
+    // ── LOGOUT SICURO ─────────────────────────────────────────
+    // Conferma → flush di tutte le sync in coda → signOut. Se il flush fallisce non si esce in silenzio.
+    async function requestLogout() {
+      if (DLG.open) return;
+      const localEv = eventiColumnOk === false && Object.values(S.days).some(d => d && Array.isArray(d.eventi) && d.eventi.length);
+      const evWarn = localEv ? 'Gli eventi del calendario sono salvati solo su questo dispositivo e verranno cancellati uscendo.' : '';
+      const go = await openAppDialog({
+        title: 'Uscire da DayFlow?',
+        msg: 'Le modifiche in sospeso vengono sincronizzate, poi i dati di questo dispositivo vengono rimossi. Potrai ritrovarli accedendo di nuovo.',
+        warn: evWarn, okLabel: 'Esci', keepOpen: true
+      });
+      if (!go) return;
+      setAppDialogBusy('Sincronizzazione…');
+      const flushed = await flushAllSync();
+      if (!DLG.open) return; // chiuso nel frattempo (logout da altra via)
+      if (!flushed) {
+        noteSync('err');
+        closeAppDialog(false);
+        const force = await openAppDialog({
+          title: 'Modifiche non sincronizzate',
+          msg: 'Alcune modifiche non sono ancora sincronizzate. Uscendo le perderai.',
+          warn: evWarn, okLabel: 'Esci comunque'
+        });
+        if (!force) return;
+      }
+      await doLogout();
+    }
+
+    // Tastiera: Esc chiude dialog / impostazioni; Tab resta dentro il pannello modale aperto
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') {
+        if (DLG.open) { if (!DLG.busy) { e.preventDefault(); closeAppDialog(false); } return; }
+        if (SETTINGS.open) { e.preventDefault(); closeSettings(); }
+        return;
+      }
+      if (e.key !== 'Tab') return;
+      const root = DLG.open ? document.querySelector('#app-dlg .app-dlg') : SETTINGS.open ? document.querySelector('#settings-panel .settings-sheet') : null;
+      if (!root) return;
+      const f = [...root.querySelectorAll('button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')].filter(el => el.offsetParent !== null);
+      if (!f.length) { e.preventDefault(); return; }
+      const first = f[0], last = f[f.length - 1];
+      if (!root.contains(document.activeElement)) { e.preventDefault(); first.focus(); }
+      else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    });
 
     // ── ANALYTICS ─────────────────────────────────────────────
     // ── CALENDARIO — settimana + timeline ─────────────────────
@@ -5688,15 +6588,20 @@
       if (btn) btn.hidden = (CAL.date === todayStr());
     }
 
-    function renderCalStrip() {
-      const wrap = document.getElementById('cal-strip-days');
-      if (!wrap) return;
-      wrap.innerHTML = '';
+    // Striscia settimana: track a 3 pagine (prec / corrente / succ), a riposo su -100%.
+    // CALS.shown = giorno selezionato della pagina centrale attualmente a schermo.
+    const CALS = { anim: false, to: null, seq: 0, timer: 0, shown: null, drag: null, raf: 0, noClick: false };
+    const calReduceMotion = () => !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+    function calStripTrack() { const w = document.getElementById('cal-strip-days'); return w ? w.firstElementChild : null; }
+
+    // Una settimana (7 bottoni) contenente weekDs; selDs riceve l'anello "sel"
+    function calStripPage(weekDs, selDs) {
+      const page = document.createElement('div'); page.className = 'cal-strip-page';
       const today = todayStr();
-      calWeekDays(CAL.date).forEach(ds => {
+      calWeekDays(weekDs).forEach(ds => {
         const b = document.createElement('button'); b.className = 'cal-day';
         if (ds === today) b.classList.add('today');
-        if (ds === CAL.date) b.classList.add('sel');
+        if (ds === selDs) b.classList.add('sel');
         if (eventiDelGiorno(ds).length) b.classList.add('has-ev');
         const n = document.createElement('div'); n.className = 'cal-day-num';
         n.textContent = String(parseInt(ds.slice(8), 10));
@@ -5705,9 +6610,127 @@
         const dot = document.createElement('div'); dot.className = 'cal-day-dot';
         b.appendChild(n); b.appendChild(dot);
         b.setAttribute('aria-label', fmtDate(ds));
-        b.onclick = () => calSetDate(ds);
-        wrap.appendChild(b);
+        b.onclick = () => { if (!CALS.anim) calSetDate(ds); };
+        page.appendChild(b);
       });
+      return page;
+    }
+
+    // Ricostruisce il track centrato su centerDs (nuovo nodo → niente transition, niente flash).
+    // Nelle pagine laterali "sel" sta sullo stesso giorno della settimana: durante il drag si vede dove si atterra.
+    function calStripBuild(centerDs) {
+      const wrap = document.getElementById('cal-strip-days');
+      if (!wrap) return;
+      const track = document.createElement('div'); track.className = 'cal-strip-track';
+      [-7, 0, 7].forEach(off => { const d = offsetDate(centerDs, off); track.appendChild(calStripPage(d, d)); });
+      wrap.innerHTML = '';
+      wrap.appendChild(track);
+      CALS.shown = centerDs;
+    }
+
+    function renderCalStrip() {
+      if (CALS.anim) return; // a fine animazione la striscia si ricostruisce comunque
+      calStripBuild(CAL.date);
+    }
+
+    // Anima il track verso pct (0 = prec, -100 = centro, -200 = succ); a fine corsa ricostruisce su CAL.date
+    function calStripAnimate(track, pct, to) {
+      const seq = ++CALS.seq;
+      CALS.anim = true; CALS.to = to;
+      track.classList.add('anim');
+      void track.offsetWidth;
+      track.style.transform = `translateX(${pct}%)`;
+      const done = () => {
+        if (seq !== CALS.seq || !CALS.anim) return; // doppia chiamata o animazione già interrotta
+        clearTimeout(CALS.timer);
+        CALS.anim = false;
+        calStripBuild(CAL.date);
+      };
+      track.addEventListener('transitionend', e => { if (e.target === track && e.propertyName === 'transform') done(); });
+      clearTimeout(CALS.timer);
+      CALS.timer = setTimeout(done, 450);
+    }
+
+    // Interrompe un'animazione in corso fermando la striscia sulla settimana di destinazione
+    function calStripStop() {
+      if (!CALS.anim) return;
+      CALS.seq++; clearTimeout(CALS.timer);
+      CALS.anim = false;
+      calStripBuild(CALS.to);
+    }
+
+    // Allinea la striscia a CAL.date: stessa settimana → solo "sel", altrimenti slide di una pagina
+    function calStripUpdate() {
+      calStripStop();
+      const from = CALS.shown;
+      const track = calStripTrack();
+      if (!track || !from || calWeekDays(from)[0] === calWeekDays(CAL.date)[0] || calReduceMotion()) { calStripBuild(CAL.date); return; }
+      const sign = CAL.date > from ? 1 : -1;
+      // pre-renderizza la settimana di destinazione nella pagina laterale (salti di più settimane inclusi)
+      track.replaceChild(calStripPage(CAL.date, CAL.date), track.children[sign > 0 ? 2 : 0]);
+      calStripAnimate(track, sign > 0 ? -200 : 0, CAL.date);
+    }
+
+    // Drag con Pointer Events (touch + mouse): la striscia segue il dito
+    function calInitStripDrag() {
+      const strip = document.querySelector('.cal-strip');
+      const wrap = document.getElementById('cal-strip-days');
+      if (!strip || !wrap) return;
+      const paint = () => {
+        CALS.raf = 0;
+        const d = CALS.drag, track = calStripTrack();
+        if (!d || !track) return;
+        track.style.transform = `translateX(calc(-100% + ${d.dx}px))`;
+      };
+      const end = (e, cancelled) => {
+        const d = CALS.drag;
+        if (!d || e.pointerId !== d.id) return;
+        CALS.drag = null;
+        if (CALS.raf) { cancelAnimationFrame(CALS.raf); CALS.raf = 0; }
+        if (d.lock !== 'x') return;
+        CALS.noClick = true; setTimeout(() => { CALS.noClick = false; }, 0);
+        const track = calStripTrack();
+        if (!track) return;
+        track.style.transform = `translateX(calc(-100% + ${d.dx}px))`;
+        const w = wrap.clientWidth || 1;
+        const v = (performance.now() - d.lastT > 100) ? 0 : d.v;
+        let step = 0;
+        if (!cancelled) {
+          if (d.dx < 0 && (-d.dx > w * .25 || v < -.4)) step = 1;
+          else if (d.dx > 0 && (d.dx > w * .25 || v > .4)) step = -1;
+        }
+        if (step) { calSetDate(offsetDate(CAL.date, step * 7), step > 0 ? 'left' : 'right'); return; }
+        if (calReduceMotion()) { calStripBuild(CAL.date); return; }
+        calStripAnimate(track, -100, CAL.date); // ritorno alla settimana corrente
+      };
+      strip.addEventListener('pointerdown', e => {
+        if (CALS.anim || CALS.drag || !e.isPrimary) return;
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
+        const t = performance.now();
+        CALS.drag = { id: e.pointerId, x0: e.clientX, y0: e.clientY, dx: 0, lock: null, lastX: e.clientX, lastT: t, v: 0 };
+      });
+      strip.addEventListener('pointermove', e => {
+        const d = CALS.drag;
+        if (!d || e.pointerId !== d.id) return;
+        const dx = e.clientX - d.x0, dy = e.clientY - d.y0;
+        if (d.lock === null && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) {
+          d.lock = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+          if (d.lock === 'x') {
+            try { strip.setPointerCapture(e.pointerId); } catch (_) { }
+            const track = calStripTrack(); if (track) track.classList.remove('anim');
+          }
+        }
+        if (d.lock !== 'x') return;
+        const w = wrap.clientWidth || 1;
+        d.dx = Math.max(-w, Math.min(w, dx));
+        const t = performance.now(), dt = t - d.lastT;
+        if (dt > 0) { d.v = .8 * ((e.clientX - d.lastX) / dt) + .2 * d.v; d.lastX = e.clientX; d.lastT = t; }
+        if (!CALS.raf) CALS.raf = requestAnimationFrame(paint);
+      });
+      strip.addEventListener('pointerup', e => end(e, false));
+      strip.addEventListener('pointercancel', e => end(e, true));
+      // niente tap sul giorno se c'è stato un drag
+      strip.addEventListener('click', e => { if (CALS.noClick) { e.stopPropagation(); e.preventDefault(); CALS.noClick = false; } }, true);
     }
 
     function calLayoutEventi(list) {
@@ -5808,10 +6831,9 @@
 
     function calSetDate(ds, dir) {
       if (!ds || ds === CAL.date) return;
-      const prevWeek = calWeekDays(CAL.date)[0];
       CAL.date = ds;
       renderCalHeader();
-      if (calWeekDays(ds)[0] !== prevWeek) renderCalStrip(); else renderCalStrip();
+      calStripUpdate();
       renderCalDay(dir);
       if (dir) calScrollToRelevant();
     }
@@ -5820,10 +6842,11 @@
     function calGoToday() { calSetDate(todayStr()); calScrollToRelevant(); }
 
     function calInitGestures() {
-      const areas = [document.getElementById('cal-scroll'), document.querySelector('.cal-strip')];
-      areas.forEach((el, i) => {
+      calInitStripDrag();
+      // swipe orizzontale sulla timeline: ±1 giorno
+      [document.getElementById('cal-scroll')].forEach(el => {
         if (!el) return;
-        const step = i === 0 ? 1 : 7;
+        const step = 1;
         let x0 = null, y0 = null, lock = null;
         el.addEventListener('touchstart', e => {
           if (e.touches.length !== 1) { x0 = null; return; }
@@ -5973,7 +6996,7 @@
 
     function renderWeeklyHabits() {
       const c = document.getElementById('wh-section'); c.innerHTML = ''; const habits = activeHabits().filter(h => h.frequenza === 'settimanale');
-      if (!habits.length) { c.innerHTML = '<div style="font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:.1em">Nessuna abitudine settimanale.</div>'; return; }
+      if (!habits.length) { c.innerHTML = '<div style="font-family:var(--mono);font-size:11px;color:var(--text3);letter-spacing:.1em">Nessuna abitudine settimanale.</div>'; return; }
       const week = weekDays();
       habits.forEach(h => { const row = document.createElement('div'); row.className = 'wh-row'; const nm = document.createElement('div'); nm.className = 'wh-name'; nm.textContent = h.nome; const track = document.createElement('div'); track.className = 'wh-track'; let cnt = 0; for (let i = 0; i < h.targetSettimanale; i++) { const dot = document.createElement('div'); const r = week[i] && S.days[week[i]] && S.days[week[i]].abitudini[h.id] || {}; dot.className = 'wh-dot' + (r.completato ? ' done' : ''); if (r.completato) cnt++; track.appendChild(dot); } const count = document.createElement('div'); count.className = 'wh-count'; count.textContent = `${cnt}/${h.targetSettimanale}`; row.appendChild(nm); row.appendChild(track); row.appendChild(count); c.appendChild(row); });
     }
