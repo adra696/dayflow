@@ -1,8 +1,25 @@
-const CACHE = 'dayflow-v18';
+const CACHE = 'dayflow-v19';
 const STATIC = [
+  './',
+  './index.html',
   './dayflow1_0.html',
   './manifest.json',
   './icons/icon-180.png',
+  './icons/check-mark.png',
+  './css/tokens.css',
+  './css/base.css',
+  './css/screens.css',
+  './css/desktop.css',
+  './js/utils.js',
+  './js/state.js',
+  './js/sync.js',
+  './js/auth.js',
+  './js/plan.js',
+  './js/oggi.js',
+  './js/calendario.js',
+  './js/discover.js',
+  './js/settings.js',
+  './js/app.js',
 ];
 
 self.addEventListener('install', e => {
@@ -46,19 +63,7 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // HTML → network-first (sempre versione fresca, fallback cache offline)
-  if (e.request.mode === 'navigate' || url.pathname.endsWith('.html')) {
-    e.respondWith(
-      fetch(e.request).then(r => {
-        const copy = r.clone();
-        caches.open(CACHE).then(c => c.put(e.request, copy));
-        return r;
-      }).catch(() => caches.match(e.request))
-    );
-    return;
-  }
-
-  // Manifest e icone → cache-first
+  // Asset dell'app (HTML, CSS, JS, manifest, icone) → cache-first versionata
   e.respondWith(
     caches.match(e.request).then(cached => cached || fetch(e.request))
   );

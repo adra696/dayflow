@@ -8,19 +8,39 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Running the App
 
-No build step. The entire app is a single self-contained file:
+No build step, no npm install, no bundler. Serve the folder with any static file server (`npx serve .`, `python -m http.server 8765`, VS Code Live Server) and open `index.html`. The `.claude/launch.json` config `dayflow-static` serves it on port 8765 for browser verification.
 
-- **Open in browser**: Open `dayflow1_0.html` directly, or serve it with any static file server (e.g., `npx serve .` or VS Code Live Server).
-- **No npm install, no compilation, no bundler.**
+`dayflow1_0.html` (the old single-file entry point) is now only a meta-refresh redirect to `index.html`, kept so the PWA already installed on iPhone keeps opening. Do not delete it.
 
 ## Architecture
 
-The entire app lives in one file: `dayflow1_0.html` (~5600 lines). It contains:
-1. `<head>`: CSS custom properties (design tokens) + all styles (~3350 lines)
-2. `<body>`: HTML structure for all screens and the auth screen
-3. `<script>`: All JavaScript logic (~2000 lines)
+Since 18 Sep 2026 the app is split into plain files (no modules yet; every script is a classic `<script defer>` sharing the global scope, and the HTML uses ~80 inline handlers such as `onclick="goScreen('oggi')"`):
 
-Supabase is loaded via CDN: `<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">`.
+| File | Content |
+|---|---|
+| `index.html` | `<head>` (meta, CSP, manifest, fonts, Supabase CDN, 4 CSS links, 10 deferred scripts) + the whole `<body>`: auth screen, shell, 4 screens, modals, settings panel, app dialog |
+| `css/tokens.css` | Reset, `:root` custom properties (design tokens), `html`/`body`, the `max-width: 767px` 16px input rule |
+| `css/base.css` | Auth screen, shell, topbar, sync indicator, progress, focus mode, stats, habit rows, modals, toast, TAP TARGETS block, settings panel, app dialog |
+| `css/screens.css` | Pianifica, Oggi tasks, Discover (feed, sheet, article, chat, topics, model picker), Calendario (strip, all-day band, timeline, event editor) |
+| `css/desktop.css` | The single `@media (min-width: 768px)` block (sidebar, layout, desktop modals, Calendario). **Must stay last**: it overrides base rules of equal specificity in the other files |
+| `js/utils.js` | `todayStr`, `offsetDate`, `fmtDate`, `fmtShort`, `p2`, `uid`, `pctColor`, `heatColor`, `weekDays`, `monthDays`, `setBar`/`setRing`/`setSS`, `showToast`, `shootConfetti`, `withTimeout`, `plural` |
+| `js/state.js` | Constants (`SUPA_URL`, `SUPA_KEY`, `SK`, `APP_VERSION`), Supabase client `sb`, `S`, `curUser`, `curScreen`, `selectedDate`, `SETTINGS`, `DLG`, `load`, `persist`, `getDay`, `ensureSlotArrays`, `activeHabits`, `calcPct`, `calcAvg`, `calcStreak`, `toggleFocusMode`, `exportBackup` |
+| `js/sync.js` | All Supabase sync in one block (see Persistence): queues, locks, epoch, `adoptRemoteDay`, `sbSave*`/`sbLoad*`, `scheduleSync`, `syncPendingDays`, `flushAllSync`, persisted queue, retry, `noteSync`, feed topics mirror, `online`/`visibilitychange`/`pagehide` listeners |
+| `js/auth.js` | `switchTab`, `doLogin`, `doSignup`, `doLogout`, `doResetPwd`, `translateAuthError` |
+| `js/plan.js` | Pianifica screen, habit management modal, recurring commitments modal |
+| `js/oggi.js` | `renderOggi`, row gestures, habit list, stats |
+| `js/calendario.js` | Everything `cal*`, event editor, `normalizeEvento`, `ensureEventi` |
+| `js/discover.js` | `FEED` state, Gemini requests and streaming, feed generation, dedupe, saved, prefs, chat, model picker, Discover settings |
+| `js/settings.js` | Settings panel (`openSettings`, `closeSettings`, `renderSettings*`, `settingsSyncNow`, `settingsGo`) |
+| `js/app.js` | `initApp`, auth state listener, `goScreen`, `openModal`/`closeModal`, app dialog, `requestLogout`, keyboard handling (Esc, Tab trap), swipe/carousel navigation, service worker registration |
+
+Load order matters: `utils` → `state` → `sync` → `auth` → `plan` → `oggi` → `calendario` → `discover` → `settings` → `app`. A top-level `const`/`let` used by an earlier file must be declared in a file loaded before it; only `app.js` runs bootstrap code at top level.
+
+Planned next step (not done): convert the scripts to native ES modules with a `window` bridge for the inline handlers, `sync.js` moved as a block, import graph `utils ← state ← sync ← screens ← app` with no cycles. See `handoff-passo2-es-modules.md`.
+
+Supabase is loaded via CDN as a classic script before the app scripts: `<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">`.
+
+**Service worker** (`sw.js`): cache-first for every app asset listed in `STATIC` (HTML, CSS, JS, manifest, icons). Any new or renamed asset must be added to `STATIC`, and **every release must bump `CACHE`** (`dayflow-vNN`) or installed PWAs keep the old files. Supabase and Gemini are always network (POST bodies never touch the Cache API); Google Fonts and jsdelivr are stale-while-revalidate.
 
 ### Four Screens (tabs)
 

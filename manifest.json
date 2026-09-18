@@ -2,7 +2,7 @@
   "name": "DayFlow",
   "short_name": "DayFlow",
   "description": "Habit tracker per ADHD — senza sensi di colpa",
-  "start_url": "./dayflow1_0.html",
+  "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",

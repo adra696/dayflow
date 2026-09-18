@@ -1,0 +1,308 @@
+/* DESKTOP (>= 768px): sidebar, layout, modali e Calendario. Caricato per ultimo: deve venire dopo tutte le regole base (cascata). */
+
+@media (min-width: 768px) {
+  body {
+    justify-content: center;
+    padding: 20px 0;
+  }
+
+  #shell {
+    flex-direction: row;
+    max-width: 1024px;
+    height: 90vh;
+    max-height: 900px;
+    min-height: 600px;
+    border-radius: 20px;
+    margin: auto;
+    border: 1px solid var(--border2);
+    box-shadow: var(--hairline), 0 24px 80px rgba(0, 0, 0, 0.6);
+  }
+
+  /* Sidebar Navigation */
+  #nav {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: center;
+    padding: 24px 8px 32px;
+    width: var(--sidebar-w);
+    min-width: var(--sidebar-w);
+    border-top: none;
+    border-right: 1px solid var(--border);
+    background: var(--surface-1);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    gap: 4px;
+    order: -1;
+    overflow: hidden;
+    transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+                min-width 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  #nav.expanded {
+    width: var(--sidebar-expanded-w);
+    min-width: var(--sidebar-expanded-w);
+    align-items: flex-start;
+  }
+
+  .nav-logo {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    color: var(--text3);
+    padding: 0 0 16px;
+    width: 100%;
+    text-align: center;
+    flex-shrink: 0;
+  }
+
+  #nav.expanded .nav-logo {
+    text-align: left;
+    padding-left: 20px;
+    font-size: 16px;
+    color: var(--text);
+  }
+
+  .nav-toggle {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text3);
+    padding: 8px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 8px;
+    transition: color 0.15s, transform 0.22s;
+    width: 40px;
+    height: 40px;
+  }
+
+  .nav-toggle:hover {
+    color: var(--text);
+    background: rgba(255,255,255,0.05);
+  }
+
+  .nav-toggle svg {
+    width: 18px;
+    height: 18px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2;
+    transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  #nav.expanded .nav-toggle svg {
+    transform: rotate(180deg);
+  }
+
+  .nav-btn {
+    flex-direction: row;
+    padding: 11px 12px;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: .06em;
+    gap: 14px;
+    width: 100%;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+    overflow: hidden;
+    border-radius: 10px;
+    transition: background 0.15s, color 0.15s;
+    position: relative;
+  }
+
+  .nav-btn:hover {
+    background: var(--surface-2);
+    color: var(--text2);
+  }
+
+  #nav.expanded .nav-btn {
+    justify-content: flex-start;
+    padding-left: 14px;
+  }
+
+  .nav-btn svg {
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+  }
+
+  .nav-label {
+    opacity: 0;
+    width: 0;
+    overflow: hidden;
+    transition: opacity 0.15s 0s, width 0s 0.22s;
+    pointer-events: none;
+  }
+
+  #nav.expanded .nav-label {
+    opacity: 1;
+    width: auto;
+    transition: opacity 0.18s 0.1s, width 0s 0s;
+    pointer-events: auto;
+  }
+
+  .nav-btn.active {
+    background: var(--surface-3);
+    color: var(--text);
+    box-shadow: var(--hairline);
+  }
+
+  .nav-btn.active svg {
+    transform: none;
+  }
+
+  .nav-btn::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    left: calc(var(--sidebar-w) - 8px);
+    top: 50%;
+    transform: translateY(-50%);
+    background: var(--surface-3);
+    border: 1px solid var(--border2);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .06em;
+    padding: 6px 10px;
+    border-radius: 6px;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s;
+    z-index: 100;
+  }
+
+  #nav:not(.expanded) .nav-btn:hover::after {
+    opacity: 1;
+  }
+
+  /* Impostazioni in fondo alla sidebar */
+  .nav-btn.nav-settings {
+    display: flex;
+    margin-top: auto;
+  }
+
+  /* Barra progresso: fuori dal flusso row, sovrapposta al bordo superiore dello shell */
+  #top-progress-track {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    border-radius: 20px 20px 0 0;
+  }
+
+  /* Adjust Main Content Area */
+  #screen-area {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: row;
+    background: var(--bg);
+  }
+
+  .topbar {
+    padding: 30px 40px 12px;
+  }
+
+  .sync-txt {
+    display: inline;
+  }
+
+  .dn-long {
+    display: inline;
+  }
+
+  .dn-short {
+    display: none;
+  }
+
+  .chip-bar {
+    padding-left: 40px;
+    padding-right: 40px;
+  }
+
+  .feed-slide {
+    padding: 16px 40px 20px;
+  }
+
+  .feed-card {
+    padding: 32px 32px 26px;
+  }
+
+  .feed-title {
+    font-size: 26px;
+  }
+
+  .feed-stale {
+    margin-left: 40px;
+    margin-right: 40px;
+  }
+
+  .prog-wrap,
+  .section-head,
+  .habit-row,
+  .plan-task,
+  .hplan-row,
+  .wh-section {
+    padding-left: 40px;
+    padding-right: 40px;
+  }
+
+  .tasks-row {
+    margin: 8px 40px 12px;
+  }
+
+  .priority-banner,
+  .slot-add {
+    margin-left: 40px;
+    margin-right: 40px;
+    width: calc(100% - 80px);
+  }
+
+  /* Modal Adjustments for PC */
+  .modal-overlay,
+  .fsheet-overlay {
+    align-items: center;
+    justify-content: center;
+  }
+
+  .modal {
+    width: 540px;
+    border-radius: 20px;
+    border: 1px solid var(--border2);
+    max-height: 80vh;
+    transform: scale(0.96);
+    opacity: 0;
+    transition: transform .25s var(--ease-out), opacity .2s ease;
+  }
+
+  .modal-overlay.open .modal {
+    transform: scale(1);
+    opacity: 1;
+  }
+
+  .fsheet {
+    width: 600px;
+    height: 82vh;
+    border-radius: 20px;
+    border: 1px solid var(--border2);
+    transform: scale(0.96);
+    opacity: 0;
+    transition: transform .25s var(--ease-out), opacity .2s ease;
+  }
+
+  .fsheet-overlay.open .fsheet {
+    transform: scale(1);
+    opacity: 1;
+  }
+
+  /* Calendario */
+  .cal-canvas {
+    right: 24px;
+  }
+}

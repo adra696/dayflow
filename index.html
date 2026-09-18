@@ -1,2 +1,321 @@
 <!DOCTYPE html>
-<html><head><meta http-equiv="refresh" content="0;url=dayflow1_0.html"></head></html>
+<html lang="it">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net;
+    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+    font-src https://fonts.gstatic.com;
+    connect-src https://iqlxjazrshqzqrltkjoz.supabase.co https://generativelanguage.googleapis.com;
+    img-src 'self' data:;
+    worker-src 'self';
+  ">
+  <title>DayFlow</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#09090b">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="DayFlow">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link
+    href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,700;1,300&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="css/tokens.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/screens.css">
+  <link rel="stylesheet" href="css/desktop.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="js/utils.js"></script>
+  <script defer src="js/state.js"></script>
+  <script defer src="js/sync.js"></script>
+  <script defer src="js/auth.js"></script>
+  <script defer src="js/plan.js"></script>
+  <script defer src="js/oggi.js"></script>
+  <script defer src="js/calendario.js"></script>
+  <script defer src="js/discover.js"></script>
+  <script defer src="js/settings.js"></script>
+  <script defer src="js/app.js"></script>
+</head>
+
+<body>
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- AUTH SCREEN -->
+  <div id="auth-screen">
+    <div class="auth-box">
+      <div class="auth-logo">DayFlow</div>
+      <div class="auth-sub">il tuo tracker giornaliero</div>
+      <div class="auth-tab-row">
+        <button class="auth-tab active" id="tab-login" onclick="switchTab('login')">Accedi</button>
+        <button class="auth-tab" id="tab-signup" onclick="switchTab('signup')">Registrati</button>
+      </div>
+      <div id="auth-login-form">
+        <div class="auth-field"><label class="auth-label">Email</label><input class="auth-input" id="login-email"
+            type="email" placeholder="tua@email.com" autocomplete="email"
+            onkeydown="if(event.key==='Enter') document.getElementById('login-pwd').focus()"></div>
+        <div class="auth-field"><label class="auth-label">Password</label><input class="auth-input" id="login-pwd"
+            type="password" placeholder="••••••••" autocomplete="current-password"
+            onkeydown="if(event.key==='Enter') doLogin()"></div>
+        <button class="auth-btn" id="login-btn" onclick="doLogin()">Accedi</button>
+        <button class="auth-link" onclick="doResetPwd()">Password dimenticata?</button>
+        <div class="auth-err" id="login-err"></div>
+        <div class="auth-ok" id="login-ok"></div>
+      </div>
+      <div id="auth-signup-form" style="display:none">
+        <div class="auth-field"><label class="auth-label">Email</label><input class="auth-input" id="signup-email"
+            type="email" placeholder="tua@email.com" autocomplete="email"
+            onkeydown="if(event.key==='Enter') document.getElementById('signup-pwd').focus()"></div>
+        <div class="auth-field"><label class="auth-label">Password</label><input class="auth-input" id="signup-pwd"
+            type="password" placeholder="min. 6 caratteri" autocomplete="new-password"
+            onkeydown="if(event.key==='Enter') doSignup()"></div>
+        <button class="auth-btn" id="signup-btn" onclick="doSignup()">Crea account</button>
+        <div class="auth-err" id="signup-err"></div>
+        <div class="auth-ok" id="signup-ok"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="shell" style="display:none">
+    <div id="top-progress-track">
+      <div id="top-progress-bar"></div>
+    </div>
+    <div id="screen-area">
+
+      <div class="screen" id="screen-plan">
+        <div class="topbar">
+          <div class="topbar-left">
+            <div id="plan-date-nav"></div>
+          </div>
+          <div class="topbar-actions">
+            <div class="sync-bar" role="status">
+              <div class="sync-dot offline" id="sd-plan"></div><span class="sync-txt" id="st-plan">—</span>
+            </div>
+            <button class="icon-btn settings-btn" onclick="openSettings()" aria-label="Impostazioni" title="Impostazioni"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg></button>
+          </div>
+        </div>
+        <div class="priority-banner" id="pri-banner"><span>⚠ priorità alta attiva</span></div>
+        <div class="section-head"><span class="section-label">Attività importanti</span></div>
+        <div id="task-inputs"></div>
+        <div class="section-head" style="margin-top:6px">
+          <span class="section-label">Le tue abitudini</span>
+          <button class="icon-btn" onclick="openModal()" aria-label="Gestisci abitudini">
+            <svg viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="3" />
+              <path
+                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+          </button>
+        </div>
+        <div id="hplan-list"></div>
+        <div class="section-head" style="margin-top:6px">
+          <span class="section-label">Impegni ricorrenti</span>
+          <button class="icon-btn" onclick="openImpegniModal()" aria-label="Gestisci impegni ricorrenti">
+            <svg viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+          </button>
+        </div>
+        <div class="wh-section" id="impegni-section"></div>
+        <div class="section-head"><span class="section-label">Abitudini settimanali</span></div>
+        <div class="wh-section" id="wh-section"></div>
+      </div>
+
+      <div class="screen" id="screen-oggi">
+        <div class="topbar">
+          <div class="topbar-left">
+            <div id="oggi-date-nav"></div>
+          </div>
+          <div class="topbar-actions">
+            <div class="sync-bar" role="status">
+              <div class="sync-dot offline" id="sd-oggi"></div><span class="sync-txt" id="st-oggi-sync">—</span>
+            </div>
+            <button class="icon-btn settings-btn" onclick="openSettings()" aria-label="Impostazioni" title="Impostazioni"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg></button>
+          </div>
+        </div>
+        <div class="section-head"><span class="section-label" id="habit-count-lbl">Abitudini</span><button class="focus-btn" id="focus-toggle-btn" onclick="toggleFocusMode()">focus</button></div>
+        <div id="hoggi-list"></div>
+      </div>
+
+      <div class="screen discover" id="screen-recap">
+        <div class="topbar">
+          <div class="topbar-left">
+            <div class="topbar-date" id="disc-date"></div>
+          </div>
+          <div class="topbar-actions">
+            <div class="sync-bar" role="status">
+              <div class="sync-dot offline" id="sd-recap"></div><span class="sync-txt" id="st-recap-sync">—</span>
+            </div>
+            <button class="icon-btn" id="disc-regen" onclick="regenerateFeed()" aria-label="Rigenera feed" title="Rigenera">
+              <svg viewBox="0 0 24 24">
+                <polyline points="23 4 23 10 17 10" />
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+              </svg>
+            </button>
+            <button class="icon-btn settings-btn" onclick="openSettings()" aria-label="Impostazioni" title="Impostazioni"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg></button>
+          </div>
+        </div>
+        <div class="chip-bar" id="disc-chips"></div>
+        <div id="disc-stale"></div>
+        <div class="feed-wrap">
+          <div class="feed-ptr" id="disc-ptr" aria-hidden="true"><div class="feed-ptr-pill"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg><span id="disc-ptr-txt">Trascina per aggiornare</span></div></div>
+          <div class="feed" id="disc-feed"></div>
+        </div>
+      </div>
+
+      <div class="screen" id="screen-calendario">
+        <div class="topbar">
+          <div class="topbar-left">
+            <div class="cal-head">
+              <button class="cal-arrow" onclick="calShiftWeek(-1)" aria-label="Settimana precedente"><svg
+                  viewBox="0 0 24 24">
+                  <polyline points="15,18 9,12 15,6" />
+                </svg></button>
+              <div class="topbar-date" id="cal-month"></div>
+              <button class="cal-arrow" onclick="calShiftWeek(1)" aria-label="Settimana successiva"><svg
+                  viewBox="0 0 24 24">
+                  <polyline points="9,18 15,12 9,6" />
+                </svg></button>
+            </div>
+          </div>
+          <div class="topbar-actions">
+            <button class="cal-today-btn" id="cal-today-btn" onclick="calGoToday()" hidden>oggi</button>
+            <div class="sync-bar" role="status">
+              <div class="sync-dot offline" id="sd-an"></div><span class="sync-txt" id="st-an-sync">—</span>
+            </div>
+            <button class="icon-btn settings-btn" onclick="openSettings()" aria-label="Impostazioni" title="Impostazioni"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg></button>
+          </div>
+        </div>
+        <div class="cal-strip">
+          <div class="cal-strip-head">
+            <div class="cal-dlbl">L</div>
+            <div class="cal-dlbl">M</div>
+            <div class="cal-dlbl">M</div>
+            <div class="cal-dlbl">G</div>
+            <div class="cal-dlbl">V</div>
+            <div class="cal-dlbl">S</div>
+            <div class="cal-dlbl">D</div>
+          </div>
+          <div class="cal-strip-days" id="cal-strip-days"></div>
+        </div>
+        <div class="cal-allday" id="cal-allday"></div>
+        <div class="cal-scroll" id="cal-scroll">
+          <div class="cal-body" id="cal-body">
+            <div class="cal-canvas" id="cal-canvas"></div>
+            <div class="cal-now" id="cal-now"></div>
+          </div>
+        </div>
+        <button class="cal-fab" onclick="openEventoModal(CAL.date)" aria-label="Nuovo evento"><svg viewBox="0 0 24 24">
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg></button>
+      </div>
+    </div>
+
+    <nav id="nav">
+      <!-- Logo DayFlow (visibile sempre) -->
+      <div class="nav-logo">DF</div>
+      <!-- Toggle expand/collapse (visibile sempre) -->
+      <button class="nav-toggle" id="nav-toggle" onclick="toggleSidebar()" aria-label="Espandi menu">
+        <svg viewBox="0 0 24 24"><polyline points="9,6 15,12 9,18"/></svg>
+      </button>
+      <button class="nav-btn" onclick="goScreen('plan')" id="nav-plan" data-tooltip="Pianifica">
+        <svg viewBox="0 0 24 24">
+          <rect x="3" y="4" width="18" height="18" rx="1" />
+          <line x1="3" y1="9" x2="21" y2="9" />
+          <line x1="8" y1="2" x2="8" y2="6" />
+          <line x1="16" y1="2" x2="16" y2="6" />
+        </svg><span class="nav-label">Pianifica</span>
+      </button>
+      <button class="nav-btn" onclick="goScreen('oggi')" id="nav-oggi" data-tooltip="Oggi">
+        <svg viewBox="0 0 24 24">
+          <rect x="3" y="3" width="18" height="18" rx="1" />
+          <line x1="7" y1="8" x2="17" y2="8" />
+          <line x1="7" y1="12" x2="13" y2="12" />
+          <line x1="7" y1="16" x2="11" y2="16" />
+        </svg><span class="nav-label">Oggi</span>
+      </button>
+      <button class="nav-btn" onclick="goScreen('recap')" id="nav-recap" data-tooltip="Discover">
+        <svg viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="9" />
+          <polygon points="16.24,7.76 14.12,14.12 7.76,16.24 9.88,9.88" />
+        </svg><span class="nav-label">Discover</span>
+      </button>
+      <button class="nav-btn" onclick="goScreen('calendario')" id="nav-calendario" data-tooltip="Calendario">
+        <svg viewBox="0 0 24 24">
+          <rect x="3" y="3" width="7" height="7" />
+          <rect x="14" y="3" width="7" height="7" />
+          <rect x="3" y="14" width="7" height="7" />
+          <rect x="14" y="14" width="7" height="7" />
+        </svg><span class="nav-label">Calendario</span>
+      </button>
+      <button class="nav-btn nav-settings" onclick="openSettings()" id="nav-settings-btn" data-tooltip="Impostazioni" aria-label="Impostazioni">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="12" r="3" />
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+        </svg><span class="nav-label">Impostazioni</span>
+      </button>
+    </nav>
+
+    <div class="modal-overlay" id="modal-overlay" onclick="overlayClick(event)">
+      <div class="modal">
+        <div class="modal-header">
+          <span class="modal-title" id="modal-title">Gestione abitudini</span>
+          <button class="modal-close" onclick="closeModal()">×</button>
+        </div>
+        <div id="modal-body"></div>
+      </div>
+    </div>
+
+    <div class="fsheet-overlay" id="feed-sheet" onclick="feedSheetOverlayClick(event)">
+      <div class="fsheet">
+        <div class="fsheet-head">
+          <span class="fsheet-title" id="fsheet-title">Discover</span>
+          <button class="modal-close" onclick="closeFeedSheet()" aria-label="Chiudi">×</button>
+        </div>
+        <div class="fsheet-tabs" id="fsheet-tabs" style="display:none">
+          <button class="fsheet-tab on" id="fsheet-tab-article" onclick="switchFeedSheet('article')">Articolo</button>
+          <button class="fsheet-tab" id="fsheet-tab-chat" onclick="switchFeedSheet('chat')">Chat</button>
+        </div>
+        <div class="fsheet-body" id="fsheet-body"></div>
+        <div class="fsheet-foot" id="fsheet-foot">
+          <input class="form-input" id="fsheet-input" type="text" placeholder="Chiedi qualcosa su questa notizia…" autocomplete="off"
+            onkeydown="if(event.key==='Enter'){event.preventDefault();sendFeedChat();}">
+          <button class="fsheet-send" id="fsheet-send" onclick="sendFeedChat()" aria-label="Invia">
+            <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- IMPOSTAZIONI globali: schermo pieno su mobile, sheet centrato su desktop -->
+    <div class="fsheet-overlay settings-overlay" id="settings-panel" onclick="settingsOverlayClick(event)">
+      <div class="fsheet settings-sheet" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+        <div class="fsheet-head">
+          <span class="fsheet-title" id="settings-title">Impostazioni</span>
+          <button class="modal-close" onclick="closeSettings()" aria-label="Chiudi impostazioni">×</button>
+        </div>
+        <div class="fsheet-body" id="settings-body"></div>
+      </div>
+    </div>
+
+    <!-- Dialog di conferma dell'app (al posto di confirm() nativo) -->
+    <div class="app-dlg-overlay" id="app-dlg" onclick="appDialogOverlayClick(event)">
+      <div class="app-dlg" role="alertdialog" aria-modal="true" aria-labelledby="app-dlg-title" aria-describedby="app-dlg-msg">
+        <div class="app-dlg-title" id="app-dlg-title"></div>
+        <div class="app-dlg-msg" id="app-dlg-msg"></div>
+        <div class="app-dlg-warn" id="app-dlg-warn" hidden></div>
+        <div class="form-btns">
+          <button class="btn-sec" id="app-dlg-cancel" onclick="closeAppDialog(false)">Annulla</button>
+          <button class="btn-del solid" id="app-dlg-ok" onclick="confirmAppDialog()">OK</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</body>
+
+</html>
