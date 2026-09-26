@@ -10,6 +10,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 No build step, no npm install, no bundler. Serve the folder with any static file server (`npx serve .`, `python -m http.server 8765`, VS Code Live Server) and open `index.html`. The `.claude/launch.json` config `dayflow-static` serves it on port 8765 for browser verification.
 
+`test-grounding.html` is a standalone dev page (not part of the app, not in `sw.js` `STATIC`, not linked) for the Discover redesign: tests Gemini with `google_search` (JSON in text vs `responseSchema`) and `url_context`, reads the key from `localStorage` `dayflow_gemini_key` or a field, and builds a copyable report without the key.
+
+`supabase/` holds the cloud side of the Discover redesign, deployed by hand from the Supabase dashboard (no CLI; steps in `supabase/SETUP.md`): `sql/01-feed-schema.sql` (`profiles.feed_topics`/`feed_settings`, tables `feed_items`, `feed_events`, `feed_runs` with RLS, cron secret in Vault), `sql/02-feed-cron.sql` (pg_cron at 4:00 and 5:00 UTC → the function runs only when it is 6:00 in Rome), `sql/03-feed-test.sql`, and the Edge Function `functions/generate-feed/index.ts` (Gemini + `google_search`, one call per topic, JSON read from text, sources mapped via `groundingSupports`, redirect links resolved; modes `morning` via `x-cron-secret`, `more` via user JWT). The app does not read `feed_items` yet (phase 3).
+
 `dayflow1_0.html` (the old single-file entry point) is now only a meta-refresh redirect to `index.html`, kept so the PWA already installed on iPhone keeps opening. Do not delete it.
 
 ## Architecture
