@@ -20,7 +20,8 @@ import {
   setFeedModel, setFeedModelFromInput, setFeedTopic, shareFeedCard, switchFeedSheet, toggleFeedKeyVis, toggleFeedSaved,
   voteFeedCard, feedVoteAction, toggleFollowFeedStory, unfollowFeedStory, toggleArticleSpeech,
   editFeedTopic, cancelFeedTopicEdit, saveFeedTopicEdit, createFeedTopicFromPhrase,
-  setFeedArea, saveFeedProfile, regenFeedProfile, removeFeedPref, setFeedTtsVoice, testFeedTtsVoice, refreshTtsVoices
+  setFeedArea, saveFeedProfile, regenFeedProfile, removeFeedPref, setFeedTtsVoice, testFeedTtsVoice, refreshTtsVoices,
+  stopArticleSpeech, setFeedTtsEngine, setFeedTtsCloudVoice, testFeedTtsCloud, refreshTtsCloudVoices
 } from './discover.js';
 import { openSettings, closeSettings, settingsOverlayClick, settingsGo, renderSettingsSync, settingsSyncNow } from './settings.js';
 
@@ -318,6 +319,7 @@ Object.assign(window, {
   regenerateFeed,         // discover.js
   regenFeedProfile,       // discover.js
   refreshTtsVoices,       // discover.js
+  refreshTtsCloudVoices,  // discover.js
   removeFeedKey,          // discover.js
   removeFeedPref,         // discover.js
   removeFeedTopic,        // discover.js
@@ -331,11 +333,15 @@ Object.assign(window, {
   setFeedModelFromInput,  // discover.js
   setFeedTopic,           // discover.js
   setFeedTtsVoice,        // discover.js
+  setFeedTtsCloudVoice,   // discover.js
+  setFeedTtsEngine,       // discover.js
   setSelectedDate,        // state.js
   settingsGo,             // settings.js
   settingsOverlayClick,   // settings.js
   settingsSyncNow,        // settings.js
   testFeedTtsVoice,       // discover.js
+  stopArticleSpeech,      // discover.js
+  testFeedTtsCloud,       // discover.js
   shareFeedCard,          // discover.js
   switchFeedSheet,        // discover.js
   switchTab,              // auth.js

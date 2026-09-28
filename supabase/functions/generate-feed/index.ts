@@ -13,13 +13,19 @@
 //    { mode: 'models' } → elenco modelli Gemini disponibili per la chiave del cloud;
 //    { mode: 'profile' } → rigenera il profilo dei gusti dagli eventi degli ultimi 30 giorni
 //      (limite MAX_MORE_PER_HOUR): 200 { profile, profileAt } oppure
-//      422 { error: 'dayflow-few-signals', signals } se ci sono meno di 5 segnali.
+//      422 { error: 'dayflow-few-signals', signals } se ci sono meno di 5 segnali;
+//    { mode: 'tts', text, voice? } → Google Cloud Text-to-Speech (voci Chirp 3 HD italiane) per
+//      "Ascolta": 200 { audio: base64 MP3, chars, voice } (limite MAX_TTS_PER_HOUR a utente e
+//      TTS_MONTH_CAP caratteri al mese per tutto il progetto);
+//    { mode: 'tts-voices' } → { voices: [{ name, gender }], monthChars, cap, defaultVoice }.
 //
 // Al mattino, per ogni utente: profilo dei gusti (se serve), notizie, poi le storie seguite
 // (feed_follows): le novità finiscono in feed_items con follow_id valorizzato.
 //
 // Segreti (Dashboard → Edge Functions → Secrets): GEMINI_API_KEY, FEED_CRON_SECRET,
-// opzionali GEMINI_MODEL (default gemini-2.5-flash) e GEMINI_THINKING ('off' default | 'model').
+// opzionali GEMINI_MODEL (default gemini-2.5-flash) e GEMINI_THINKING ('off' default | 'model'),
+// GOOGLE_TTS_KEY (chiave API con Cloud Text-to-Speech; senza, i modi tts rispondono 503
+// 'dayflow-tts-off') e TTS_MONTH_CAP (default 900000 caratteri al mese).
 // SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY sono già presenti in ogni Edge Function.
 //
 // Verify JWT va DISATTIVATO sulla funzione: il gateway rifiuta la chiave anon del cron
@@ -37,6 +43,8 @@ const CRON_SECRET = Deno.env.get('FEED_CRON_SECRET') ?? '';
 const SB_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SB_SERVICE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 const API = 'https://generativelanguage.googleapis.com/v1beta/';
+const TTS_KEY = Deno.env.get('GOOGLE_TTS_KEY') ?? '';
+const TTS_API = 'https://texttospeech.googleapis.com/v1/';
 const ADMIN = createClient(SB_URL, SB_SERVICE, { auth: { persistSession: false } });
 
 // ── parametri modificabili ─────────────────────────────────────────────────
@@ -51,6 +59,13 @@ const SEEN_MAX_PER_TOPIC = 60;
 const KEEP_DAYS = 30;          // notizie più vecchie cancellate (gli eventi restano)
 const HARD_MAX_AGE_DAYS = 7;   // notizie più vecchie scartate a prescindere
 const TEMPERATURE = 0.7;
+// Text-to-Speech (Ascolta): 1 milione di caratteri gratis al mese per progetto, poi 30 $ / milione.
+const TTS_DEFAULT_VOICE = 'it-IT-Chirp3-HD-Aoede';
+const TTS_VOICE_RE = /^it-IT-[A-Za-z0-9-]+$/;
+const TTS_MAX_CHARS = 1500;      // per richiesta (il limite di Google è 5000 byte)
+const TTS_MONTH_CAP = Number(Deno.env.get('TTS_MONTH_CAP')) || 900_000; // tutti gli utenti insieme
+const MAX_TTS_PER_HOUR = 400;    // pezzi di articolo a utente
+const TTS_VOICES_TTL = 24 * 3600_000;
 
 const TYPES = ['notizia', 'analisi', 'curiosita', 'da_tenere_docchio'] as const;
 const AREAS: Record<string, string> = {
@@ -119,7 +134,7 @@ type Item = Record<string, any> & { title: string; title_key: string; published_
 type Follow = { id: string; topic_id: string; title: string; summary: string; url: string | null; created_at: string; checked_at: string | null; updates: number };
 type WebChunk = { uri: string; title: string };
 // deno-lint-ignore no-explicit-any
-type Body = { mode?: string; force?: boolean; topicId?: string; model?: string; stream?: boolean; request?: any };
+type Body = { mode?: string; force?: boolean; topicId?: string; model?: string; stream?: boolean; request?: any; text?: unknown; voice?: unknown };
 type Usage = { prompt: number; output: number; thinking: number; tool: number; total: number };
 
 const json = (data: unknown, status = 200) =>
@@ -150,13 +165,20 @@ Deno.serve(async req => {
   const { data: userData, error: authErr } = await admin.auth.getUser(token);
   const user = userData?.user;
   if (authErr || !user) return json({ error: { message: 'dayflow-auth' } }, 401);
-  const mode = body.mode === 'proxy' || body.mode === 'models' || body.mode === 'profile' ? body.mode : 'more';
-  const limit = mode === 'more' || mode === 'profile' ? MAX_MORE_PER_HOUR : MAX_PROXY_PER_HOUR;
-  const since = new Date(Date.now() - 3600_000).toISOString();
-  const { count } = await admin.from('feed_runs').select('id', { count: 'exact', head: true })
-    .eq('user_id', user.id).eq('kind', mode).gte('started_at', since);
-  if ((count ?? 0) >= limit) return json({ error: { message: 'dayflow-rate' } }, 429);
+  const MODES = ['proxy', 'models', 'profile', 'tts', 'tts-voices'];
+  const mode = typeof body.mode === 'string' && MODES.includes(body.mode) ? body.mode : 'more';
+  if ((mode === 'tts' || mode === 'tts-voices') && !TTS_KEY) return json({ error: { message: 'dayflow-tts-off' } }, 503);
+  // tts-voices: niente limite orario (elenco in cache, nessun costo) e nessuna riga in feed_runs
+  if (mode !== 'tts-voices') {
+    const limit = mode === 'more' || mode === 'profile' ? MAX_MORE_PER_HOUR : mode === 'tts' ? MAX_TTS_PER_HOUR : MAX_PROXY_PER_HOUR;
+    const since = new Date(Date.now() - 3600_000).toISOString();
+    const { count } = await admin.from('feed_runs').select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id).eq('kind', mode).gte('started_at', since);
+    if ((count ?? 0) >= limit) return json({ error: { message: 'dayflow-rate' } }, 429);
+  }
   try {
+    if (mode === 'tts') return await synthTts(admin, user.id, body);
+    if (mode === 'tts-voices') return await ttsVoices();
     if (mode === 'proxy') return await proxyGemini(admin, user.id, body);
     if (mode === 'models') return await listModels(admin, user.id);
     if (mode === 'profile') {
@@ -229,6 +251,94 @@ async function listModels(admin: SupabaseClient, userId: string) {
   }
   await admin.from('feed_runs').insert({ user_id: userId, kind: 'models', ms: 0, ok: true, inserted: 0, detail: { n: all.length } });
   return json({ models: all });
+}
+
+// ── Text-to-Speech per "Ascolta" (Google Cloud, voci Chirp 3 HD) ─────────────
+// body: { mode: 'tts', text, voice? } → 200 { audio: base64 MP3, chars, voice }.
+// Errori ({ error: { message } }): 400 testo mancante / 'dayflow-tts-long' (> TTS_MAX_CHARS) /
+// voce non valida o rifiutata da Google; 429 'dayflow-tts-quota' (tetto mensile del progetto);
+// 503 'dayflow-tts-off' (manca GOOGLE_TTS_KEY) o consumo non verificabile; 502 errore di Google.
+// Ogni chiamata va in feed_runs (kind 'tts', inserted = caratteri sintetizzati, 0 se fallita):
+// la somma del mese è il consumo di tutto il progetto.
+async function synthTts(admin: SupabaseClient, userId: string, body: Body) {
+  const t0 = Date.now();
+  const text = typeof body.text === 'string' ? body.text.replace(/\s+/g, ' ').trim() : '';
+  if (!text) return json({ error: { message: 'testo mancante' } }, 400);
+  if (text.length > TTS_MAX_CHARS) return json({ error: { message: 'dayflow-tts-long' } }, 400);
+  if (body.voice != null && body.voice !== '' && !(typeof body.voice === 'string' && TTS_VOICE_RE.test(body.voice)))
+    return json({ error: { message: 'voce non valida' } }, 400);
+  const voice = typeof body.voice === 'string' && body.voice ? body.voice : TTS_DEFAULT_VOICE;
+  let used: number;
+  try { used = await ttsMonthChars(); }
+  catch (e) {
+    console.error('tts quota', e);
+    return json({ error: { message: 'quota voce non verificabile' } }, 503); // nel dubbio non si spende
+  }
+  if (used + text.length > TTS_MONTH_CAP) return json({ error: { message: 'dayflow-tts-quota' } }, 429);
+  const log = (ok: boolean, detail: Record<string, unknown>) =>
+    EdgeRuntime.waitUntil(Promise.resolve(admin.from('feed_runs').insert({ user_id: userId, kind: 'tts', ms: Date.now() - t0, ok, inserted: ok ? text.length : 0, detail: { voice, chars: text.length, ...detail } })));
+  const res = await fetch(`${TTS_API}text:synthesize`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': TTS_KEY },
+    body: JSON.stringify({ input: { text }, voice: { languageCode: 'it-IT', name: voice }, audioConfig: { audioEncoding: 'MP3' } }),
+    signal: AbortSignal.timeout(30_000),
+  }).catch(e => { console.error('tts fetch', e); return null; });
+  if (!res) { log(false, { error: 'rete' }); return json({ error: { message: 'tts: Google non risponde' } }, 502); }
+  const j = await res.json().catch(() => null);
+  if (!res.ok || typeof j?.audioContent !== 'string') {
+    const msg = String(j?.error?.message ?? 'risposta senza audio');
+    log(false, { status: res.status, error: msg });
+    // 400 = testo o voce rifiutati; il resto (chiave, quota Google, 5xx) è un problema del cloud
+    return json({ error: { message: `tts ${res.status}: ${msg}` } }, res.status === 400 ? 400 : 502);
+  }
+  log(true, {});
+  return json({ audio: j.audioContent, chars: text.length, voice });
+}
+
+// Caratteri TTS del mese (UTC) di tutti gli utenti. Lettura incrementale per id: a ogni chiamata
+// si leggono solo le righe nuove (PostgREST restituisce al più ~1000 righe per richiesta, e se ne
+// dà meno il resto arriva alla chiamata dopo). Una riga scritta in ritardo con un id più basso di
+// una già letta può sfuggire: per questo il tetto è sotto il milione gratuito.
+const ttsMonth = { month: '', sum: 0, lastId: 0 };
+async function ttsMonthChars(): Promise<number> {
+  const now = new Date();
+  const month = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+  if (ttsMonth.month !== month) { ttsMonth.month = month; ttsMonth.sum = 0; ttsMonth.lastId = 0; }
+  for (let page = 0; page < 50; page++) {
+    const { data, error } = await ADMIN.from('feed_runs').select('id, inserted')
+      .eq('kind', 'tts').gte('started_at', month).gt('id', ttsMonth.lastId)
+      .order('id', { ascending: true }).limit(1000);
+    if (error) throw new Error('feed_runs: ' + error.message);
+    const rows = data ?? [];
+    for (const r of rows) {
+      ttsMonth.sum += Number(r.inserted) || 0;
+      ttsMonth.lastId = Math.max(ttsMonth.lastId, Number(r.id) || 0);
+    }
+    if (rows.length < 1000) break;
+  }
+  return ttsMonth.sum;
+}
+
+// Voci italiane Chirp 3 HD (in memoria 24 h) + consumo del mese per le impostazioni.
+type TtsVoice = { name: string; gender: string };
+let ttsVoiceCache: { at: number; voices: TtsVoice[] } | null = null;
+async function ttsVoices() {
+  if (!ttsVoiceCache || Date.now() - ttsVoiceCache.at > TTS_VOICES_TTL) {
+    const res = await fetch(`${TTS_API}voices?languageCode=it-IT`, { headers: { 'x-goog-api-key': TTS_KEY }, signal: AbortSignal.timeout(15_000) }).catch(() => null);
+    const j = res ? await res.json().catch(() => null) : null;
+    if (!res || !res.ok) return json({ error: { message: `tts-voices ${res?.status ?? 'rete'}: ${j?.error?.message ?? ''}` } }, 502);
+    const voices: TtsVoice[] = (Array.isArray(j?.voices) ? j.voices : [])
+      // deno-lint-ignore no-explicit-any
+      .filter((v: any) => typeof v?.name === 'string' && v.name.includes('Chirp3-HD') && TTS_VOICE_RE.test(v.name)
+        && (!Array.isArray(v.languageCodes) || v.languageCodes.includes('it-IT')))
+      // deno-lint-ignore no-explicit-any
+      .map((v: any) => ({ name: String(v.name), gender: String(v.ssmlGender ?? '') }));
+    voices.sort((a, b) => a.name.localeCompare(b.name));
+    ttsVoiceCache = { at: Date.now(), voices };
+  }
+  let monthChars: number | null = null;
+  try { monthChars = await ttsMonthChars(); } catch (e) { console.error('tts quota', e); }
+  return json({ voices: ttsVoiceCache.voices, monthChars, cap: TTS_MONTH_CAP, defaultVoice: TTS_DEFAULT_VOICE });
 }
 
 // ── mattino: tutti gli utenti con argomenti salvati ────────────────────────

@@ -1,7 +1,7 @@
 import './setup.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseArticleText, articleFromBlocks, applyFeedSettingsOps, normalizeTopic } from '../js/discover.js';
+import { parseArticleText, articleFromBlocks, applyFeedSettingsOps, normalizeTopic, ttsSplit, ttsChunks } from '../js/discover.js';
 import { feedSourceCount } from '../js/feedrank.js';
 
 test('parseArticleText: 3 punti "In breve" dopo il titolo, poi le sezioni', () => {
@@ -59,4 +59,38 @@ test('normalizeTopic: conserva focus, esclusioni, area e livello (fase 4)', () =
 test('feedSourceCount: la fonte principale senza link non si conta se ci sono fonti della ricerca', () => {
   assert.equal(feedSourceCount({ source: 'Corriere della Sera', url: '', sources: [{ title: 'corriere.it', url: '' }] }), 1);
   assert.equal(feedSourceCount({ source: 'Corriere della Sera', url: '' }), 1);
+});
+
+test('ttsSplit: testo corto intero, spazi compattati, vuoto = nessun pezzo', () => {
+  assert.deepEqual(ttsSplit('  Ciao   mondo. '), ['Ciao mondo.']);
+  assert.deepEqual(ttsSplit('   '), []);
+});
+
+test('ttsSplit: testo lungo diviso ai confini di frase, pezzi <= max', () => {
+  const s = 'Prima frase abbastanza lunga. Seconda frase! Terza frase? Quarta.';
+  const out = ttsSplit(s, 30);
+  assert.deepEqual(out, ['Prima frase abbastanza lunga.', 'Seconda frase! Terza frase?', 'Quarta.']);
+  assert.equal(out.join(' '), s);
+});
+
+test('ttsSplit: frase più lunga del massimo tagliata a una virgola o a uno spazio', () => {
+  const s = 'uno due tre quattro, cinque sei sette otto nove dieci undici dodici';
+  const out = ttsSplit(s, 30);
+  assert.ok(out.every(x => x.length <= 30), JSON.stringify(out));
+  assert.equal(out[0], 'uno due tre quattro,');
+  assert.equal(out.join(' '), s);
+  const long = 'a'.repeat(3200);
+  const hard = ttsSplit(long, 1500);
+  assert.deepEqual(hard.map(x => x.length), [1500, 1500, 200]);
+});
+
+test('ttsSplit: default 1500 caratteri; ttsChunks tiene l\'indice della parte', () => {
+  const para = Array.from({ length: 60 }, (_, i) => 'Questa è la frase numero ' + i + ' del paragrafo di prova.').join(' ');
+  const out = ttsSplit(para);
+  assert.ok(out.length >= 2 && out.every(x => x.length <= 1500));
+  assert.equal(out.join(' '), para);
+  const ch = ttsChunks(['Titolo', para]);
+  assert.deepEqual(ch[0], { text: 'Titolo', part: 0 });
+  assert.ok(ch.slice(1).every(c => c.part === 1));
+  assert.equal(ch.length, 1 + out.length);
 });

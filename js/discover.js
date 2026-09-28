@@ -45,6 +45,11 @@ const FEED_ITEM_COLS_P4 = FEED_ITEM_COLS + ',follow_id'; // follow_id arriva con
 const FEED_VOTES_LS = 'dayflow_feed_votes';   // { id: { v: 'up'|'down', ts } } voti delle card (30 giorni)
 const FEED_VOTES_TTL = 30 * 24 * 60 * 60 * 1000;
 const FEED_TTS_VOICE_LS = 'dayflow_tts_voice'; // voiceURI della voce scelta per Ascolta (solo locale)
+const FEED_TTS_ENGINE_LS = 'dayflow_tts_engine';           // 'cloud' | 'device' (default: cloud se loggato)
+const FEED_TTS_CLOUD_VOICE_LS = 'dayflow_tts_cloud_voice'; // voce Chirp 3 HD scelta ('' = automatica)
+const TTS_CLOUD_VOICE_RE = /^it-IT-[A-Za-z0-9-]+$/;       // stessa regola della Edge Function
+const TTS_CHUNK_MAX = 1500;                                // caratteri per richiesta al cloud
+const TTS_PREFETCH = 2;                                    // pezzi scaricati in anticipo
 const FEED_SET_LS = 'dayflow_feed_settings';  // { uid, s: feed_settings, ops: [modifiche non ancora nel cloud] }
 const FEED_AREAS = [
   { id: 'misto', label: 'Misto', note: 'italiane quando ci sono, altrimenti internazionali' },
@@ -66,6 +71,9 @@ const FEED = { topics: [], activeTopic: 'all', data: null, loading: false, error
   pool: null, poolLoading: null, weights: {}, viewedIds: null, cloudMore: null, evQ: null, evFlushing: false, viewObs: null, viewing: new Map(), evInit: false,
   noFollowCol: false, votePop: null, setStore: null, setFlush: null, setFlushAgain: false, setFetchedAt: 0,
   follows: null, followsLoading: null, followsErr: null, profileBusy: false, topicEdit: null, topicDraft: null, topicPhraseBusy: false, tts: null };
+// Ascolta con la voce del cloud: elemento audio unico, pezzi dell'articolo aperto in memoria
+// (cacheKey = "cardId|voce"), elenco voci + consumo del mese, prove per voce.
+const TTSC = { audio: null, silent: '', speechUnlocked: false, cacheKey: '', blobs: new Map(), voices: null, voicesLoading: null, samples: new Map(), testSeq: 0, skipUntil: 0 };
 
 // ── DISCOVER FEED (Gemini) ────────────────────────────────
 // (costanti e stato FEED dichiarati in testa allo script, sezione STATE)
@@ -1182,7 +1190,7 @@ function openFeedSheet(mode, card) {
   // Le impostazioni Discover vivono nel pannello Impostazioni globale (sezione Discover)
   if (mode === 'settings') { if (FEED.sheet) closeFeedSheet(); openSettings('discover'); return; }
   FEED.sheet = mode;
-  if (card) FEED.card = card;
+  if (card) { FEED.card = card; ttsDropCache(card.id); }
   const ov = document.getElementById('feed-sheet');
   const tabs = document.getElementById('fsheet-tabs');
   const foot = document.getElementById('fsheet-foot');
@@ -1389,9 +1397,15 @@ function feedTldrHTML(pts) {
 function articleToolsInner(c) {
   if (!c) return '';
   const out = [];
-  if (c.fullArticle && ttsSupported()) {
-    const on = !!(FEED.tts && FEED.tts.id === c.id);
-    out.push(`<button type="button" class="feed-btn sec art-tool${on ? ' on' : ''}" aria-pressed="${on}" onclick="toggleArticleSpeech()">${on ? '■ Stop' : '🔊 Ascolta'}</button>`);
+  if (c.fullArticle && (ttsSupported() || cloudOn())) {
+    const t = FEED.tts && FEED.tts.id === c.id ? FEED.tts : null;
+    if (t && t.paused) {
+      out.push(`<button type="button" class="feed-btn sec art-tool on" onclick="toggleArticleSpeech()">▶ Riprendi</button>`);
+      out.push(`<button type="button" class="feed-btn sec art-tool" onclick="stopArticleSpeech()">■ Stop</button>`);
+    } else {
+      const label = !t ? '🔊 Ascolta' : t.loading ? '⏳ Preparo l\'audio…' : '■ Stop';
+      out.push(`<button type="button" class="feed-btn sec art-tool${t ? ' on' : ''}" aria-pressed="${!!t}"${t && t.loading ? ' aria-label="Preparo l\'audio, tocca per fermare"' : ''} onclick="toggleArticleSpeech()">${label}</button>`);
+    }
   }
   if (c.db && cloudOn()) {
     const f = feedFollowOf(c.id);
@@ -1451,7 +1465,47 @@ function refreshTtsVoices() {
   setTimeout(() => { refreshFeedSettings(); showToast(plural(ttsItVoices().length, 'voce italiana', 'voci italiane'), 'info', 1800); }, 400);
 }
 function ttsSettingsHTML() {
-  if (!ttsSupported()) return '';
+  const cloud = cloudOn();
+  if (!ttsSupported() && !cloud) return '';
+  const engine = ttsEngine();
+  const engineSel = cloud && ttsSupported() ? `
+      <select class="form-select" id="set-tts-engine" aria-label="Motore della voce" onchange="setFeedTtsEngine(this.value)">
+        <option value="cloud"${engine === 'cloud' ? ' selected' : ''}>Google Cloud · consigliata</option>
+        <option value="device"${engine === 'device' ? ' selected' : ''}>Voce del dispositivo</option>
+      </select>` : '';
+  return `
+    <div class="settings-row">
+      <label class="settings-lbl" for="${engineSel ? 'set-tts-engine' : engine === 'cloud' ? 'set-tts-cloud-voice' : 'set-tts-voice'}" style="display:block">Voce di "Ascolta"</label>
+      ${engineSel}${engine === 'cloud' ? ttsCloudSettingsHTML(!!engineSel) : ttsDeviceSettingsHTML(!!engineSel)}
+    </div>`;
+}
+// Voci Chirp 3 HD dal cloud (mode 'tts-voices'): elenco + consumo del mese, ricaricati al più ogni minuto.
+function ttsCloudSettingsHTML(spaced) {
+  const v = TTSC.voices;
+  if (!TTSC.voicesLoading && (!v || Date.now() - v.at > 60000)) loadTtsCloudVoices().then(refreshFeedSettings, () => refreshFeedSettings());
+  const pick = ttsCloudVoice();
+  const list = v && v.list ? v.list : [];
+  const auto = v && v.def ? ttsCloudVoiceLabel({ name: v.def, gender: (list.find(x => x.name === v.def) || {}).gender }) : '';
+  const mt = spaced ? ' style="margin-top:10px"' : '';
+  let body;
+  if (v && v.err) {
+    body = `<div class="settings-val"${mt}>${escFeed(v.err === 'dayflow-tts-off' ? 'Voce del cloud non attiva (manca la chiave Text-to-Speech nel cloud): Ascolta usa la voce del dispositivo.' : 'Non riesco a leggere le voci del cloud: ' + feedErrorMessage(v.errObj))}</div>
+      <div class="form-btns" style="margin-top:10px"><button class="btn-sec" onclick="refreshTtsCloudVoices()">↻ Riprova</button></div>`;
+  } else if (!v) {
+    body = `<div class="settings-val"${mt}>Carico le voci…</div>`;
+  } else {
+    const usage = v.monthChars == null ? '' : `<div class="settings-val" style="margin-top:8px">Questo mese: ${escFeed(ttsThousands(v.monthChars))} di 1 milione di caratteri gratuiti</div>`;
+    body = `<select class="form-select" id="set-tts-cloud-voice"${mt} onchange="setFeedTtsCloudVoice(this.value)">
+        <option value=""${pick ? '' : ' selected'}>Automatica${auto ? ' · ' + escFeed(auto) : ''}</option>
+        ${list.map(x => `<option value="${escFeed(x.name)}"${x.name === pick ? ' selected' : ''}>${escFeed(ttsCloudVoiceLabel(x))}</option>`).join('')}
+      </select>${usage}
+      <div class="form-btns" style="margin-top:10px"><button class="btn-sec" onclick="testFeedTtsCloud()">▶ Prova</button></div>
+      <div class="feed-hint" style="margin-top:8px">Voci Google Chirp 3 HD, generate nel cloud: suonano molto più naturali di quelle del telefono. Il primo milione di caratteri al mese è gratis (un articolo ne usa circa 3-5 mila); se finiscono, Ascolta passa da solo alla voce del dispositivo.</div>`;
+  }
+  return body;
+}
+function ttsDeviceSettingsHTML(spaced) {
+  if (!ttsSupported()) return '<div class="settings-val">Questo browser non ha una sintesi vocale.</div>';
   const list = ttsItVoices();
   let pick = '';
   try { pick = localStorage.getItem(FEED_TTS_VOICE_LS) || ''; } catch (e) { }
@@ -1459,44 +1513,337 @@ function ttsSettingsHTML() {
   if (!FEED.ttsListen) { FEED.ttsListen = true; speechSynthesis.addEventListener('voiceschanged', () => refreshFeedSettings()); }
   const auto = list[0];
   return `
-    <div class="settings-row">
-      <label class="settings-lbl" for="set-tts-voice" style="display:block">Voce di "Ascolta"</label>
-      ${list.length ? `<select class="form-select" id="set-tts-voice" onchange="setFeedTtsVoice(this.value)">
+      ${list.length ? `<select class="form-select" id="set-tts-voice"${spaced ? ' aria-label="Voce del dispositivo" style="margin-top:10px"' : ''} onchange="setFeedTtsVoice(this.value)">
         <option value=""${pick ? '' : ' selected'}>Automatica${auto ? ' · ' + escFeed(auto.name) : ''}</option>
         ${list.map(v => `<option value="${escFeed(v.voiceURI)}"${v.voiceURI === pick ? ' selected' : ''}>${escFeed(v.name)}</option>`).join('')}
       </select>
       <div class="settings-val" style="margin-top:8px">${plural(list.length, 'voce italiana', 'voci italiane')} su questo dispositivo</div>` : '<div class="settings-val">Nessuna voce italiana trovata su questo dispositivo.</div>'}
       <div class="form-btns" style="margin-top:10px">${list.length ? '<button class="btn-sec" onclick="testFeedTtsVoice()">▶ Prova</button>' : ''}<button class="btn-sec" onclick="refreshTtsVoices()">↻ Aggiorna elenco</button></div>
-      <div class="feed-hint" style="margin-top:8px">Le voci migliori vanno scaricate: su iPhone Impostazioni → Accessibilità → Contenuti letti → Voci → Italiano → scegli una voce "Migliorata" o "Premium" (es. Alice, Federica, Luca). Poi riapri DayFlow e selezionala qui.</div>
-    </div>`;
+      <div class="feed-hint" style="margin-top:8px">Le voci migliori vanno scaricate: su iPhone Impostazioni → Accessibilità → Contenuti letti → Voci → Italiano → scegli una voce "Migliorata" o "Premium" (es. Alice, Federica, Luca). Poi riapri DayFlow e selezionala qui.</div>`;
 }
-function toggleArticleSpeech() { if (FEED.tts) stopArticleSpeech(); else startArticleSpeech(); }
+
+// ── Ascolta: motore ──
+// 'cloud' = Google Cloud Text-to-Speech (voci Chirp 3 HD) tramite la Edge Function (mode 'tts'),
+// 'device' = speechSynthesis. Default: cloud se loggato. Il cloud non è disponibile da non loggati;
+// la voce del dispositivo resta la riserva quando il cloud fallisce.
+function ttsEngine() {
+  let e = '';
+  try { e = localStorage.getItem(FEED_TTS_ENGINE_LS) || ''; } catch (x) { }
+  if (!cloudOn()) return 'device';
+  if (e === 'device' && ttsSupported()) return 'device';
+  return 'cloud';
+}
+function setFeedTtsEngine(v) {
+  try { localStorage.setItem(FEED_TTS_ENGINE_LS, v === 'device' ? 'device' : 'cloud'); } catch (e) { }
+  TTSC.skipUntil = 0; // scelta esplicita: si riprova subito il cloud
+  stopArticleSpeech();
+  refreshFeedSettings();
+}
+function ttsCloudVoice() {
+  let v = '';
+  try { v = localStorage.getItem(FEED_TTS_CLOUD_VOICE_LS) || ''; } catch (e) { }
+  if (!TTS_CLOUD_VOICE_RE.test(v)) return '';
+  // voce non più nell'elenco del cloud → automatica
+  if (TTSC.voices && TTSC.voices.list && TTSC.voices.list.length && !TTSC.voices.list.some(x => x.name === v)) return '';
+  return v;
+}
+function ttsCloudVoiceLabel(x) {
+  const short = String(x.name || '').replace(/^.*Chirp3-HD-/, '');
+  const g = x.gender === 'FEMALE' ? 'femminile' : x.gender === 'MALE' ? 'maschile' : '';
+  return g ? short + ' · ' + g : short;
+}
+function ttsThousands(n) {
+  if (n < 1000) return n === 0 ? '0' : 'meno di mille';
+  return (n / 1000).toLocaleString('it-IT', { maximumFractionDigits: n < 10000 ? 1 : 0 }) + ' mila';
+}
+async function loadTtsCloudVoices() {
+  if (TTSC.voicesLoading) return TTSC.voicesLoading;
+  const run = (async () => {
+    try {
+      const res = await feedFnFetch({ mode: 'tts-voices' });
+      if (!res.ok) throw await feedHttpError(res);
+      const j = await res.json();
+      TTSC.voices = { at: Date.now(), list: Array.isArray(j.voices) ? j.voices.filter(x => x && TTS_CLOUD_VOICE_RE.test(x.name)) : [], def: j.defaultVoice || '', monthChars: typeof j.monthChars === 'number' ? j.monthChars : null, cap: j.cap || null };
+    } catch (e) {
+      TTSC.voices = { at: Date.now(), err: e.detail || e.code || 'errore', errObj: e };
+    }
+  })();
+  TTSC.voicesLoading = run;
+  try { await run; } finally { TTSC.voicesLoading = null; }
+}
+function refreshTtsCloudVoices() { TTSC.voices = null; refreshFeedSettings(); }
+function setFeedTtsCloudVoice(name) {
+  try { if (name && TTS_CLOUD_VOICE_RE.test(name)) localStorage.setItem(FEED_TTS_CLOUD_VOICE_LS, name); else localStorage.removeItem(FEED_TTS_CLOUD_VOICE_LS); } catch (e) { }
+  testFeedTtsCloud();
+}
+
+// ── Ascolta: testo → parti → pezzi ──
+// Parti = titolo, "In breve." + punti, sottotitoli, paragrafi (come la voce del dispositivo).
+function ttsArticleParts(a) {
+  return [a.title, ...(a.tldr && a.tldr.length ? ['In breve.', ...a.tldr] : []), ...a.sections.flatMap(s => [s.heading, ...s.paragraphs])]
+    .map(x => String(x || '').replace(/\s+/g, ' ').trim()).filter(Boolean);
+}
+// Un testo lungo diviso in pezzi ≤ max caratteri ai confini di frase (una frase più lunga di max
+// si taglia a una virgola o a uno spazio). Il cloud rifiuta i pezzi oltre 1500 caratteri.
+function ttsSplit(text, max = TTS_CHUNK_MAX) {
+  const t = String(text || '').replace(/\s+/g, ' ').trim();
+  if (!t) return [];
+  if (t.length <= max) return [t];
+  const sents = t.match(/[^.!?…]+(?:[.!?…]+["'»”’)\]]*)?\s*|[.!?…]+\s*/g) || [t];
+  const out = [];
+  let cur = '';
+  const flush = () => { if (cur) { out.push(cur); cur = ''; } };
+  for (let s of sents) {
+    s = s.trim(); if (!s) continue;
+    while (s.length > max) {
+      flush();
+      let cut = s.lastIndexOf(', ', max - 1);
+      let piece, rest;
+      if (cut >= max / 2) { piece = s.slice(0, cut + 1); rest = s.slice(cut + 2); }
+      else {
+        cut = s.lastIndexOf(' ', max);
+        if (cut > 0) { piece = s.slice(0, cut); rest = s.slice(cut + 1); }
+        else { piece = s.slice(0, max); rest = s.slice(max); }
+      }
+      out.push(piece.trim()); s = rest.trim();
+    }
+    if (!s) continue;
+    if (cur && cur.length + 1 + s.length > max) flush();
+    cur = cur ? cur + ' ' + s : s;
+  }
+  flush();
+  return out;
+}
+// [{ text, part }]: part = indice della parte, per ripartire da lì con la voce del dispositivo.
+function ttsChunks(parts) { return parts.flatMap((p, i) => ttsSplit(p).map(text => ({ text, part: i }))); }
+
+// ── Ascolta: riproduzione ──
+function toggleArticleSpeech() {
+  const t = FEED.tts;
+  if (t && t.engine === 'cloud' && t.paused) { ttsResume(t); return; }
+  if (t) stopArticleSpeech(); else startArticleSpeech();
+}
 function startArticleSpeech() {
   const c = FEED.card, a = c && c.fullArticle;
-  if (!a || !ttsSupported()) return;
+  if (!a) return;
   stopArticleSpeech(false);
-  const parts = [a.title, ...(a.tldr && a.tldr.length ? ['In breve.', ...a.tldr] : []), ...a.sections.flatMap(s => [s.heading, ...s.paragraphs])]
-    .map(x => String(x || '').trim()).filter(Boolean);
+  const parts = ttsArticleParts(a);
   if (!parts.length) return;
+  const cloudOk = ttsEngine() === 'cloud' && !(TTSC.skipUntil > Date.now());
+  if (cloudOk) startCloudSpeech(c, parts);
+  else if (ttsSupported()) startDeviceSpeech(c, parts, 0);
+  else if (cloudOn()) startCloudSpeech(c, parts); // niente voce del dispositivo: si riprova il cloud
+}
+// Voce del dispositivo: una utterance per parte, tutte in coda subito (su iOS solo la prima deve
+// partire da un tocco). from = prima parte da leggere (ripresa dopo un errore del cloud).
+function startDeviceSpeech(c, parts, from) {
+  const list = parts.slice(from || 0);
+  if (!list.length || !ttsSupported()) return;
   const voice = ttsVoice();
-  const tts = { id: c.id };
+  const tts = { id: c.id, engine: 'device' };
   FEED.tts = tts;
   const done = () => { if (FEED.tts === tts) { FEED.tts = null; updateArticleTools(); } };
-  parts.forEach((txt, i) => {
+  list.forEach((txt, i) => {
     const u = new SpeechSynthesisUtterance(txt);
     u.lang = 'it-IT';
     if (voice) u.voice = voice;
-    if (i === parts.length - 1) u.onend = done;
+    if (i === list.length - 1) u.onend = done;
     u.onerror = e => { if (e && (e.error === 'interrupted' || e.error === 'canceled')) return; done(); };
     speechSynthesis.speak(u);
   });
   updateArticleTools();
 }
+// MP3 muto di 3 frame (MPEG-1 Layer III, 32 kbps, 44,1 kHz, mono, dati a zero) per lo sblocco iOS.
+function ttsSilentSrc() {
+  if (!TTSC.silent) {
+    const b = new Uint8Array(312);
+    for (let k = 0; k < 3; k++) b.set([0xFF, 0xFB, 0x10, 0xC4], k * 104);
+    TTSC.silent = 'data:audio/mpeg;base64,' + btoa(String.fromCharCode.apply(null, b));
+  }
+  return TTSC.silent;
+}
+function ttsAudio() {
+  if (!TTSC.audio) { TTSC.audio = new Audio(); TTSC.audio.preload = 'auto'; }
+  return TTSC.audio;
+}
+// Da chiamare DENTRO il tocco (prima di qualunque await): su iOS un play() partito dal gesto
+// sblocca l'elemento audio, così i play() successivi (dopo il fetch) sono permessi. Sblocca anche
+// speechSynthesis, che serve se il cloud fallisce e si passa alla voce del dispositivo.
+function ttsUnlock() {
+  const el = ttsAudio();
+  try { el.onended = null; el.onerror = null; el.src = ttsSilentSrc(); const p = el.play(); if (p && p.catch) p.catch(() => { }); } catch (e) { }
+  if (ttsSupported() && !TTSC.speechUnlocked) {
+    TTSC.speechUnlocked = true;
+    try { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); } catch (e) { }
+  }
+}
+function ttsB64Blob(b64) {
+  const bin = atob(b64);
+  const u8 = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+  return new Blob([u8], { type: 'audio/mpeg' });
+}
+async function ttsSynth(text, voice, signal) {
+  const res = await feedFnFetch({ mode: 'tts', text, voice: voice || undefined }, signal);
+  if (!res.ok) throw await feedHttpError(res);
+  let j = null;
+  try { j = await res.json(); } catch (e) { throw signal && signal.aborted ? feedAbortErr() : Object.assign(new Error('network'), { code: 'network' }); }
+  if (!j || typeof j.audio !== 'string' || !j.audio) throw Object.assign(new Error('empty'), { code: 'empty' });
+  return ttsB64Blob(j.audio);
+}
+function startCloudSpeech(c, parts) {
+  const voice = ttsCloudVoice();
+  const key = c.id + '|' + voice;
+  // cache della sessione: Stop → Ascolta sullo stesso articolo (e stessa voce) non ripaga i caratteri
+  if (TTSC.cacheKey !== key) { TTSC.cacheKey = key; TTSC.blobs = new Map(); }
+  const tts = { id: c.id, engine: 'cloud', card: c, parts, chunks: ttsChunks(parts), voice, key, i: 0, loading: true, paused: false, url: '', fetches: new Map(), ctrls: new Set() };
+  FEED.tts = tts;
+  ttsUnlock();
+  ttsMediaSession(c, tts);
+  updateArticleTools();
+  ttsPlayChunk(tts, 0);
+}
+function ttsFetchChunk(tts, i) {
+  if (TTSC.cacheKey === tts.key && TTSC.blobs.has(i)) return Promise.resolve(TTSC.blobs.get(i));
+  if (tts.fetches.has(i)) return tts.fetches.get(i);
+  const ctrl = new AbortController();
+  tts.ctrls.add(ctrl);
+  const p = ttsSynth(tts.chunks[i].text, tts.voice, ctrl.signal).then(blob => {
+    if (TTSC.cacheKey === tts.key) TTSC.blobs.set(i, blob);
+    return blob;
+  });
+  p.then(() => tts.ctrls.delete(ctrl), () => tts.ctrls.delete(ctrl));
+  tts.fetches.set(i, p);
+  return p;
+}
+async function ttsPlayChunk(tts, i) {
+  if (FEED.tts !== tts) return;
+  if (i >= tts.chunks.length) { ttsFinish(tts); return; }
+  tts.i = i;
+  const cached = TTSC.cacheKey === tts.key && TTSC.blobs.has(i);
+  const cur = ttsFetchChunk(tts, i);
+  // prefetch dei 2 pezzi successivi mentre questo si scarica / suona
+  for (let k = 1; k <= TTS_PREFETCH; k++) if (i + k < tts.chunks.length) ttsFetchChunk(tts, i + k).catch(() => { });
+  if (!cached && !tts.loading) { tts.loading = true; updateArticleTools(); }
+  let blob;
+  try { blob = await cur; }
+  catch (e) { if (FEED.tts === tts) ttsCloudFail(tts, e); return; }
+  if (FEED.tts !== tts) return;
+  const el = ttsAudio();
+  ttsRevoke(tts);
+  tts.url = URL.createObjectURL(blob);
+  el.onended = () => { if (FEED.tts === tts && tts.i === i) ttsPlayChunk(tts, i + 1); };
+  el.onerror = () => { if (FEED.tts === tts && tts.i === i) ttsCloudFail(tts, Object.assign(new Error('decode'), { code: 'decode' })); };
+  el.src = tts.url;
+  if (tts.loading) { tts.loading = false; updateArticleTools(); }
+  try { await el.play(); ttsSetPlaybackState('playing'); }
+  catch (e) {
+    if (FEED.tts !== tts || tts.i !== i) return;
+    if (e && e.name === 'AbortError') return; // src cambiato nel frattempo
+    // play() senza gesto rifiutato (autoplay): si aspetta un tocco su "Riprendi"
+    tts.paused = true; ttsSetPlaybackState('paused'); updateArticleTools();
+  }
+}
+function ttsPause(tts) {
+  if (!tts || FEED.tts !== tts || tts.engine !== 'cloud') return;
+  try { ttsAudio().pause(); } catch (e) { }
+  tts.paused = true; ttsSetPlaybackState('paused'); updateArticleTools();
+}
+function ttsResume(tts) {
+  if (!tts || FEED.tts !== tts || tts.engine !== 'cloud') return;
+  tts.paused = false; updateArticleTools();
+  if (!tts.url) { ttsPlayChunk(tts, tts.i); return; }
+  const p = ttsAudio().play();
+  ttsSetPlaybackState('playing');
+  if (p && p.catch) p.catch(e => { if (FEED.tts === tts && !(e && e.name === 'AbortError')) { tts.paused = true; ttsSetPlaybackState('paused'); updateArticleTools(); } });
+}
+function ttsRevoke(tts) { if (tts.url) { try { URL.revokeObjectURL(tts.url); } catch (e) { } tts.url = ''; } }
+// Ferma l'audio del cloud: fetch in corso annullate, elemento audio svuotato, blob URL revocato.
+function ttsCloudCleanup(tts) {
+  tts.ctrls.forEach(c => { try { c.abort(); } catch (e) { } });
+  tts.ctrls.clear();
+  const el = TTSC.audio;
+  if (el) { el.onended = null; el.onerror = null; try { el.pause(); el.removeAttribute('src'); el.load(); } catch (e) { } }
+  ttsRevoke(tts);
+}
+function ttsFinish(tts) {
+  if (FEED.tts !== tts) return;
+  FEED.tts = null;
+  ttsCloudCleanup(tts);
+  ttsMediaSessionClear();
+  updateArticleTools();
+}
+// Errore del cloud: si continua dalla parte corrente con la voce del dispositivo (se c'è).
+function ttsCloudFail(tts, e) {
+  if (!e || e.code === 'abort' || FEED.tts !== tts) return;
+  console.warn('Ascolta cloud', e);
+  const part = (tts.chunks[tts.i] || { part: 0 }).part;
+  FEED.tts = null;
+  ttsCloudCleanup(tts);
+  ttsMediaSessionClear();
+  // quota finita o voce spenta nel cloud: per un po' si va diretti alla voce del dispositivo
+  if (e.detail === 'dayflow-tts-quota' || e.detail === 'dayflow-tts-off') TTSC.skipUntil = Date.now() + 10 * 60000;
+  const dev = ttsSupported();
+  const msg = e.detail === 'dayflow-tts-quota' ? 'Quota voce del mese finita: uso la voce del dispositivo'
+    : e.detail === 'dayflow-auth' || e.detail === 'dayflow-rate' ? feedErrorMessage(e)
+      : dev ? 'Voce del cloud non disponibile: uso la voce del dispositivo' : 'Voce del cloud non disponibile. Riprova tra poco.';
+  showToast(msg, dev ? 'warn' : 'error', 4000);
+  if (dev) startDeviceSpeech(tts.card, tts.parts, part);
+  else updateArticleTools();
+}
+function ttsSetPlaybackState(s) { try { if (navigator.mediaSession) navigator.mediaSession.playbackState = s; } catch (e) { } }
+// Schermata di blocco / centro di controllo: titolo dell'articolo, play/pausa/stop.
+function ttsMediaSession(c, tts) {
+  const ms = typeof navigator !== 'undefined' && navigator.mediaSession;
+  if (!ms) return;
+  try { if (typeof MediaMetadata === 'function') ms.metadata = new MediaMetadata({ title: (c.fullArticle && c.fullArticle.title) || c.title || 'Articolo', artist: 'DayFlow', album: 'Discover' }); } catch (e) { }
+  const h = (a, fn) => { try { ms.setActionHandler(a, fn); } catch (e) { } };
+  h('play', () => ttsResume(tts));
+  h('pause', () => ttsPause(tts));
+  h('stop', () => { if (FEED.tts === tts) stopArticleSpeech(); });
+}
+function ttsMediaSessionClear() {
+  const ms = typeof navigator !== 'undefined' && navigator.mediaSession;
+  if (!ms) return;
+  ['play', 'pause', 'stop'].forEach(a => { try { ms.setActionHandler(a, null); } catch (e) { } });
+  try { ms.metadata = null; ms.playbackState = 'none'; } catch (e) { }
+}
+// "Prova" nelle impostazioni: una frase con la voce del cloud scelta (in cache per voce).
+async function testFeedTtsCloud() {
+  if (!cloudOn()) return;
+  stopArticleSpeech();
+  ttsUnlock();
+  const voice = ttsCloudVoice();
+  const seq = ++TTSC.testSeq;
+  let blob = TTSC.samples.get(voice);
+  if (!blob) {
+    try { blob = await ttsSynth('Ciao, questa è la voce che leggerà i tuoi approfondimenti.', voice); }
+    catch (e) {
+      if (seq !== TTSC.testSeq) return;
+      showToast(e.detail === 'dayflow-tts-quota' ? 'Quota voce del mese finita.' : e.detail === 'dayflow-tts-off' ? 'Voce del cloud non attiva.' : feedErrorMessage(e), 'error', 3500);
+      return;
+    }
+    TTSC.samples.set(voice, blob);
+  }
+  if (seq !== TTSC.testSeq || FEED.tts) return;
+  const el = ttsAudio();
+  const url = URL.createObjectURL(blob);
+  const done = () => { try { URL.revokeObjectURL(url); } catch (e) { } };
+  el.onended = done; el.onerror = done;
+  el.src = url;
+  const p = el.play(); if (p && p.catch) p.catch(() => { });
+  if (TTSC.voices && TTSC.voices.monthChars != null) TTSC.voices.at = 0; // consumo da rileggere
+}
 function stopArticleSpeech(update = true) {
   const had = FEED.tts;
   FEED.tts = null;
+  if (had && had.engine === 'cloud') { ttsCloudCleanup(had); ttsMediaSessionClear(); }
   if (had && ttsSupported()) { try { speechSynthesis.cancel(); } catch (e) { } }
   if (had && update) updateArticleTools();
+}
+// Un altro articolo aperto: via i pezzi audio in memoria di quello precedente.
+function ttsDropCache(id) {
+  if (TTSC.cacheKey && !TTSC.cacheKey.startsWith(id + '|')) { TTSC.cacheKey = ''; TTSC.blobs = new Map(); }
 }
 function renderFeedArticle(b) {
   const c = FEED.card; if (!c) { b.innerHTML = ''; return; }
@@ -2005,6 +2352,8 @@ export {
   voteFeedCard, feedVoteAction, toggleFollowFeedStory, unfollowFeedStory, toggleArticleSpeech,
   editFeedTopic, cancelFeedTopicEdit, saveFeedTopicEdit, createFeedTopicFromPhrase,
   setFeedArea, saveFeedProfile, regenFeedProfile, removeFeedPref, setFeedTtsVoice, testFeedTtsVoice, refreshTtsVoices,
+  // voce del cloud (Ascolta)
+  stopArticleSpeech, setFeedTtsEngine, setFeedTtsCloudVoice, testFeedTtsCloud, refreshTtsCloudVoices,
   // test
-  parseArticleText, articleFromBlocks, applyFeedSettingsOps
+  parseArticleText, articleFromBlocks, applyFeedSettingsOps, ttsSplit, ttsChunks
 };
