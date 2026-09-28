@@ -416,6 +416,15 @@ async function sbLoadFeedTopics() {
       FEED.topics = t.filter(x => x && x.id && x.label).map(normalizeTopic);
       try { localStorage.setItem(FEED_TOPICS_LS, JSON.stringify(FEED.topics)); } catch (e) { }
       if (curScreen === 'recap') renderDiscover();
+    } else if (!res.error) {
+      // Nessun argomento sul profilo (colonna aggiunta dopo): copio quelli locali, così la
+      // generazione nel cloud (Edge Function generate-feed) li conosce.
+      let local = null;
+      try { local = JSON.parse(localStorage.getItem(FEED_TOPICS_LS) || 'null'); } catch (e) { }
+      if (Array.isArray(local) && local.length) {
+        if (!FEED.topics.length) FEED.topics = local.filter(x => x && x.id && x.label).map(normalizeTopic);
+        if (FEED.topics.length) sbSaveFeedTopics();
+      }
     }
   } catch (e) { }
 }

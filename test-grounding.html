@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Test ricerca Gemini</title>
+<!-- Pagina di prova per il redesign di Discover (fase 1): Gemini + Google Search / URL context.
+     Non fa parte dell'app: non è in sw.js STATIC né linkata da index.html.
+     La chiave viene letta da localStorage 'dayflow_gemini_key' (stessa origine dell'app) o dal campo; mai salvata. -->
+<style>
+:root{--bg:#09090b;--card:#18181b;--card2:#111113;--line:#27272a;--text:#f4f4f5;--dim:#a1a1aa;--green:#10b981;--red:#ef4444;--orange:#f59e0b;--accent:#8b8cf8;--mono:ui-monospace,SFMono-Regular,Menlo,monospace;--sans:system-ui,-apple-system,"Segoe UI",sans-serif}
+*{box-sizing:border-box}
+body{margin:0 auto;max-width:920px;padding:16px;background:var(--bg);color:var(--text);font:15px/1.5 var(--sans)}
+h1{font-size:20px;margin:4px 0 4px}
+h2{font-size:16px;margin:0 0 10px}
+p.note{color:var(--dim);font-size:13px;margin:0 0 16px}
+section{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px}
+label{display:block;font:12px var(--mono);color:var(--dim);margin:10px 0 4px;text-transform:uppercase;letter-spacing:.04em}
+input,select,textarea{width:100%;background:var(--card2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font:14px var(--sans)}
+textarea{font:13px/1.45 var(--mono);min-height:96px;resize:vertical}
+.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:0 12px}
+.btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+button{background:var(--accent);color:#0b0b10;border:0;border-radius:8px;padding:10px 14px;min-height:44px;font:600 14px var(--sans);cursor:pointer}
+button.sec{background:transparent;color:var(--text);border:1px solid var(--line)}
+button.sm{min-height:34px;padding:6px 10px;font-size:13px}
+button:disabled{opacity:.5;cursor:wait}
+.chk{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:14px;color:var(--text);text-transform:none;letter-spacing:0;font-family:var(--sans)}
+.chk input{width:auto}
+.res{border-top:1px solid var(--line);margin-top:14px;padding-top:12px}
+.res h3{font:600 14px var(--mono);margin:0 0 8px}
+.ok{color:var(--green)}.err{color:var(--red)}.warn{color:var(--orange)}
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:6px;margin-bottom:10px}
+.metrics div{background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:6px 8px;font:12px var(--mono);color:var(--dim)}
+.metrics b{display:block;color:var(--text);font-size:14px}
+.item{background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:8px 0}
+.item .meta{font:12px var(--mono);color:var(--dim)}
+.item{overflow-wrap:anywhere}
+.item .t{font-weight:600;margin:4px 0}
+.item .s{font-size:14px}
+.item .w{font-size:13px;color:var(--dim);margin-top:4px}
+.src{font:12px var(--mono);margin-top:6px;word-break:break-all}
+.src a{color:var(--accent)}
+.tag{display:inline-block;border:1px solid var(--line);border-radius:6px;padding:0 6px;margin:0 4px 2px 0;font:12px var(--mono);color:var(--dim)}
+pre{white-space:pre-wrap;word-break:break-word;background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:10px;font:12px/1.45 var(--mono);max-height:420px;overflow:auto}
+details summary{cursor:pointer;font:12px var(--mono);color:var(--dim);margin:8px 0}
+iframe{width:100%;border:0;background:#fff;border-radius:8px;min-height:60px}
+.article{white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px;background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:12px}
+@media (max-width:767px){input,select,textarea{font-size:16px}}
+</style>
+</head>
+<body>
+<h1>Test ricerca Gemini</h1>
+<p class="note">Fase 1 del nuovo Discover: notizie vere con Google Search, voto di qualità, fonti reali e articolo letto dalla pagina vera. Nessun dato viene salvato. Alla fine premi <b>Copia report</b> e incolla il risultato in chat (non contiene la chiave).</p>
+
+<section>
+  <h2>Configurazione</h2>
+  <label for="key">Chiave API Gemini</label>
+  <input id="key" type="password" autocomplete="off" placeholder="incolla la chiave (non viene salvata)">
+  <div class="row">
+    <div>
+      <label for="model">Modello</label>
+      <input id="model" list="models" autocomplete="off">
+      <datalist id="models">
+        <option value="gemini-2.5-flash"><option value="gemini-2.5-flash-lite"><option value="gemini-2.5-pro">
+      </datalist>
+    </div>
+    <div>
+      <label for="thinking">Thinking</label>
+      <select id="thinking">
+        <option value="app">come l'app (spento/minimo)</option>
+        <option value="default">default del modello</option>
+      </select>
+    </div>
+    <div>
+      <label for="temp">Temperatura</label>
+      <input id="temp" type="number" min="0" max="2" step="0.1" value="1">
+    </div>
+  </div>
+  <div class="btns"><button class="sec sm" id="btn-models">Carica modelli dalla chiave</button></div>
+</section>
+
+<section>
+  <h2>A · B — Notizie candidate con ricerca</h2>
+  <label for="topics">Argomenti: id | nome | focus | escludi (uno per riga)</label>
+  <textarea id="topics"></textarea>
+  <div class="row">
+    <div>
+      <label for="area">Area</label>
+      <select id="area">
+        <option value="misto">Misto (Italia + mondo)</option>
+        <option value="italia">Italia</option>
+        <option value="europa">Europa</option>
+        <option value="mondo">Mondo</option>
+      </select>
+    </div>
+    <div>
+      <label for="n">Quante candidate</label>
+      <input id="n" type="number" min="3" max="40" value="12">
+    </div>
+    <div>
+      <label for="days">Età massima (giorni)</label>
+      <input id="days" type="number" min="1" max="14" value="3">
+    </div>
+  </div>
+  <div class="btns">
+    <button id="btn-a">A · ricerca + JSON nel testo</button>
+    <button id="btn-b">B · ricerca + responseSchema</button>
+    <button class="sec" id="btn-ab">A poi B</button>
+  </div>
+  <div id="out-ab"></div>
+</section>
+
+<section>
+  <h2>C — Approfondimento dalla pagina vera (URL context)</h2>
+  <label for="url">Link dell'articolo</label>
+  <input id="url" type="url" placeholder="https://… (oppure premi “Approfondisci” su una card sopra)">
+  <label class="chk"><input id="c-search" type="checkbox"> aggiungi anche Google Search</label>
+  <div class="btns"><button id="btn-c">C · scrivi l'articolo</button></div>
+  <div id="out-c"></div>
+</section>
+
+<section>
+  <h2>Report</h2>
+  <div class="btns">
+    <button id="btn-copy">Copia report</button>
+    <button class="sec" id="btn-clear">Svuota</button>
+  </div>
+  <pre id="report">(vuoto)</pre>
+</section>
+
+<script>
+const API = 'https://generativelanguage.googleapis.com/v1beta/';
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const ls = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+const REPORT = [];
+const TYPES = ['notizia', 'analisi', 'curiosita', 'da_tenere_docchio'];
+const AREAS = {
+  misto: 'misto: notizie italiane quando esistono fonti italiane rilevanti, altrimenti internazionali',
+  italia: 'Italia (fonti e fatti italiani)',
+  europa: 'Europa',
+  mondo: 'mondo (fonti internazionali, anche in inglese)'
+};
+
+// ── init ──
+(function init() {
+  const stored = (ls('dayflow_gemini_key') || '').trim();
+  if (stored) $('key').placeholder = 'chiave di DayFlow trovata (…' + stored.slice(-4) + '), lascia vuoto per usarla';
+  $('model').value = (ls('dayflow_gemini_model') || '').trim() || 'gemini-2.5-flash';
+  let topics = null;
+  try { topics = JSON.parse(ls('dayflow_feed_topics') || 'null'); } catch (e) { }
+  if (!Array.isArray(topics) || !topics.length) topics = [{ id: 'tech', label: 'Tech' }, { id: 'sport', label: 'Sport' }, { id: 'crypto', label: 'Crypto' }, { id: 'scienza', label: 'Scienza' }];
+  $('topics').value = topics.map(t => `${t.id} | ${t.label} |  | `).join('\n');
+  $('btn-models').onclick = loadModels;
+  $('btn-a').onclick = () => runCandidates('A');
+  $('btn-b').onclick = () => runCandidates('B');
+  $('btn-ab').onclick = async () => { await runCandidates('A'); await runCandidates('B'); };
+  $('btn-c').onclick = runArticle;
+  $('btn-copy').onclick = copyReport;
+  $('btn-clear').onclick = () => { REPORT.length = 0; renderReport(); $('out-ab').innerHTML = ''; $('out-c').innerHTML = ''; };
+})();
+
+function apiKey() { return $('key').value.trim() || (ls('dayflow_gemini_key') || '').trim(); }
+function model() { return $('model').value.trim() || 'gemini-2.5-flash'; }
+// Stessa logica di geminiThinkingConfig() in js/discover.js
+function thinkingConfig() {
+  if ($('thinking').value === 'default') return undefined;
+  const m = model().toLowerCase();
+  if (/^gemini-2\.5-flash(-lite)?(-|$)/.test(m)) return { thinkingBudget: 0 };
+  if (m.startsWith('gemini-3')) return { thinkingLevel: 'low' };
+  return undefined;
+}
+function setBusy(b) { document.querySelectorAll('button').forEach(x => x.disabled = b); }
+
+async function callGemini(body) {
+  const key = apiKey();
+  if (!key) return { ok: false, ms: 0, status: 0, error: 'Manca la chiave API' };
+  const ctrl = new AbortController();
+  const to = setTimeout(() => ctrl.abort(), 150000);
+  const t0 = performance.now();
+  let res, json = null;
+  try {
+    res = await fetch(API + 'models/' + encodeURIComponent(model()) + ':generateContent', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify(body), signal: ctrl.signal
+    });
+    json = await res.json().catch(() => null);
+  } catch (e) {
+    return { ok: false, ms: Math.round(performance.now() - t0), status: 0, error: ctrl.signal.aborted ? 'timeout 150 s' : 'rete: ' + e.message };
+  } finally { clearTimeout(to); }
+  const ms = Math.round(performance.now() - t0);
+  if (!res.ok) return { ok: false, ms, status: res.status, error: json?.error?.message || 'HTTP ' + res.status, json };
+  const cand = json?.candidates?.[0] || {};
+  const text = (cand.content?.parts || []).filter(p => !p.thought).map(p => p.text || '').join('');
+  return { ok: true, ms, status: res.status, json, cand, text, finish: cand.finishReason || '', gm: cand.groundingMetadata || null, ucm: cand.urlContextMetadata || null, um: json.usageMetadata || {} };
+}
+
+async function loadModels() {
+  const key = apiKey();
+  if (!key) { alert('Manca la chiave API'); return; }
+  setBusy(true);
+  try {
+    const r = await fetch(API + 'models?pageSize=200', { headers: { 'x-goog-api-key': key } });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j?.error?.message || 'HTTP ' + r.status);
+    const ids = (j.models || []).filter(m => /^models\/gemini/.test(m.name) && (m.supportedGenerationMethods || []).includes('generateContent'))
+      .map(m => m.name.slice(7)).filter(id => !/embedding|tts|image|live|audio/i.test(id));
+    $('models').innerHTML = ids.map(id => `<option value="${esc(id)}">`).join('');
+    alert(ids.length + ' modelli caricati: tocca il campo Modello per sceglierli.');
+  } catch (e) { alert('Errore: ' + e.message); }
+  setBusy(false);
+}
+
+// ── A / B: candidate ──
+function parseTopics() {
+  return $('topics').value.split('\n').map(l => l.trim()).filter(Boolean).map(l => {
+    const [id, label, focus, excl] = l.split('|').map(s => (s || '').trim());
+    return { id: id || (label || '').toLowerCase(), label: label || id, focus, excl };
+  }).filter(t => t.id);
+}
+function candidatePrompt(jsonInText) {
+  const today = new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const n = Math.min(40, Math.max(3, parseInt($('n').value) || 12));
+  const days = Math.min(14, Math.max(1, parseInt($('days').value) || 3));
+  const topics = parseTopics();
+  const list = topics.map(t => `- id "${t.id}": ${t.label}${t.focus ? `. Focus: ${t.focus}` : ''}${t.excl ? `. Escludi: ${t.excl}` : ''}`).join('\n');
+  const fields = `- "title": titolo in italiano, massimo 12 parole, niente clickbait (metti questo campo PER PRIMO)
+- "topicId": esattamente uno degli id elencati
+- "subtopic": sotto-argomento breve (es. "chip", "Serie A", "Ethereum")
+- "tags": 2-4 parole chiave minuscole
+- "type": uno tra ${TYPES.map(t => `"${t}"`).join(', ')}
+- "summary": 2-3 frasi concrete: cosa è successo, con fatti, numeri e nomi
+- "whyItMatters": una frase su perché conta
+- "source": nome della testata o del sito da cui viene il fatto
+- "url": link all'articolo originale, solo se lo hai trovato con la ricerca, altrimenti ""
+- "publishedAt": data di pubblicazione dell'articolo, formato YYYY-MM-DD (con ora THH:MM se la conosci)
+- "quality": oggetto con "specificity", "novelty", "importance", interi da 1 a 5`;
+  return `Oggi è ${today}. Usa Google Search per trovare notizie VERE pubblicate negli ultimi ${days} giorni sugli argomenti qui sotto, poi scegli le ${n} più interessanti per un lettore curioso e già informato.
+Area geografica preferita: ${AREAS[$('area').value]}.
+
+ARGOMENTI:
+${list}
+
+CRITERI:
+- Specifiche: fatti, numeri, nomi concreti. Niente notizie generiche, gossip, comunicati promozionali, liste di consigli.
+- Nuove e rilevanti: preferisci ciò che cambia qualcosa o che un appassionato vorrebbe sapere.
+- Mescola i tipi: notizie, analisi, curiosità, cose "da tenere d'occhio".
+- Distribuisci le voci tra gli argomenti.
+- Ogni voce deve basarsi su una fonte trovata con la ricerca. Non inventare fatti, fonti, link o dichiarazioni.
+
+${jsonInText ? 'Rispondi SOLO con un array JSON dentro un blocco ```json, senza altro testo. Ogni voce ha questi campi:' : 'Rispondi con un array JSON. Ogni voce ha questi campi:'}
+${fields}`;
+}
+const SCHEMA = {
+  type: 'ARRAY', items: {
+    type: 'OBJECT', properties: {
+      title: { type: 'STRING' }, topicId: { type: 'STRING' }, subtopic: { type: 'STRING' }, tags: { type: 'ARRAY', items: { type: 'STRING' } },
+      type: { type: 'STRING', enum: TYPES }, summary: { type: 'STRING' }, whyItMatters: { type: 'STRING' }, source: { type: 'STRING' }, url: { type: 'STRING' },
+      publishedAt: { type: 'STRING' }, quality: { type: 'OBJECT', properties: { specificity: { type: 'INTEGER' }, novelty: { type: 'INTEGER' }, importance: { type: 'INTEGER' } }, required: ['specificity', 'novelty', 'importance'] }
+    }, required: ['title', 'topicId', 'subtopic', 'tags', 'type', 'summary', 'whyItMatters', 'source', 'url', 'publishedAt', 'quality'],
+    propertyOrdering: ['title', 'topicId', 'subtopic', 'tags', 'type', 'summary', 'whyItMatters', 'source', 'url', 'publishedAt', 'quality']
+  }
+};
+function extractJSON(text) {
+  let t = text;
+  const m = t.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (m) t = m[1];
+  else { const a = t.indexOf('['), b = t.lastIndexOf(']'); if (a >= 0 && b > a) t = t.slice(a, b + 1); }
+  return JSON.parse(t.trim());
+}
+// Collega ogni voce alle fonti di Google: le groundingSupports indicano quali pezzi di testo
+// si basano su quali groundingChunks; una voce va dal suo titolo al titolo successivo nel testo.
+function mapSources(items, text, gm) {
+  const chunks = gm?.groundingChunks || [], sups = gm?.groundingSupports || [];
+  const pos = items.map(it => { const t = String(it.title || ''); let p = text.indexOf(JSON.stringify(t).slice(1, -1)); if (p < 0) p = text.indexOf(t); return p; });
+  const order = pos.map((p, i) => ({ p, i })).filter(x => x.p >= 0).sort((a, b) => a.p - b.p);
+  const span = {};
+  order.forEach((x, k) => { span[x.i] = [x.p, k + 1 < order.length ? order[k + 1].p : text.length]; });
+  return items.map((it, i) => {
+    const s = span[i], idx = new Set();
+    if (s) for (const sp of sups) {
+      const st = sp.segment?.text ? text.indexOf(sp.segment.text) : -1;
+      if (st >= s[0] && st < s[1]) (sp.groundingChunkIndices || []).forEach(j => idx.add(j));
+    }
+    return [...idx].map(j => chunks[j]?.web).filter(Boolean);
+  });
+}
+function host(u) { try { return new URL(u).hostname.replace(/^www\./, ''); } catch (e) { return ''; } }
+function ageLabel(d) {
+  const t = Date.parse(d);
+  if (isNaN(t)) return 'data ?';
+  const h = (Date.now() - t) / 3600000;
+  return h < 0 ? 'data futura?' : h < 48 ? Math.round(h) + ' h fa' : Math.round(h / 24) + ' g fa';
+}
+
+async function runCandidates(kind) {
+  setBusy(true);
+  const out = $('out-ab');
+  const box = document.createElement('div');
+  box.className = 'res';
+  box.innerHTML = `<h3>${kind} · ${esc(model())} · in corso…</h3>`;
+  out.prepend(box);
+  const gen = { temperature: parseFloat($('temp').value) || 1 };
+  const tc = thinkingConfig(); if (tc) gen.thinkingConfig = tc;
+  if (kind === 'B') { gen.responseMimeType = 'application/json'; gen.responseSchema = SCHEMA; }
+  const body = { contents: [{ role: 'user', parts: [{ text: candidatePrompt(kind === 'A') }] }], tools: [{ google_search: {} }], generationConfig: gen };
+  const r = await callGemini(body);
+  let items = null, parseErr = '';
+  if (r.ok) { try { items = extractJSON(r.text); if (!Array.isArray(items)) throw new Error('non è un array'); } catch (e) { parseErr = e.message; } }
+  const srcs = items ? mapSources(items, r.text, r.gm) : [];
+  const withSrc = srcs.filter(s => s.length).length;
+  const chunks = r.gm?.groundingChunks || [];
+  const queries = r.gm?.webSearchQueries || [];
+  const urlOk = items ? items.filter((it, i) => { const h = host(it.url); return h && srcs[i].some(w => h.endsWith(String(w.title || '').replace(/^www\./, ''))); }).length : 0;
+  const rep = {
+    test: kind === 'A' ? 'A ricerca + JSON nel testo' : 'B ricerca + responseSchema', model: model(), thinking: $('thinking').value, temp: gen.temperature,
+    area: $('area').value, richieste: parseInt($('n').value), giorni: parseInt($('days').value),
+    ok: r.ok && !!items, http: r.status, ms: r.ms, errore: r.error || parseErr || undefined, finish: r.finish || undefined,
+    token: r.um ? { prompt: r.um.promptTokenCount, risposta: r.um.candidatesTokenCount, thinking: r.um.thoughtsTokenCount, strumenti: r.um.toolUsePromptTokenCount, totale: r.um.totalTokenCount } : undefined,
+    ricerche: queries.length, fonti: chunks.length, voci: items ? items.length : 0, vociConFonte: withSrc, urlModelloCoerenti: urlOk,
+    tipi: items ? countBy(items, 'type') : undefined, argomenti: items ? countBy(items, 'topicId') : undefined,
+    eta: items ? items.map(it => ageLabel(it.publishedAt)) : undefined,
+    esempi: items ? items.slice(0, 5).map((it, i) => ({ title: it.title, source: it.source, url: it.url, publishedAt: it.publishedAt, quality: it.quality, fontiGoogle: srcs[i].map(w => w.title) })) : undefined,
+    testoGrezzo: !items && r.text ? r.text.slice(0, 600) : undefined
+  };
+  REPORT.push(rep); renderReport();
+  box.innerHTML = renderCandidates(kind, r, items, srcs, rep);
+  box.querySelectorAll('[data-url]').forEach(b => b.onclick = () => { $('url').value = b.dataset.url; $('url').scrollIntoView({ behavior: 'smooth', block: 'center' }); });
+  const sep = box.querySelector('iframe');
+  if (sep) sep.srcdoc = r.gm.searchEntryPoint.renderedContent;
+  setBusy(false);
+}
+function countBy(arr, k) { const o = {}; arr.forEach(x => { const v = x?.[k] ?? '?'; o[v] = (o[v] || 0) + 1; }); return o; }
+function metric(label, val, cls = '') { return `<div>${esc(label)}<b class="${cls}">${esc(val)}</b></div>`; }
+function renderCandidates(kind, r, items, srcs, rep) {
+  const head = `<h3>${kind} · ${esc(model())} · <span class="${rep.ok ? 'ok' : 'err'}">${rep.ok ? 'OK' : 'ERRORE'}</span></h3>`;
+  const m = `<div class="metrics">${metric('tempo', (r.ms / 1000).toFixed(1) + ' s')}${metric('HTTP', r.status || '—', r.ok ? 'ok' : 'err')}${metric('ricerche', rep.ricerche)}${metric('fonti Google', rep.fonti)}${metric('voci', rep.voci)}${metric('voci con fonte', rep.vociConFonte + '/' + rep.voci, rep.vociConFonte === rep.voci && rep.voci ? 'ok' : 'warn')}${metric('link modello coerenti', rep.urlModelloCoerenti + '/' + rep.voci)}${metric('token totali', rep.token?.totale ?? '—')}</div>`;
+  const err = rep.errore ? `<p class="err">${esc(rep.errore)}</p>` : '';
+  const q = rep.ricerche ? `<details><summary>Ricerche fatte (${rep.ricerche})</summary><pre>${esc((r.gm.webSearchQueries || []).join('\n'))}</pre></details>` : (r.ok ? '<p class="warn">Nessuna ricerca fatta: le notizie potrebbero essere inventate.</p>' : '');
+  const sep = r.gm?.searchEntryPoint?.renderedContent ? `<details><summary>Suggerimenti di ricerca Google (da mostrare per le condizioni d'uso)</summary><iframe sandbox="allow-popups allow-popups-to-escape-sandbox" title="Suggerimenti di ricerca"></iframe></details>` : '';
+  const list = (items || []).map((it, i) => {
+    const qv = it.quality || {};
+    const g = srcs[i] || [];
+    return `<div class="item">
+      <div class="meta">${esc(it.topicId)} › ${esc(it.subtopic)} · ${esc(it.type)} · ${esc(ageLabel(it.publishedAt))} · Q ${esc(qv.specificity)}/${esc(qv.novelty)}/${esc(qv.importance)}</div>
+      <div class="t">${esc(it.title)}</div>
+      <div class="s">${esc(it.summary)}</div>
+      <div class="w">Perché conta: ${esc(it.whyItMatters)}</div>
+      <div>${(it.tags || []).map(t => `<span class="tag">${esc(t)}</span>`).join('')}</div>
+      <div class="src">Fonte dichiarata: ${esc(it.source)}${it.url ? ` · <a href="${esc(it.url)}" target="_blank" rel="noopener">${esc(host(it.url) || it.url)}</a>` : ''}</div>
+      <div class="src">Fonti Google: ${g.length ? g.map(w => `<a href="${esc(w.uri)}" target="_blank" rel="noopener">${esc(w.title)}</a>`).join(', ') : '<span class="warn">nessuna collegata</span>'}</div>
+      <div class="btns">${it.url ? `<button class="sec sm" data-url="${esc(it.url)}">Approfondisci (link modello)</button>` : ''}${g[0] ? `<button class="sec sm" data-url="${esc(g[0].uri)}">Approfondisci (fonte Google)</button>` : ''}</div>
+    </div>`;
+  }).join('');
+  const raw = `<details><summary>Risposta grezza</summary><pre>${esc(JSON.stringify(r.json ?? r.error, null, 1))}</pre></details>`;
+  return head + m + err + q + sep + list + raw;
+}
+
+// ── C: articolo da URL ──
+async function runArticle() {
+  const url = $('url').value.trim();
+  if (!/^https?:\/\//.test(url)) { alert('Inserisci un link http(s)'); return; }
+  setBusy(true);
+  const out = $('out-c');
+  out.innerHTML = `<div class="res"><h3>C · ${esc(model())} · in corso…</h3></div>`;
+  const gen = { temperature: 0.4, maxOutputTokens: 8192 };
+  const tc = thinkingConfig(); if (tc) gen.thinkingConfig = tc;
+  const tools = [{ url_context: {} }];
+  if ($('c-search').checked) tools.push({ google_search: {} });
+  const prompt = `Leggi l'articolo a questo indirizzo: ${url}
+Scrivi in italiano un approfondimento basato SOLO su quel contenuto (e su fonti verificate con la ricerca, se disponibile). Non inventare fatti, numeri o citazioni.
+Formato, testo semplice senza markdown tranne i sottotitoli:
+riga 1: titolo
+riga vuota
+poi 2-4 sezioni, ognuna con una riga "## Sottotitolo" seguita da paragrafi separati da righe vuote.
+In fondo una riga "Fonte: <nome della testata>".`;
+  const r = await callGemini({ contents: [{ role: 'user', parts: [{ text: prompt }] }], tools, generationConfig: gen });
+  const meta = r.ucm?.urlMetadata || [];
+  const statuses = meta.map(u => `${u.urlRetrievalStatus || '?'} · ${u.retrievedUrl || ''}`);
+  const rep = {
+    test: 'C articolo da URL', model: model(), thinking: $('thinking').value, conRicerca: $('c-search').checked,
+    urlTipo: /grounding-api-redirect/.test(url) ? 'redirect Google' : 'diretto', ok: r.ok && !!r.text.trim(), http: r.status, ms: r.ms, errore: r.error, finish: r.finish || undefined,
+    token: r.um ? { prompt: r.um.promptTokenCount, risposta: r.um.candidatesTokenCount, thinking: r.um.thoughtsTokenCount, strumenti: r.um.toolUsePromptTokenCount, totale: r.um.totalTokenCount } : undefined,
+    recupero: statuses, caratteri: r.text ? r.text.length : 0, inizio: r.text ? r.text.slice(0, 300) : undefined
+  };
+  REPORT.push(rep); renderReport();
+  const okRetrieval = meta.some(u => /SUCCESS/.test(u.urlRetrievalStatus || ''));
+  out.innerHTML = `<div class="res"><h3>C · ${esc(model())} · <span class="${rep.ok ? 'ok' : 'err'}">${rep.ok ? 'OK' : 'ERRORE'}</span></h3>
+    <div class="metrics">${metric('tempo', (r.ms / 1000).toFixed(1) + ' s')}${metric('HTTP', r.status || '—', r.ok ? 'ok' : 'err')}${metric('pagina letta', meta.length ? (okRetrieval ? 'sì' : 'no') : '—', okRetrieval ? 'ok' : 'warn')}${metric('fine', r.finish || '—')}${metric('token totali', rep.token?.totale ?? '—')}</div>
+    ${r.error ? `<p class="err">${esc(r.error)}</p>` : ''}
+    ${statuses.length ? `<pre>${esc(statuses.join('\n'))}</pre>` : ''}
+    ${r.text ? `<div class="article">${esc(r.text)}</div>` : ''}
+    <details><summary>Risposta grezza</summary><pre>${esc(JSON.stringify(r.json ?? r.error, null, 1))}</pre></details></div>`;
+  setBusy(false);
+}
+
+// ── report ──
+function renderReport() { $('report').textContent = REPORT.length ? JSON.stringify(REPORT, null, 1) : '(vuoto)'; }
+async function copyReport() {
+  const txt = JSON.stringify({ quando: new Date().toISOString(), ua: navigator.userAgent, prove: REPORT }, null, 1);
+  try { await navigator.clipboard.writeText(txt); alert('Report copiato: incollalo in chat.'); }
+  catch (e) {
+    const r = document.createRange(); r.selectNodeContents($('report'));
+    const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+    alert('Copia automatica non riuscita: il report è selezionato, copialo a mano.');
+  }
+}
+</script>
+</body>
+</html>

@@ -15,7 +15,7 @@ import { renderOggi, renderHOggiList, updateOggiStats } from './oggi.js';
 import { CAL, ensureEventi, renderCalendario, renderCalStrip, renderCalDay, calShiftWeek, calGoToday, openEventoModal } from './calendario.js';
 import {
   FEED, FEED_TOPICS_LS, setDiscoverHooks, normalizeTopic, renderDiscover,
-  addFeedTopic, clearFeedCache, clearFeedPrefs, clearFeedSeen, closeFeedSheet, expandArticle, feedSheetOverlayClick, fetchGeminiModels,
+  addFeedTopic, clearFeedCache, clearFeedPrefs, clearFeedSeen, closeFeedSheet, expandArticle, feedSheetOverlayClick, feedSourceClick, fetchGeminiModels,
   generateFeed, loadMoreFeed, openFeedChat, openFeedSheet, regenerateFeed, removeFeedKey, removeFeedTopic, saveFeedKey, sendFeedChat,
   setFeedModel, setFeedModelFromInput, setFeedTopic, shareFeedCard, switchFeedSheet, toggleFeedKeyVis, toggleFeedSaved
 } from './discover.js';
@@ -295,6 +295,7 @@ Object.assign(window, {
   expandArticle,          // discover.js
   exportBackup,           // state.js
   feedSheetOverlayClick,  // discover.js
+  feedSourceClick,        // discover.js
   fetchGeminiModels,      // discover.js
   generateFeed,           // discover.js
   goScreen,               // app.js

@@ -220,7 +220,7 @@ function exportBackup() {
 }
 
 export {
-  sb, SK, S, curUser, curScreen, isProgrammaticScroll, selectedDate, mMode, editId, APP_VERSION, SETTINGS, DLG,
+  SUPA_URL, SUPA_KEY, sb, SK, S, curUser, curScreen, isProgrammaticScroll, selectedDate, mMode, editId, APP_VERSION, SETTINGS, DLG,
   lastTopPct, focusMode,
   setS, setCurUser, setCurScreen, setIsProgrammaticScroll, setSelectedDateOnly, setMMode, setEditId, setAllDaysLoaded, setLastTopPct,
   setStateHooks, setSelectedDate, load, persist, getDay, ensureSlotArrays, atdDoneCount, activeHabits, getImpegniDelGiorno,
