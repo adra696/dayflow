@@ -62,7 +62,7 @@ Menu → **Edge Functions** → **Secrets** (se non lo trovi: **Project Settings
 2. Nome: **`generate-feed`**, esattamente così (il cron chiama questo indirizzo).
 3. Cancella il codice di esempio e incolla tutto `functions/generate-feed/index.ts`.
 4. **Deploy**.
-5. Nei dettagli della funzione, **Verify JWT** (o "Enforce JWT verification") deve restare **attivo**.
+5. Nei dettagli della funzione (**Details** / **Settings**) **disattiva Verify JWT** (o "Enforce JWT verification") e salva. Il gateway rifiuta la chiave anon del cron con `UNAUTHORIZED_INVALID_JWT_FORMAT`. I controlli li fa la funzione stessa: il segreto del cron, oppure il login dell'utente verificato con `auth.getUser`.
 
 Per aggiornarla in futuro: apri la funzione → scheda **Code** → incolla la nuova versione → **Deploy**.
 
@@ -79,7 +79,7 @@ Apri `sql/03-feed-test.sql` ed esegui **una query alla volta**: selezionala nell
 - **A. Argomenti.** Se `feed_topics` è vuoto (`NULL`), apri DayFlow → Discover → Argomenti e cambia qualcosa (aggiungine uno e toglilo): l'app li copia su Supabase. Senza argomenti salvati, il cron salta l'utente.
 - **B. Avvio.** Lancia subito una generazione, ignorando l'orario.
 - **C. Risposta.** Deve esserci `status_code = 202` e `{"started":true}`.
-  - `401`: Verify JWT o la chiave anon nel file non vanno.
+  - `401` `UNAUTHORIZED_INVALID_JWT_FORMAT`: Verify JWT è ancora attivo, disattivalo (passo 4.5).
   - `403`: `FEED_CRON_SECRET` non corrisponde al segreto del Vault.
   - `500`: manca `GEMINI_API_KEY`.
 - **D. Esito, dopo 1-2 minuti.** `ok = true` e `inserted` > 0. In `detail` trovi modello, ricerche fatte, token ed eventuali errori per argomento.

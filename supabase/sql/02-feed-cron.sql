@@ -7,8 +7,8 @@
 -- alle 4:00 e alle 5:00 UTC e la funzione lavora solo quando a Roma sono le 6
 -- (estate 4:00 UTC, inverno 5:00 UTC). L'altra chiamata risponde "skipped".
 --
--- Authorization = chiave anon pubblica (la stessa di js/state.js): serve solo a passare
--- il controllo JWT del gateway; l'autorizzazione vera è x-cron-secret.
+-- La funzione ha Verify JWT disattivato: l'autorizzazione vera è x-cron-secret.
+-- Authorization (chiave anon pubblica, la stessa di js/state.js) è innocua e viene ignorata.
 
 select cron.schedule(
   'dayflow-feed-morning',

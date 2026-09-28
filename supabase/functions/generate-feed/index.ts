@@ -11,6 +11,10 @@
 // Segreti (Dashboard → Edge Functions → Secrets): GEMINI_API_KEY, FEED_CRON_SECRET,
 // opzionali GEMINI_MODEL (default gemini-2.5-flash) e GEMINI_THINKING ('off' default | 'model').
 // SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY sono già presenti in ogni Edge Function.
+//
+// Verify JWT va DISATTIVATO sulla funzione: il gateway rifiuta la chiave anon del cron
+// (UNAUTHORIZED_INVALID_JWT_FORMAT). L'autenticazione è fatta qui: x-cron-secret oppure
+// auth.getUser(token) per le chiamate dall'app.
 
 import { createClient, type SupabaseClient } from 'jsr:@supabase/supabase-js@2';
 
