@@ -389,6 +389,39 @@
   display: none
 }
 
+.feed-summary p + p {
+  margin-top: 12px
+}
+
+.feed-why {
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text3)
+}
+
+.feed-why b {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--tc, var(--accent));
+  margin-right: 4px
+}
+
+a.feed-src {
+  color: var(--text2);
+  text-decoration: none;
+  border-bottom: 1px solid var(--border2);
+  padding: 10px 0 1px;
+  margin: -10px 0 0
+}
+
+a.feed-src:hover {
+  color: var(--text);
+  border-bottom-color: var(--text3)
+}
+
 .feed-meta {
   display: flex;
   align-items: center;

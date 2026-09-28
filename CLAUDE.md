@@ -12,7 +12,7 @@ No build step, no npm install, no bundler. Serve the folder with any static file
 
 `test-grounding.html` is a standalone dev page (not part of the app, not in `sw.js` `STATIC`, not linked) for the Discover redesign: tests Gemini with `google_search` (JSON in text vs `responseSchema`) and `url_context`, reads the key from `localStorage` `dayflow_gemini_key` or a field, and builds a copyable report without the key.
 
-`supabase/` holds the cloud side of the Discover redesign, deployed by hand from the Supabase dashboard (no CLI; steps in `supabase/SETUP.md`): `sql/01-feed-schema.sql` (`profiles.feed_topics`/`feed_settings`, tables `feed_items`, `feed_events`, `feed_runs` with RLS, cron secret in Vault), `sql/02-feed-cron.sql` (pg_cron at 4:00 and 5:00 UTC → the function runs only when it is 6:00 in Rome), `sql/03-feed-test.sql`, and the Edge Function `functions/generate-feed/index.ts` (Gemini + `google_search`, one call per topic, JSON read from text, sources mapped via `groundingSupports`, redirect links resolved; modes `morning` via `x-cron-secret`, `more` via user JWT checked with `auth.getUser`; gateway Verify JWT must be OFF). The app does not read `feed_items` yet (phase 3).
+`supabase/` holds the cloud side of the Discover redesign, deployed by hand from the Supabase dashboard (no CLI; steps in `supabase/SETUP.md`): `sql/01-feed-schema.sql` (`profiles.feed_topics`/`feed_settings`, tables `feed_items`, `feed_events`, `feed_runs` with RLS, cron secret in Vault), `sql/02-feed-cron.sql` (pg_cron at 4:00 and 5:00 UTC → the function runs only when it is 6:00 in Rome), `sql/03-feed-test.sql`, and the Edge Function `functions/generate-feed/index.ts` (Gemini + `google_search`, one call per topic, JSON read from text, sources mapped via `groundingSupports`, redirect links resolved; modes `morning` via `x-cron-secret`, `more` via user JWT checked with `auth.getUser`; gateway Verify JWT must be OFF). Modes: `morning` (cron), `more`, `proxy` (Gemini passthrough for articles/chat, JSON or SSE, key stays in Supabase secrets; only `google_search`/`url_context` tools allowed) and `models`; per-user hourly limits counted in `feed_runs` (`more` 6, `proxy` 120). **Every change to `index.ts` must be pasted again in the dashboard (Edge Functions → generate-feed → Code → Deploy).**
 
 `dayflow1_0.html` (the old single-file entry point) is now only a meta-refresh redirect to `index.html`, kept so the PWA already installed on iPhone keeps opening. Do not delete it.
 
@@ -34,7 +34,8 @@ Since 18 Sep 2026 the app is split into native ES modules: `index.html` loads a 
 | `js/plan.js` | Pianifica screen, habit management modal, recurring commitments modal |
 | `js/oggi.js` | `renderOggi`, row gestures, habit list, stats |
 | `js/calendario.js` | Everything `cal*`, event editor, `normalizeEvento`, `ensureEventi` |
-| `js/discover.js` | `FEED` state, Gemini requests and streaming, feed generation, dedupe, saved, prefs, chat, model picker, Discover settings |
+| `js/feedrank.js` | Pure ranking for Discover: `feedQuality`, `feedFreshness`, `topicWeights(events, topicIds)`, `rankFeedItems(items, weights, { offset, prevTypes })` (score = quality × topic weight × freshness; top card = most important; every 6th card from a below-average topic; never 3 of the same `type` in a row) |
+| `js/discover.js` | `FEED` state, cloud feed (pool from `feed_items`, `requestCloudMore`, events queue), Gemini requests and streaming (cloud proxy or local key), fallback client generation, dedupe, saved, prefs, chat, model picker, Discover settings |
 | `js/settings.js` | Settings panel (`openSettings`, `closeSettings`, `renderSettings*`, `settingsSyncNow`, `settingsGo`) |
 | `js/app.js` | Entry module: hook registration, `initApp`, auth state listener, `goScreen`, app dialog, `requestLogout`, keyboard handling (Esc, Tab trap), swipe/carousel navigation, service worker registration, `window` bridge |
 | `package.json` | `"type": "module"` + the `test` script only; no dependencies, nothing to install |
@@ -44,6 +45,7 @@ Since 18 Sep 2026 the app is split into native ES modules: `index.html` loads a 
 
 ```
 utils ← state ← sync ← { auth, plan, oggi, calendario, discover, settings } ← app
+feedrank (no imports) ← discover
 plan → oggi          calendario → plan (closeModal)
 settings → discover  auth → settings (closeSettings)
 ```
@@ -67,7 +69,7 @@ If you add a new upward call, add it to the matching hook object (and to the des
 
 ### Tests
 
-`test/*.test.js` use only `node:test` + `node:assert/strict` (no npm dependencies). Run them with `npm test` (= `node --test test/*.test.js`, Node ≥ 22; the glob is expanded by Node, so it also works in PowerShell). `test/setup.js` must be the first import of every test file: it installs in-memory `localStorage`, an inert `supabase.createClient`, and `window`/`document` stubs so `state.js`/`sync.js` can be imported in Node; tests then register the real `ensureEventi` with `setStateHooks()` and reset `S.days`, `pendingSync`, `restoredPending` in `beforeEach`. Covered: `calcPct`, `calcAvg`, `normalizeEvento`, `ensureSlotArrays`/`ensureEventi`, `getDay`, `adoptRemoteDay`. Tests describe the current behaviour of the code; a function that is private only for the tests' sake is exported by adding its name to the module's `export {}` block.
+`test/*.test.js` use only `node:test` + `node:assert/strict` (no npm dependencies). Run them with `npm test` (= `node --test test/*.test.js`, Node ≥ 22; the glob is expanded by Node, so it also works in PowerShell). `test/setup.js` must be the first import of every test file: it installs in-memory `localStorage`, an inert `supabase.createClient`, and `window`/`document` stubs so `state.js`/`sync.js` can be imported in Node; tests then register the real `ensureEventi` with `setStateHooks()` and reset `S.days`, `pendingSync`, `restoredPending` in `beforeEach`. Covered: `calcPct`, `calcAvg`, `normalizeEvento`, `ensureSlotArrays`/`ensureEventi`, `getDay`, `adoptRemoteDay`, the `feedrank.js` ranking. Tests describe the current behaviour of the code; a function that is private only for the tests' sake is exported by adding its name to the module's `export {}` block.
 
 Supabase is loaded via CDN as a classic script before the app scripts: `<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">`.
 
@@ -199,6 +201,15 @@ alter table public.days add column if not exists eventi jsonb not null default '
 If the column is missing, `sbSaveDay()` catches the error once, flips `eventiColumnOk` to `false` and keeps saving everything else; events then live in `localStorage` only. `adoptRemoteDay()` never lets a remote row without `eventi` wipe local events.
 
 ## Discover Feed (Gemini)
+
+**Cloud mode (logged in, `cloudOn()`)** — since Sep 2026 the news come from Supabase, the rest of this section describes the client generation that remains as fallback:
+- `generateFeed()` → `cloudFeedCards(null, FEED_FIRST_N, reload)`: `loadFeedPool()` reads `feed_items` of the last 72h + `feed_events` of the last 30 days, maps rows with `rowToCard()` (`db: true`, `why`, `url`, `type`, `subtopic`, `tags`, `q: [spec, novelty, importance]`, `pubAt`, `pubDay` when Gemini gave only a date), computes `FEED.weights = topicWeights(...)`, and `pickFromPool()` ranks the unseen ones with `rankFeedItems`. Seen = `view`/`skip`/`down`/`less` events + `localStorage` `dayflow_feed_viewed` (7d). If fewer than 4 are left it awaits `requestCloudMore(topicId)` (function `mode: 'more'`, one at a time); when fewer than `FEED_CARDS_N` remain after a pick it prefetches in background. `loadMoreFeed()` → `nextFeedCards()`; any cloud failure except auth/rate falls back to `fetchFeedCards()`. Pull-to-refresh reloads the pool.
+- Gemini calls (`geminiRequest`/`geminiStream`/model list) go through `geminiFetch()`: function `mode: 'proxy'` with the user JWT; on network error or 5xx, and only if a local key exists, direct call with the local key. The local key is optional in cloud mode. Errors `dayflow-auth`/`dayflow-rate` have their own messages.
+- Cards show "Perché conta" (`.feed-why`) and the source as a link (`a.feed-src`, `feedSourceClick()` logs `open`). Articles of cloud cards pass the real URL with tools `url_context` + `google_search` (retry without tools on 400) and are cached in `feed_items.article` (the only column the client may update). Chat adds `url_context`.
+- Interactions (`logFeedEvent(card, kind, dwell)`): `view` (card ≥60% visible for ≥1.5 s) / `skip`, `open`, `chat`, `save`/`unsave`, `share`, queued in `localStorage` `dayflow_feed_evq` (with `uid`) and inserted into `feed_events` in batches (4 s debounce, app hidden). Skips never lower a topic's weight; only explicit negatives do (👎 comes in phase 4).
+- Adding a topic saves the profile first and then asks the function for news on it. `sbLoadFeedTopics()` copies local topics to `profiles.feed_topics` when the profile has none.
+
+**Client generation (fallback, not logged in or cloud down):**
 
 - Model selectable in the Discover section of the global settings panel (default `gemini-2.5-flash`), used for feed, articles and chat via REST `generateContent`; the API key goes in the `x-goog-api-key` header, never in the URL. `feedModel()` reads `localStorage` `dayflow_gemini_model` (validated by `/^[a-z0-9][a-z0-9.\-]*$/i`, local only like the key) and `geminiUrl(stream)` builds the endpoint at request time. The picker (`renderFeedModelPicker()`, options styled as `.topic-row.model-opt`) lists 3 presets (Flash, Flash-Lite, Pro), the models loaded by "Carica modelli dalla chiave" (`fetchGeminiModels()`: `GET v1beta/models?pageSize=200`, keeps `models/gemini*` with `generateContent`, drops embedding/tts/image/live/audio…, stored in `dayflow_gemini_models` = `{ ts, models: [{ id, label }] }`) and a free-text "Altro modello" field. `setFeedModel()` saves + toasts; it does not regenerate the feed nor invalidate cached feed/articles.
 - `geminiThinkingConfig()` picks a model-compatible `thinkingConfig`: `{ thinkingBudget: 0 }` for 2.5 flash / flash-lite, `{ thinkingLevel: 'low' }` for `gemini-3*`, omitted for everything else (Pro cannot disable thinking → 400). When thinking is not off, the article's `maxOutputTokens` goes from 3072 to 8192 because thinking tokens count against it.

@@ -64,7 +64,7 @@ Menu → **Edge Functions** → **Secrets** (se non lo trovi: **Project Settings
 4. **Deploy**.
 5. Nei dettagli della funzione (**Details** / **Settings**) **disattiva Verify JWT** (o "Enforce JWT verification") e salva. Il gateway rifiuta la chiave anon del cron con `UNAUTHORIZED_INVALID_JWT_FORMAT`. I controlli li fa la funzione stessa: il segreto del cron, oppure il login dell'utente verificato con `auth.getUser`.
 
-Per aggiornarla in futuro: apri la funzione → scheda **Code** → incolla la nuova versione → **Deploy**.
+Per aggiornarla in futuro: apri la funzione → scheda **Code** → incolla la nuova versione → **Deploy**. Va rifatto a ogni modifica di `index.ts`.
 
 ## 5. Il cron delle 6:00
 

@@ -1,6 +1,7 @@
 ﻿import { todayStr, uid, showToast, setSS, fmtHeaderDate } from './utils.js';
-import { SETTINGS, curScreen, calcPct, updateTopProgressBar } from './state.js';
+import { SUPA_URL, SUPA_KEY, sb, curUser, SETTINGS, curScreen, calcPct, updateTopProgressBar } from './state.js';
 import { sbSaveFeedTopics } from './sync.js';
+import { topicWeights, rankFeedItems } from './feedrank.js';
 
 // Dipendenza "verso l'alto" (settings.js importa già discover.js: importarla qui farebbe un ciclo):
 // app.js la registra con setDiscoverHooks() all'avvio.
@@ -30,6 +31,16 @@ const FEED_PREFS_LS = 'dayflow_feed_prefs'; // interessi impliciti (articoli ape
 const FEED_PREFS_TTL = 14 * 24 * 60 * 60 * 1000;
 const FEED_PREFS_MAX = 30;
 const FEED_PTR_THRESHOLD = 72;              // px di trascinamento per aggiornare
+// Notizie dal cloud (Supabase: tabella feed_items, Edge Function generate-feed)
+const FEED_FN_PATH = '/functions/v1/generate-feed';
+const FEED_FIRST_N = 12;                    // card del primo caricamento dal cloud
+const FEED_POOL_HOURS = 72;                 // notizie generate nelle ultime 72h
+const FEED_EV_DAYS = 30;                    // eventi usati per i pesi degli argomenti
+const FEED_VIEWED_LS = 'dayflow_feed_viewed'; // { id: ts } card del cloud già viste (anche prima dell'invio eventi)
+const FEED_VIEWED_TTL = 7 * 24 * 60 * 60 * 1000;
+const FEED_EVQ_LS = 'dayflow_feed_evq';     // eventi in coda per feed_events
+const FEED_VIEW_MS = 1500;                  // sotto questa permanenza la card è "scorsa via" (skip)
+const FEED_ITEM_COLS = 'id,created_at,topic_id,subtopic,tags,type,title,summary,why,source,url,published_at,q_specificity,q_novelty,q_importance,article';
 const FEED_PALETTE = ['#60a5fa', '#34d399', '#fbbf24', '#c084fc', '#f472b6', '#fb923c', '#2dd4bf', '#a3e635'];
 const FEED_DEFAULT_TOPICS = [
   { id: 'tech', label: 'Tech', emoji: '🔵', color: '#60a5fa' },
@@ -37,7 +48,8 @@ const FEED_DEFAULT_TOPICS = [
   { id: 'crypto', label: 'Crypto', emoji: '📈', color: '#fbbf24' },
   { id: 'scienza', label: 'Scienza', emoji: '🧬', color: '#c084fc' }
 ];
-const FEED = { topics: [], activeTopic: 'all', data: null, loading: false, error: null, more: false, moreTopic: null, moreError: null, sheet: null, card: null, chat: [], chatBusy: false, articleStream: null, articlePartial: null, pullInit: false, endObs: null, saved: null };
+const FEED = { topics: [], activeTopic: 'all', data: null, loading: false, error: null, more: false, moreTopic: null, moreError: null, sheet: null, card: null, chat: [], chatBusy: false, articleStream: null, articlePartial: null, pullInit: false, endObs: null, saved: null,
+  pool: null, poolLoading: null, weights: {}, viewedIds: null, cloudMore: null, evQ: null, evFlushing: false, viewObs: null, viewing: new Map(), evInit: false };
 
 // ── DISCOVER FEED (Gemini) ────────────────────────────────
 // (costanti e stato FEED dichiarati in testa allo script, sezione STATE)
@@ -72,7 +84,7 @@ function loadFeedTopics() {
 }
 function saveFeedTopics() {
   try { localStorage.setItem(FEED_TOPICS_LS, JSON.stringify(FEED.topics)); } catch (e) { }
-  sbSaveFeedTopics();
+  return sbSaveFeedTopics();
 }
 function feedTopic(id) { return FEED.topics.find(t => t.id === id) || { id, label: id, emoji: '✦', color: '#8b8cf8' }; }
 function loadFeedCache() {
@@ -124,11 +136,13 @@ function toggleFeedSaved(id) {
   const list = loadFeedSaved();
   const idx = list.findIndex(c => c.id === id);
   if (idx >= 0) {
+    logFeedEvent(list[idx], 'unsave');
     list.splice(idx, 1);
     showToast('Rimossa dai salvati', 'info', 1800);
   } else {
     const card = feedCardById(id); if (!card) return;
     list.push(Object.assign({}, card, { savedAt: Date.now() }));
+    logFeedEvent(card, 'save');
     showToast('Salvata per dopo', 'info', 1800);
   }
   persistFeedSaved();
@@ -164,14 +178,21 @@ function clearFeedPrefs() {
 // ── Condividi ──
 async function shareFeedCard(id) {
   const c = feedCardById(id); if (!c) return;
-  const text = `${c.title}\n\n${c.summary}\n\n${c.source} · via DayFlow Discover`;
+  const u = feedSafeUrl(c.url);
+  const text = `${c.title}\n\n${c.summary}\n\n${c.source}${u ? ' · ' + u : ''} · via DayFlow Discover`;
   try {
-    if (navigator.share) { await navigator.share({ title: c.title, text }); return; }
+    if (navigator.share) { await navigator.share(u ? { title: c.title, text, url: u } : { title: c.title, text }); logFeedEvent(c, 'share'); return; }
     await navigator.clipboard.writeText(text);
+    logFeedEvent(c, 'share');
     showToast('Copiata negli appunti', 'info', 1800);
   } catch (e) { if (e && e.name !== 'AbortError') showToast('Condivisione non riuscita', 'error'); }
 }
 function feedRelTime(card) {
+  // Notizie del cloud con sola data di pubblicazione (senza ora): oggi / ieri / N giorni fa
+  if (card.pubDay) {
+    const g = Math.round((Date.parse(todayStr() + 'T12:00:00') - Date.parse(card.pubDay + 'T12:00:00')) / 86400000);
+    return g <= 0 ? 'oggi' : g === 1 ? 'ieri' : g + ' giorni fa';
+  }
   const gen = card.genAt || (FEED.data ? FEED.data.generatedAt : Date.now());
   const mins = Math.max(1, Math.round((card.ageMinutes || 60) + (Date.now() - gen) / 60000));
   if (mins < 60) return mins + ' min fa';
@@ -180,23 +201,227 @@ function feedRelTime(card) {
   const g = Math.round(h / 24);
   return g === 1 ? 'ieri' : g + ' giorni fa';
 }
+function feedSafeUrl(u) { return /^https?:\/\//i.test(String(u || '')) ? String(u) : ''; }
+
+// ── Cloud (Supabase) ──
+// Con l'utente loggato le notizie arrivano da feed_items (generate ogni mattina dalla Edge Function
+// generate-feed) e approfondimenti/chat passano dalla stessa funzione (mode 'proxy'): la chiave Gemini
+// resta nei segreti Supabase. La chiave locale, se c'è, è solo una riserva quando il cloud non risponde.
+function cloudOn() { return !!(sb && curUser); }
+function feedAIReady() { return cloudOn() || !!feedKey(); }
+const feedAbortErr = () => Object.assign(new Error('abort'), { code: 'abort' });
+async function feedFnFetch(payload, signal) {
+  let token = '';
+  try { const { data } = await sb.auth.getSession(); token = data?.session?.access_token || ''; } catch (e) { }
+  if (!token) throw Object.assign(new Error('auth'), { code: 'http', status: 401, detail: 'dayflow-auth' });
+  try {
+    return await fetch(SUPA_URL + FEED_FN_PATH, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token, apikey: SUPA_KEY }, body: JSON.stringify(payload), signal });
+  } catch (e) { throw signal && signal.aborted ? feedAbortErr() : Object.assign(new Error('network'), { code: 'network' }); }
+}
+async function feedHttpError(res) {
+  const err = Object.assign(new Error('http ' + res.status), { code: 'http', status: res.status });
+  try { const j = await res.json(); err.detail = j?.error?.message || (Array.isArray(j?.errors) ? j.errors.join('; ') : '') || (typeof j?.error === 'string' ? j.error : ''); } catch (e) { }
+  return err;
+}
+function rowToCard(r) {
+  const now = Date.now();
+  const pub = r.published_at ? Date.parse(r.published_at) : NaN;
+  const card = {
+    id: r.id, db: true, topicId: r.topic_id, title: r.title, summary: r.summary || '', why: r.why || '',
+    source: r.source || 'Fonte', url: feedSafeUrl(r.url), type: r.type || '', subtopic: r.subtopic || '', tags: r.tags || [],
+    q: [r.q_specificity, r.q_novelty, r.q_importance], createdAt: Date.parse(r.created_at) || now, pubAt: isNaN(pub) ? null : pub,
+    // mezzanotte UTC esatta = Gemini ha dato solo la data
+    pubDay: !isNaN(pub) && /T00:00:00(\.0+)?(Z|\+00(:?00)?)$/.test(r.published_at) ? r.published_at.slice(0, 10) : '',
+    genAt: now
+  };
+  card.ageMinutes = Math.max(1, Math.round((now - (card.pubAt || card.createdAt)) / 60000));
+  if (r.article && Array.isArray(r.article.sections)) card.fullArticle = r.article;
+  return card;
+}
+// Card del cloud già viste: localStorage (subito) + eventi view/skip/down già inviati (al caricamento del pool)
+function loadFeedViewedLS() {
+  let o = {};
+  try { o = JSON.parse(localStorage.getItem(FEED_VIEWED_LS) || '{}') || {}; } catch (e) { }
+  const cut = Date.now() - FEED_VIEWED_TTL;
+  Object.keys(o).forEach(k => { if (!(o[k] > cut)) delete o[k]; });
+  return o;
+}
+function markFeedViewed(id) {
+  if (!FEED.viewedIds) FEED.viewedIds = new Set(Object.keys(loadFeedViewedLS()));
+  FEED.viewedIds.add(id);
+  const o = loadFeedViewedLS(); o[id] = Date.now();
+  try { localStorage.setItem(FEED_VIEWED_LS, JSON.stringify(o)); } catch (e) { }
+}
+async function loadFeedPool() {
+  if (FEED.poolLoading) return FEED.poolLoading;
+  const run = (async () => {
+    const uid = curUser.id, now = Date.now();
+    const [it, ev] = await Promise.all([
+      sb.from('feed_items').select(FEED_ITEM_COLS).eq('user_id', uid).gte('created_at', new Date(now - FEED_POOL_HOURS * 3600000).toISOString()).order('created_at', { ascending: false }).limit(400),
+      sb.from('feed_events').select('item_id,topic_id,kind').eq('user_id', uid).gte('created_at', new Date(now - FEED_EV_DAYS * 86400000).toISOString()).order('created_at', { ascending: false }).limit(5000)
+    ]);
+    if (it.error) throw Object.assign(new Error('pool'), { code: 'pool', detail: it.error.message });
+    const viewed = new Set(Object.keys(loadFeedViewedLS()));
+    const events = ev.error ? [] : (ev.data || []);
+    events.forEach(e => { if (e.item_id && ['view', 'skip', 'down', 'less'].includes(e.kind)) viewed.add(e.item_id); });
+    FEED.viewedIds = viewed;
+    FEED.pool = (it.data || []).map(rowToCard);
+    FEED.weights = topicWeights(events.concat(feedEvQ()), FEED.topics.map(t => t.id));
+  })();
+  FEED.poolLoading = run;
+  try { await run; } finally { if (FEED.poolLoading === run) FEED.poolLoading = null; }
+}
+function feedPoolLeft(topicId) {
+  const active = new Set(FEED.topics.map(t => t.id));
+  const inFeed = new Set((FEED.data ? FEED.data.cards : []).map(c => c.id));
+  const titles = new Set((FEED.data ? FEED.data.cards : []).map(c => c.title.toLowerCase()));
+  const viewed = FEED.viewedIds || new Set();
+  return (FEED.pool || []).filter(c => active.has(c.topicId) && (!topicId || c.topicId === topicId)
+    && !viewed.has(c.id) && !inFeed.has(c.id) && !titles.has(c.title.toLowerCase()));
+}
+function pickFromPool(topicId, n) {
+  const shown = FEED.data ? feedVisibleCards(topicId || 'all') : [];
+  return rankFeedItems(feedPoolLeft(topicId), FEED.weights, { offset: shown.length, prevTypes: shown.slice(-2).map(c => c.type || '') }).slice(0, n);
+}
+// Chiede alla funzione un nuovo gruppo di notizie (mode 'more'); una richiesta alla volta.
+async function requestCloudMore(topicId) {
+  if (FEED.cloudMore) return FEED.cloudMore;
+  const run = (async () => {
+    const res = await feedFnFetch({ mode: 'more', topicId: topicId || undefined });
+    if (!res.ok) throw await feedHttpError(res);
+    let j = null; try { j = await res.json(); } catch (e) { }
+    const cards = (j && Array.isArray(j.items) ? j.items : []).map(rowToCard);
+    if (!FEED.pool) FEED.pool = [];
+    const known = new Set(FEED.pool.map(c => c.id));
+    cards.forEach(c => { if (!known.has(c.id)) FEED.pool.push(c); });
+    return cards.length;
+  })();
+  FEED.cloudMore = run;
+  try { return await run; } finally { if (FEED.cloudMore === run) FEED.cloudMore = null; }
+}
+async function cloudFeedCards(topicId, n, reload) {
+  if (reload || !FEED.pool) await loadFeedPool();
+  let picked = pickFromPool(topicId, n);
+  if (picked.length < Math.min(n, 4)) {
+    await requestCloudMore(topicId);
+    picked = pickFromPool(topicId, n);
+  }
+  if (!picked.length) throw Object.assign(new Error('empty'), { code: 'empty' });
+  // Prefetch: se nel pool restano poche notizie, il prossimo gruppo si prepara in background
+  if (feedPoolLeft(topicId).length - picked.length < FEED_CARDS_N) requestCloudMore(topicId).catch(e => console.warn('prefetch cloud', e));
+  return picked;
+}
+// Prossime card per il feed: cloud se disponibile, altrimenti (o se il cloud fallisce) generazione dal client.
+async function nextFeedCards(topicId, n) {
+  if (cloudOn()) {
+    try { return await cloudFeedCards(topicId === 'all' ? null : topicId, n, false); }
+    catch (e) {
+      if (e.detail === 'dayflow-rate' || e.detail === 'dayflow-auth') throw e;
+      console.warn('feed cloud', e);
+    }
+  }
+  return fetchFeedCards(topicId === 'all' ? FEED.topics : [feedTopic(topicId)], FEED_CARDS_N);
+}
+
+// ── Registro interazioni (feed_events) ──
+// Coda in localStorage, inviata a blocchi (debounce 4 s, app nascosta). Le card scorse via (skip)
+// sono registrate ma non penalizzano l'argomento (vedi feedrank.js).
+function feedEvQ() {
+  if (!FEED.evQ) { try { const q = JSON.parse(localStorage.getItem(FEED_EVQ_LS) || '[]'); FEED.evQ = Array.isArray(q) ? q : []; } catch (e) { FEED.evQ = []; } }
+  return FEED.evQ;
+}
+function saveFeedEvQ() { try { localStorage.setItem(FEED_EVQ_LS, JSON.stringify(feedEvQ().slice(-500))); } catch (e) { } }
+let feedEvTimer = null;
+function logFeedEvent(card, kind, dwell) {
+  if (!card || !curUser) return;
+  feedEvQ().push({
+    uid: curUser.id, item_id: card.db ? card.id : null, kind, topic_id: card.topicId || null, subtopic: card.subtopic || null,
+    type: card.type || null, tags: card.tags && card.tags.length ? card.tags : null,
+    dwell_ms: dwell == null ? null : Math.round(Math.min(dwell, 600000)), created_at: new Date().toISOString()
+  });
+  if (card.db && (kind === 'view' || kind === 'skip')) markFeedViewed(card.id);
+  saveFeedEvQ();
+  clearTimeout(feedEvTimer); feedEvTimer = setTimeout(flushFeedEvents, 4000);
+}
+async function flushFeedEvents() {
+  clearTimeout(feedEvTimer); feedEvTimer = null;
+  if (!cloudOn() || FEED.evFlushing) return;
+  const uid = curUser.id;
+  FEED.evQ = feedEvQ().filter(e => e.uid === uid); // eventi di un altro account: scartati
+  const batch = FEED.evQ.slice(0, 200);
+  if (!batch.length) { saveFeedEvQ(); return; }
+  FEED.evFlushing = true;
+  let ok = false;
+  try {
+    const rows = batch.map(({ uid: u, ...e }) => ({ ...e, user_id: u }));
+    let { error } = await sb.from('feed_events').insert(rows);
+    // notizia cancellata nel frattempo (FK): l'evento resta, senza item_id
+    if (error && error.code === '23503') ({ error } = await sb.from('feed_events').insert(rows.map(r => ({ ...r, item_id: null }))));
+    if (error) console.warn('feed_events', error.message); else ok = true;
+  } catch (e) { }
+  FEED.evFlushing = false;
+  if (ok && curUser && curUser.id === uid) {
+    FEED.evQ = feedEvQ().filter(e => !batch.includes(e));
+    saveFeedEvQ();
+    if (FEED.evQ.length) feedEvTimer = setTimeout(flushFeedEvents, 1000);
+  }
+}
+// Viste: una card è "vista" se resta ≥ FEED_VIEW_MS nel feed (60% visibile), altrimenti "skip".
+function observeFeedViews() {
+  const f = document.getElementById('disc-feed');
+  if (!f || !('IntersectionObserver' in window) || FEED.activeTopic === 'saved') return;
+  if (!FEED.viewObs || FEED.viewObs.root !== f) {
+    if (FEED.viewObs) FEED.viewObs.disconnect();
+    FEED.viewObs = new IntersectionObserver(entries => {
+      const now = performance.now();
+      entries.forEach(e => {
+        const id = e.target.dataset.id; if (!id) return;
+        if (e.isIntersecting && document.visibilityState === 'visible') { if (!FEED.viewing.has(id)) FEED.viewing.set(id, now); }
+        else endFeedView(id, now);
+      });
+    }, { root: f, threshold: 0.6 });
+  }
+  f.querySelectorAll('.feed-slide.card').forEach(el => { if (!el.dataset.obs) { el.dataset.obs = '1'; FEED.viewObs.observe(el); } });
+}
+function endFeedView(id, now = performance.now()) {
+  const t0 = FEED.viewing.get(id); if (t0 == null) return;
+  FEED.viewing.delete(id);
+  const card = FEED.data && FEED.data.cards.find(c => c.id === id); if (!card) return;
+  const dwell = now - t0;
+  logFeedEvent(card, dwell >= FEED_VIEW_MS ? 'view' : 'skip', dwell);
+}
+function endAllFeedViews() { [...FEED.viewing.keys()].forEach(id => endFeedView(id)); }
+function initFeedEvents() {
+  if (FEED.evInit) return;
+  FEED.evInit = true;
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') { endAllFeedViews(); flushFeedEvents(); } });
+  window.addEventListener('pagehide', () => { endAllFeedViews(); saveFeedEvQ(); });
+  if (feedEvQ().length) flushFeedEvents();
+}
+function feedSourceClick(id) { logFeedEvent(feedCardById(id), 'open'); }
 
 // ── Gemini REST ──
-async function geminiRequest(body) {
+// Cloud (proxy nella Edge Function) se loggato; chiave locale se non loggato o se il cloud
+// non risponde (rete / 5xx). Risposte ed errori hanno la stessa forma nei due casi.
+async function geminiFetch(body, stream, signal) {
+  if (cloudOn()) {
+    try {
+      const res = await feedFnFetch({ mode: 'proxy', model: feedModel(), stream: !!stream, request: body }, signal);
+      if (res.status < 500 || !feedKey()) return res;
+    } catch (e) { if (e.code !== 'network' || !feedKey()) throw e; }
+  }
   const key = feedKey();
   if (!key) throw Object.assign(new Error('nokey'), { code: 'nokey' });
-  let res;
   try {
-    res = await fetch(geminiUrl(false),{ method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify(body) });
-  } catch (e) { throw Object.assign(new Error('network'), { code: 'network' }); }
-  if (!res.ok) {
-    const err = Object.assign(new Error('http ' + res.status), { code: 'http', status: res.status });
-    try { const j = await res.json(); err.detail = j?.error?.message || ''; } catch (e) { }
-    throw err;
-  }
+    return await fetch(geminiUrl(stream), { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify(body), signal });
+  } catch (e) { throw signal && signal.aborted ? feedAbortErr() : Object.assign(new Error('network'), { code: 'network' }); }
+}
+async function geminiRequest(body) {
+  const res = await geminiFetch(body, false);
+  if (!res.ok) throw await feedHttpError(res);
   const json = await res.json();
   const parts = json?.candidates?.[0]?.content?.parts || [];
-  const text = parts.map(p => p.text || '').join('').trim();
+  const text = parts.filter(p => !p.thought).map(p => p.text || '').join('').trim();
   if (!text) throw Object.assign(new Error('empty'), { code: 'empty', reason: json?.candidates?.[0]?.finishReason || json?.promptFeedback?.blockReason || '' });
   return text;
 }
@@ -223,19 +448,11 @@ function createSSEParser(onData) {
 // Streaming Gemini (SSE). onChunk(delta, fullText) a ogni frammento; ritorna il testo completo.
 // opts.signal = AbortSignal; un abort lancia { code: 'abort' }.
 async function geminiStream(body, onChunk, opts = {}) {
-  const key = feedKey();
-  if (!key) throw Object.assign(new Error('nokey'), { code: 'nokey' });
   const signal = opts.signal;
-  const aborted = () => Object.assign(new Error('abort'), { code: 'abort' });
+  const aborted = feedAbortErr;
   let res;
-  try {
-    res = await fetch(geminiUrl(true),{ method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify(body), signal });
-  } catch (e) { throw signal && signal.aborted ? aborted() : Object.assign(new Error('network'), { code: 'network' }); }
-  if (!res.ok) {
-    const err = Object.assign(new Error('http ' + res.status), { code: 'http', status: res.status });
-    try { const j = await res.json(); err.detail = j?.error?.message || ''; } catch (e) { }
-    throw err;
-  }
+  try { res = await geminiFetch(body, true, signal); } catch (e) { throw signal && signal.aborted ? aborted() : e; }
+  if (!res.ok) throw await feedHttpError(res);
   if (!res.body || !res.body.getReader) throw Object.assign(new Error('network'), { code: 'network' });
   let full = '', finish = '', block = '', streamErr = null;
   const parser = createSSEParser(payload => {
@@ -278,8 +495,14 @@ async function geminiJSON(prompt, schema, temperature = 0.9) {
   const clean = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
   try { return JSON.parse(clean); } catch (e) { throw Object.assign(new Error('parse'), { code: 'parse' }); }
 }
-async function geminiText(contents, system) {
-  return geminiRequest({ systemInstruction: { parts: [{ text: system }] }, contents, generationConfig: { temperature: 0.7 } });
+// tools (url_context / google_search) facoltativi: se il modello li rifiuta (400) si riprova senza.
+async function geminiText(contents, system, tools) {
+  const body = { systemInstruction: { parts: [{ text: system }] }, contents, generationConfig: { temperature: 0.7 } };
+  if (tools && tools.length) {
+    try { return await geminiRequest(Object.assign({}, body, { tools })); }
+    catch (e) { if (!(e.code === 'http' && e.status === 400)) throw e; }
+  }
+  return geminiRequest(body);
 }
 function feedErrorMessage(e) {
   if (!e) return 'Errore sconosciuto.';
@@ -287,6 +510,9 @@ function feedErrorMessage(e) {
   if (e.code === 'network') return navigator.onLine ? 'La rete non risponde. Riprova tra poco.' : 'Sei offline. Il feed torna quando sei connesso.';
   if (e.code === 'truncated') return 'Articolo interrotto.';
   if (e.code === 'parse' || e.code === 'empty') return 'Risposta dell\'AI non valida. Riprova.';
+  if (e.code === 'pool') return 'Non riesco a leggere le notizie dal cloud.';
+  if (e.detail === 'dayflow-auth') return 'Sessione scaduta: esci e rientra in DayFlow.';
+  if (e.detail === 'dayflow-rate') return 'Troppe richieste in poco tempo. Riprova tra qualche minuto.';
   if (e.code === 'http') {
     // Gemini risponde 400 INVALID_ARGUMENT anche per chiave errata: si distingue dal detail
     if (e.status === 401 || e.status === 403 || (e.status === 400 && /api[ _-]?key/i.test(e.detail || ''))) return 'Chiave API non valida o non autorizzata.';
@@ -306,10 +532,11 @@ function renderDiscover() {
   if (!FEED.topics.length) loadFeedTopics();
   if (!FEED.data && !FEED.loading) loadFeedCache();
   if (!FEED.pullInit) initFeedPull();
+  initFeedEvents();
   updateTopProgressBar(calcPct(todayStr()) || 0);
   renderFeedChips();
   renderFeed();
-  if (feedKey() && !FEED.data && !FEED.loading && !FEED.error) generateFeed();
+  if (feedAIReady() && !FEED.data && !FEED.loading && !FEED.error) generateFeed();
 }
 
 // ── Pull-to-refresh (touch) + rotella in cima (desktop) ──
@@ -382,13 +609,13 @@ function setFeedStatus(status, msg) { setSS('sd-recap', 'st-recap-sync', status,
 function renderFeed() {
   const f = document.getElementById('disc-feed'); if (!f) return;
   if (FEED.endObs) { FEED.endObs.disconnect(); FEED.endObs = null; }
+  endAllFeedViews(); // il DOM viene ricostruito: chiudo le viste in corso (ripartono con le nuove card)
   const stale = document.getElementById('disc-stale');
   const regen = document.getElementById('disc-regen');
   if (regen) regen.disabled = FEED.loading;
-  const key = feedKey();
   if (stale) stale.innerHTML = (FEED.data && FEED.data.stale && !FEED.loading) ? `<div class="feed-stale"><span>Argomenti cambiati</span><button onclick="regenerateFeed()">↻ Rigenera</button></div>` : '';
 
-  if (!key) {
+  if (!feedAIReady()) {
     setFeedStatus('offline', 'chiave api mancante');
     f.innerHTML = `
       <div class="feed-slide"><div class="feed-card feed-state">
@@ -414,7 +641,7 @@ function renderFeed() {
         <div class="sk-line tall w90"></div>
         <div class="sk-line tall w70"></div>
         <div style="flex:1;display:flex;flex-direction:column;gap:10px;margin-top:8px"><div class="sk-line w90"></div><div class="sk-line w90"></div><div class="sk-line w70"></div></div>
-        <div class="feed-meta"><div class="feed-spinner"></div><span>Gemini sta preparando il tuo feed…</span></div>
+        <div class="feed-meta"><div class="feed-spinner"></div><span>${cloudOn() ? 'Carico le notizie di oggi…' : 'Gemini sta preparando il tuo feed…'}</span></div>
       </div></div>`;
     return;
   }
@@ -427,7 +654,7 @@ function renderFeed() {
         <p>${escFeed(FEED.error)}</p>
         <div class="feed-actions">
           <button class="feed-btn pri" onclick="generateFeed(true)">↻ Riprova</button>
-          <button class="feed-btn sec" onclick="openFeedSheet('settings')">Cambia chiave</button>
+          <button class="feed-btn sec" onclick="openFeedSheet('settings')">${cloudOn() ? 'Impostazioni' : 'Cambia chiave'}</button>
         </div>
       </div></div>`;
     return;
@@ -452,6 +679,7 @@ function renderFeed() {
   f.innerHTML = cards.map((c, i) => feedCardHTML(c, i)).join('') + feedEndHTML();
   renumberFeed();
   attachFeedEndObserver();
+  observeFeedViews();
 }
 // Card del feed coerenti con il filtro attivo (chip 'saved' escluso: non usa FEED.data).
 function feedVisibleCards(topicId = FEED.activeTopic) {
@@ -464,8 +692,8 @@ function feedCardHTML(c, i) {
       <article class="feed-slide card" data-id="${escFeed(c.id)}"><div class="feed-card" style="--tc:${escFeed(t.color)};animation-delay:${Math.min(i, 3) * 40}ms">
         <div class="feed-badge"><span>${escFeed(t.emoji)}</span>${escFeed(t.label)}</div>
         <h2 class="feed-title">${escFeed(c.title)}</h2>
-        <p class="feed-summary">${escFeed(c.summary)}</p>
-        <div class="feed-meta"><span>${escFeed(c.source)}</span><span class="feed-meta-dot"></span><span>${escFeed(feedRelTime(c))}</span><span class="feed-meta-dot"></span><span class="feed-idx"></span></div>
+        <div class="feed-summary"><p>${escFeed(c.summary)}</p>${c.why ? `<p class="feed-why"><b>Perché conta</b> ${escFeed(c.why)}</p>` : ''}</div>
+        <div class="feed-meta">${feedSourceHTML(c)}<span class="feed-meta-dot"></span><span>${escFeed(feedRelTime(c))}</span><span class="feed-meta-dot"></span><span class="feed-idx"></span></div>
         <div class="feed-actions">
           <button class="feed-btn pri" onclick="expandArticle('${escFeed(c.id)}')">📖 Leggi</button>
           <button class="feed-btn sec" onclick="openFeedChat('${escFeed(c.id)}')">💬 Chiedi</button>
@@ -473,6 +701,11 @@ function feedCardHTML(c, i) {
           <button class="feed-btn ico" onclick="shareFeedCard('${escFeed(c.id)}')" aria-label="Condividi" title="Condividi"><svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg></button>
         </div>
       </div></article>`;
+}
+// Fonte: link all'articolo originale se c'è (notizie del cloud), altrimenti solo il nome
+function feedSourceHTML(c) {
+  const u = feedSafeUrl(c.url);
+  return u ? `<a class="feed-src" href="${escFeed(u)}" target="_blank" rel="noopener noreferrer" onclick="feedSourceClick('${escFeed(c.id)}')">${escFeed(c.source)} ↗</a>` : `<span>${escFeed(c.source)}</span>`;
 }
 function feedEndHTML() {
   return `<div class="feed-slide" id="disc-end"><div class="feed-card feed-state">${feedEndInner()}</div></div>`;
@@ -488,8 +721,8 @@ function feedEndInner() {
   return `
         <div class="feed-state-icon"><div class="feed-spinner"></div></div>
         <h3>${empty ? 'Cerco notizie su ' + escFeed(t.label) + '…' : 'Altre notizie in arrivo…'}</h3>
-        <p>${empty ? 'Niente qui nel feed di oggi: Gemini sta generando qualcosa su questo argomento.' : 'Gemini sta cercando qualcosa che non hai ancora visto.'}</p>
-        <div class="feed-disclaimer">Contenuti generati dall'AI · possono contenere imprecisioni</div>`;
+        <p>${empty ? 'Niente qui nel feed di oggi: cerco qualcosa su questo argomento.' : 'Cerco qualcosa che non hai ancora visto.'}</p>
+        <div class="feed-disclaimer">${cloudOn() ? "Notizie da fonti reali, riassunte dall'AI · possono contenere imprecisioni" : "Contenuti generati dall'AI · possono contenere imprecisioni"}</div>`;
 }
 function renumberFeed() {
   const f = document.getElementById('disc-feed'); if (!f) return;
@@ -534,7 +767,7 @@ function removeFeedKey() {
 
 // ── Generazione ──
 async function generateFeed(force = false) {
-  if (!feedKey()) { renderFeed(); return; }
+  if (!feedAIReady()) { renderFeed(); return; }
   if (FEED.loading) return;
   if (!FEED.topics.length) loadFeedTopics();
   const topics = FEED.topics;
@@ -543,7 +776,12 @@ async function generateFeed(force = false) {
   FEED.moreError = null;
   renderFeed();
   try {
-    const cards = await fetchFeedCards(topics, FEED_CARDS_N);
+    let cards = null;
+    if (cloudOn()) {
+      try { cards = await cloudFeedCards(null, FEED_FIRST_N, true); }
+      catch (e) { if (e.detail === 'dayflow-auth') throw e; console.warn('generateFeed cloud → generazione dal client', e); }
+    }
+    if (!cards) cards = await fetchFeedCards(topics, FEED_CARDS_N);
     FEED.data = { generatedAt: Date.now(), topicIds: topics.map(t => t.id), cards, stale: false };
     saveFeedCache();
     if (FEED.activeTopic !== 'all' && !topics.some(t => t.id === FEED.activeTopic)) FEED.activeTopic = 'all';
@@ -591,18 +829,17 @@ async function fetchFeedCards(topics, n) {
 }
 // Scroll infinito: accoda nuove card in fondo senza toccare lo scroll corrente.
 async function loadMoreFeed(retry = false) {
-  if (FEED.more || FEED.loading || !FEED.data || !feedKey()) return;
+  if (FEED.more || FEED.loading || !FEED.data || !feedAIReady()) return;
   if (FEED.moreError && !retry) return;
   if (FEED.activeTopic === 'saved') return;
   const topicId = FEED.activeTopic;
-  const topics = topicId === 'all' ? FEED.topics : [feedTopic(topicId)];
   const data = FEED.data;
   FEED.more = true; FEED.moreTopic = topicId; FEED.moreError = null;
   let end = document.getElementById('disc-end');
   if (end) end.querySelector('.feed-card').innerHTML = feedEndInner();
   else if (curScreen === 'recap') renderFeed();
   let cards = null, err = null;
-  try { cards = await fetchFeedCards(topics, FEED_CARDS_N); } catch (e) { err = e; }
+  try { cards = await nextFeedCards(topicId, FEED_CARDS_N); } catch (e) { err = e; }
   FEED.more = false; FEED.moreTopic = null;
   // Nel frattempo il feed è stato rigenerato (pull-to-refresh): le card appartengono al vecchio feed.
   if (FEED.data !== data || FEED.loading) return;
@@ -649,10 +886,11 @@ function appendFeedCards(cards) {
   if (wasOnEnd && Math.abs(f.scrollTop - end.offsetTop) > 2) f.scrollTo({ top: end.offsetTop, behavior: 'instant' });
   renumberFeed();
   attachFeedEndObserver();
+  observeFeedViews();
 }
 function regenerateFeed() {
   if (FEED.loading) return;
-  if (!feedKey()) { openFeedSheet('settings'); return; }
+  if (!feedAIReady()) { openFeedSheet('settings'); return; }
   generateFeed(true);
 }
 
@@ -692,6 +930,7 @@ async function expandArticle(id) {
   const card = feedCardById(id); if (!card) return;
   if (FEED.card && FEED.card.id !== id) FEED.chat = [];
   recordFeedPref(card, 'article');
+  logFeedEvent(card, 'open');
   openFeedSheet('article', card);
   if (card.fullArticle || FEED.articleStream) return;
   streamArticle(card);
@@ -743,19 +982,31 @@ async function streamArticle(card) {
   const st = { id: card.id, ctrl: new AbortController(), text: '', raf: 0, els: [] };
   FEED.articleStream = st;
   if (FEED.sheet === 'article' && FEED.card && FEED.card.id === card.id) renderFeedSheet();
-  const prompt = `Scrivi in italiano un articolo di approfondimento (400-600 parole) a partire da questa notizia.\nTitolo: ${card.title}\nRiassunto: ${card.summary}\nFonte: ${card.source}\nArgomento: ${feedTopic(card.topicId).label}\n\nTono giornalistico, chiaro, senza retorica. Contestualizza, spiega le implicazioni e chiudi con cosa aspettarsi. Non inventare citazioni virgolettate attribuite a persone reali.\n\nFORMATO DI OUTPUT (testo semplice, niente JSON, niente elenchi puntati, niente grassetti):\n- Prima riga: solo il titolo dell'articolo.\n- Poi una riga vuota.\n- 3-4 sezioni: ogni sezione inizia con una riga "## Sottotitolo breve", seguita da 1-3 paragrafi.\n- Separa ogni paragrafo e ogni sottotitolo con una riga vuota.`;
+  const url = feedSafeUrl(card.url);
+  // Notizie del cloud: l'articolo si basa sulla pagina vera (url_context), con la ricerca come riserva
+  const srcBlock = url ? `\nArticolo originale: ${url}\n\nLeggi l'articolo originale a quell'indirizzo e basati soprattutto su quello; se non riesci ad aprirlo, cerca la notizia con Google Search. Non inventare fatti, numeri o citazioni.` : '';
+  const prompt = `Scrivi in italiano un articolo di approfondimento (400-600 parole) a partire da questa notizia.\nTitolo: ${card.title}\nRiassunto: ${card.summary}\nFonte: ${card.source}\nArgomento: ${feedTopic(card.topicId).label}${srcBlock}\n\nTono giornalistico, chiaro, senza retorica. Contestualizza, spiega le implicazioni e chiudi con cosa aspettarsi. Non inventare citazioni virgolettate attribuite a persone reali.\n\nFORMATO DI OUTPUT (testo semplice, niente JSON, niente elenchi puntati, niente grassetti):\n- Prima riga: solo il titolo dell'articolo.\n- Poi una riga vuota.\n- 3-4 sezioni: ogni sezione inizia con una riga "## Sottotitolo breve", seguita da 1-3 paragrafi.\n- Separa ogni paragrafo e ogni sottotitolo con una riga vuota.`;
   // 400-600 parole ≈ 800-1100 token: 3072 basta a thinking spento; con thinking attivo (pro, gemini-3,
   // sconosciuti) i token di ragionamento contano in maxOutputTokens → margine più alto.
   const thinking = geminiThinkingConfig();
   const generationConfig = { temperature: 0.7, maxOutputTokens: thinking && thinking.thinkingBudget === 0 ? 3072 : 8192 };
   if (thinking) generationConfig.thinkingConfig = thinking;
   const body = { contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig };
+  if (url) body.tools = [{ url_context: {} }, { google_search: {} }];
+  const onChunk = (d, all) => {
+    if (FEED.articleStream !== st) return;
+    st.text = all;
+    if (!st.raf) st.raf = requestAnimationFrame(() => paintArticleStream(st, false));
+  };
   try {
-    const full = await geminiStream(body, (d, all) => {
-      if (FEED.articleStream !== st) return;
-      st.text = all;
-      if (!st.raf) st.raf = requestAnimationFrame(() => paintArticleStream(st, false));
-    }, { signal: st.ctrl.signal });
+    let full;
+    try { full = await geminiStream(body, onChunk, { signal: st.ctrl.signal }); }
+    catch (e) {
+      // strumenti rifiutati dal modello (400 prima di qualsiasi testo): riprovo senza
+      if (!(body.tools && e.code === 'http' && e.status === 400 && !st.text) || FEED.articleStream !== st) throw e;
+      delete body.tools;
+      full = await geminiStream(body, onChunk, { signal: st.ctrl.signal });
+    }
     if (FEED.articleStream !== st) return;
     const parsed = parseArticleText(full, true);
     const art = articleFromBlocks(parsed.title || card.title, parsed.blocks);
@@ -769,12 +1020,14 @@ async function streamArticle(card) {
     const inFeed = FEED.data && FEED.data.cards.find(c => c.id === card.id);
     if (inFeed) { inFeed.fullArticle = art; saveFeedCache(); }
     syncFeedSaved(card); // aggiorna i salvati solo se la card è salvata
+    // cache nel cloud: la stessa notizia si riapre già scritta anche da un altro dispositivo
+    if (card.db && cloudOn()) sb.from('feed_items').update({ article: art }).eq('id', card.id).then(r => { if (r.error) console.warn('article cache', r.error.message); }, () => { });
     // Nessun re-render completo: il DOM è già allineato, si aggiunge solo il disclaimer
     const root = articleStreamRoot(st.id);
     if (root) {
       const s = root.querySelector('.art-status'); if (s) s.remove();
       const disc = document.createElement('div'); disc.className = 'feed-disclaimer';
-      disc.textContent = "Articolo generato dall'AI · può contenere imprecisioni";
+      disc.textContent = feedArticleDisclaimer(card);
       root.appendChild(disc);
       root.removeAttribute('id');
     }
@@ -819,13 +1072,16 @@ function paintArticleStream(st, final) {
   els.forEach((el, i) => el.classList.toggle('art-tail', !final && i === els.length - 1));
   root.classList.toggle('has-text', blocks.length > 0);
 }
+function feedArticleDisclaimer(c) {
+  return feedSafeUrl(c.url) ? `Basato su ${c.source} · riscritto dall'AI · può contenere imprecisioni` : "Articolo generato dall'AI · può contenere imprecisioni";
+}
 function renderFeedArticle(b) {
   const c = FEED.card; if (!c) { b.innerHTML = ''; return; }
   const t = feedTopic(c.topicId);
-  const meta = `<div class="feed-meta"><span>${escFeed(c.source)}</span><span class="feed-meta-dot"></span><span>${escFeed(feedRelTime(c))}</span><span class="feed-meta-dot"></span><span>${escFeed(t.label)}</span></div>`;
+  const meta = `<div class="feed-meta">${feedSourceHTML(c)}<span class="feed-meta-dot"></span><span>${escFeed(feedRelTime(c))}</span><span class="feed-meta-dot"></span><span>${escFeed(t.label)}</span></div>`;
   const head = `<h2>${escFeed(c.fullArticle ? c.fullArticle.title : c.title)}</h2>${meta}`;
   if (c.fullArticle) {
-    b.innerHTML = `<div class="article">${head}${c.fullArticle.sections.map(s => `${s.heading ? `<h3>${escFeed(s.heading)}</h3>` : ''}${s.paragraphs.map(p => `<p>${escFeed(p)}</p>`).join('')}`).join('')}<div class="feed-disclaimer">Articolo generato dall'AI · può contenere imprecisioni</div></div>`;
+    b.innerHTML = `<div class="article">${head}${c.fullArticle.sections.map(s => `${s.heading ? `<h3>${escFeed(s.heading)}</h3>` : ''}${s.paragraphs.map(p => `<p>${escFeed(p)}</p>`).join('')}`).join('')}<div class="feed-disclaimer">${escFeed(feedArticleDisclaimer(c))}</div></div>`;
     return;
   }
   const st = FEED.articleStream;
@@ -847,6 +1103,7 @@ function openFeedChat(id) {
   const card = feedCardById(id); if (!card) return;
   if (!FEED.card || FEED.card.id !== id) FEED.chat = [];
   recordFeedPref(card, 'chat');
+  logFeedEvent(card, 'chat');
   openFeedSheet('chat', card);
   setTimeout(() => { const i = document.getElementById('fsheet-input'); if (i) i.focus(); }, 350);
 }
@@ -873,9 +1130,10 @@ async function sendFeedChat(preset) {
   if (FEED.sheet === 'chat') renderFeedSheet();
   try {
     const article = c.fullArticle ? '\n\nArticolo esteso:\n' + c.fullArticle.sections.map(s => s.heading + '\n' + s.paragraphs.join('\n')).join('\n\n') : '';
-    const system = `Sei l'assistente di DayFlow. Rispondi in italiano, in modo chiaro e conciso (massimo 120 parole), restando ancorato alla notizia seguente. Se non sai qualcosa, dillo. Non inventare citazioni di persone reali.\n\nNotizia: ${c.title}\nRiassunto: ${c.summary}\nFonte: ${c.source}\nArgomento: ${feedTopic(c.topicId).label}${article}`;
+    const url = feedSafeUrl(c.url);
+    const system = `Sei l'assistente di DayFlow. Rispondi in italiano, in modo chiaro e conciso (massimo 120 parole), restando ancorato alla notizia seguente. Se non sai qualcosa, dillo. Non inventare citazioni di persone reali.\n\nNotizia: ${c.title}\nRiassunto: ${c.summary}\nFonte: ${c.source}${url ? `\nArticolo originale: ${url} (puoi leggerlo)` : ''}\nArgomento: ${feedTopic(c.topicId).label}${article}`;
     const contents = FEED.chat.map(m => ({ role: m.role, parts: [{ text: m.text }] }));
-    const reply = await geminiText(contents, system);
+    const reply = await geminiText(contents, system, url ? [{ url_context: {} }] : null);
     FEED.chat.push({ role: 'model', text: reply });
   } catch (e) {
     console.error('sendFeedChat', e);
@@ -906,7 +1164,10 @@ function addFeedTopic() {
   const used = new Set(FEED.topics.map(t => t.color));
   const color = FEED_PALETTE.find(c => !used.has(c)) || FEED_PALETTE[FEED.topics.length % FEED_PALETTE.length];
   FEED.topics.push(normalizeTopic({ id, label: lbl, emoji: emoji || '✦', color }));
-  afterFeedTopicsChange();
+  const saved = afterFeedTopicsChange();
+  // Nuovo argomento: la funzione prepara subito qualche notizia (dopo che il profilo è salvato,
+  // perché legge gli argomenti da profiles.feed_topics).
+  if (cloudOn()) Promise.resolve(saved).then(() => requestCloudMore(id)).catch(e => console.warn('nuovo argomento', e));
 }
 function removeFeedTopic(id) {
   if (FEED.topics.length <= 1) return;
@@ -915,10 +1176,11 @@ function removeFeedTopic(id) {
   afterFeedTopicsChange();
 }
 function afterFeedTopicsChange() {
-  saveFeedTopics();
+  const saved = saveFeedTopics();
   if (FEED.data) { FEED.data.stale = true; saveFeedCache(); }
   renderFeedChips(); renderFeed();
   if (FEED.sheet === 'topics') renderFeedSheet();
+  return saved;
 }
 
 // Impostazioni Discover: markup unico, renderizzabile in qualsiasi contenitore.
@@ -931,10 +1193,18 @@ function feedSettingsHTML() {
   const masked = key ? key.slice(0, 6) + '••••••••' + key.slice(-4) : '';
   const seen = loadFeedSeen();
   const prefs = loadFeedPrefs();
-  return `
+  const cloud = cloudOn();
+  const left = FEED.pool ? feedPoolLeft(null).length : 0;
+  const cloudRow = cloud ? `
     <div class="settings-row">
-      <div class="settings-lbl">Chiave API Gemini</div>
-      <div class="settings-val">${key ? escFeed(masked) : 'Nessuna chiave salvata'}</div>
+      <div class="settings-lbl">Notizie dal cloud</div>
+      <div class="settings-val">${FEED.pool ? `${FEED.pool.length} nelle ultime 72 ore · ${left} ancora da vedere` : 'Non ancora caricate: apri Discover'}</div>
+      <div class="feed-hint" style="margin-top:6px">Ogni mattina alle 6 il cloud cerca notizie vere sui tuoi argomenti; quando stanno per finire ne prepara altre. L'ordine segue quello che apri.${feedEvQ().length ? ` · ${feedEvQ().length} interazioni in attesa di invio` : ''}</div>
+    </div>` : '';
+  return `${cloudRow}
+    <div class="settings-row">
+      <div class="settings-lbl">${cloud ? 'Chiave API Gemini locale (facoltativa)' : 'Chiave API Gemini'}</div>
+      <div class="settings-val">${key ? escFeed(masked) : cloud ? 'Nessuna · Discover usa la chiave nel cloud' : 'Nessuna chiave salvata'}</div>
       <div class="feed-key-wrap">
         <input class="form-input" id="settings-key-input" type="password" placeholder="${key ? 'Incolla una nuova chiave per sostituirla' : 'AIza…'}" autocomplete="off" spellcheck="false" onkeydown="if(event.key==='Enter') saveFeedKey('settings-key-input')">
         <button class="feed-eye" type="button" onclick="toggleFeedKeyVis('settings-key-input')" aria-label="Mostra chiave"><svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
@@ -943,11 +1213,11 @@ function feedSettingsHTML() {
         <button class="btn-pri" onclick="saveFeedKey('settings-key-input')">Salva chiave</button>
         ${key ? '<button class="btn-del" onclick="removeFeedKey()">Rimuovi</button>' : ''}
       </div>
-      <div class="feed-hint" style="margin-top:10px">La chiave resta solo in questo browser (localStorage) e non viene mai inviata a DayFlow o Supabase. <a class="feed-link" href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer">Google AI Studio →</a></div>
+      <div class="feed-hint" style="margin-top:10px">${cloud ? "Con l'account DayFlow notizie, approfondimenti e chat passano dal cloud (Supabase): la chiave Gemini resta nei suoi segreti e non arriva su questo dispositivo. Una chiave locale serve solo come riserva se il cloud non risponde: se non ti serve, rimuovila." : 'La chiave resta solo in questo browser (localStorage) e non viene mai inviata a DayFlow o Supabase.'} <a class="feed-link" href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer">Google AI Studio →</a></div>
     </div>
     <div class="settings-row">
       <div class="settings-lbl">Modello</div>
-      ${renderFeedModelPicker(key)}
+      ${renderFeedModelPicker(feedAIReady())}
     </div>
     <div class="settings-row">
       <div class="settings-lbl">Cache</div>
@@ -958,7 +1228,7 @@ function feedSettingsHTML() {
       </div>
     </div>
     <div class="settings-row">
-      <div class="settings-lbl">Cronologia (72h)</div>
+      <div class="settings-lbl">${cloud ? 'Cronologia locale (72h, solo generazione di riserva)' : 'Cronologia (72h)'}</div>
       <div class="settings-val">${seen.length ? `${seen.length} notizie ricordate · Gemini evita di riproporle` : 'Nessuna notizia recente'}</div>
       <div class="form-btns" style="margin-top:0">
         <button class="btn-sec" onclick="clearFeedSeen()" ${seen.length ? '' : 'disabled'}>Dimentica tutto</button>
@@ -988,7 +1258,7 @@ function loadGeminiModels() {
     return { ts: +o.ts || 0, models: o.models.filter(m => m && GEMINI_MODEL_RE.test(m.id || '')).map(m => ({ id: m.id, label: String(m.label || m.id) })) };
   } catch (e) { return { ts: 0, models: [] }; }
 }
-function renderFeedModelPicker(key) {
+function renderFeedModelPicker(ready) {
   const cur = feedModel();
   const loaded = loadGeminiModels();
   const presetIds = new Set(GEMINI_PRESETS.map(p => p.id));
@@ -1006,13 +1276,13 @@ function renderFeedModelPicker(key) {
     h += extra.map(m => opt(m.id, m.label, '')).join('');
   }
   h += `<div class="form-btns" style="margin-top:6px">
-        <button class="btn-sec" onclick="fetchGeminiModels()" ${key && !FEED.modelsLoading ? '' : 'disabled'}>${FEED.modelsLoading ? 'Caricamento…' : 'Carica modelli dalla chiave'}</button>
+        <button class="btn-sec" onclick="fetchGeminiModels()" ${ready && !FEED.modelsLoading ? '' : 'disabled'}>${FEED.modelsLoading ? 'Caricamento…' : 'Carica modelli dalla chiave'}</button>
       </div>
       <div class="topic-form">
         <input class="form-input" id="settings-model-input" type="text" placeholder="Altro modello (es. gemini-2.5-flash)" autocomplete="off" autocapitalize="off" spellcheck="false" onkeydown="if(event.key==='Enter') setFeedModelFromInput()">
         <button class="btn-pri" onclick="setFeedModelFromInput()">Usa</button>
       </div>
-      <div class="feed-hint" style="margin-top:10px">Vale per feed, articoli e chat. Il feed attuale resta: trascinalo verso il basso per rigenerarlo col nuovo modello.</div>`;
+      <div class="feed-hint" style="margin-top:10px">${cloudOn() ? 'Vale per approfondimenti e chat. Le notizie del mattino usano il modello impostato nel cloud (segreto GEMINI_MODEL).' : 'Vale per feed, articoli e chat. Il feed attuale resta: trascinalo verso il basso per rigenerarlo col nuovo modello.'}</div>`;
   return h;
 }
 function setFeedModel(id) {
@@ -1032,14 +1302,20 @@ function setFeedModelFromInput() {
 const GEMINI_MODEL_EXCLUDE = /embed|tts|image|imagen|live|audio|veo|aqa|native|robotics|computer-use/i;
 async function fetchGeminiModels() {
   const key = feedKey();
-  if (!key) { showToast(feedErrorMessage({ code: 'nokey' }), 'error'); return; }
+  if (!feedAIReady()) { showToast(feedErrorMessage({ code: 'nokey' }), 'error'); return; }
   if (FEED.modelsLoading) return;
   FEED.modelsLoading = true;
   refreshFeedSettings();
   try {
     const all = [];
     let token = '';
-    for (let page = 0; page < 5; page++) { // la chiave va solo nell'header, mai nell'URL
+    if (cloudOn()) { // elenco dalla chiave del cloud
+      const res = await feedFnFetch({ mode: 'models' });
+      if (!res.ok) throw await feedHttpError(res);
+      let j; try { j = await res.json(); } catch (e) { throw Object.assign(new Error('parse'), { code: 'parse' }); }
+      all.push(...(j.models || []));
+    }
+    for (let page = 0; page < 5 && !cloudOn(); page++) { // la chiave va solo nell'header, mai nell'URL
       let res;
       try {
         res = await fetch(GEMINI_API + 'models?pageSize=200' + (token ? '&pageToken=' + encodeURIComponent(token) : ''), { headers: { 'x-goog-api-key': key } });
@@ -1077,6 +1353,6 @@ async function fetchGeminiModels() {
 export {
   FEED, FEED_TOPICS_LS, setDiscoverHooks, escFeed, normalizeTopic, renderDiscover, renderFeedSettings,
   addFeedTopic, clearFeedCache, clearFeedPrefs, clearFeedSeen, closeFeedSheet, expandArticle, feedSheetOverlayClick, fetchGeminiModels,
-  generateFeed, loadMoreFeed, openFeedChat, openFeedSheet, regenerateFeed, removeFeedKey, removeFeedTopic, saveFeedKey, sendFeedChat,
+  feedSourceClick, generateFeed, loadMoreFeed, openFeedChat, openFeedSheet, regenerateFeed, removeFeedKey, removeFeedTopic, saveFeedKey, sendFeedChat,
   setFeedModel, setFeedModelFromInput, setFeedTopic, shareFeedCard, switchFeedSheet, toggleFeedKeyVis, toggleFeedSaved
 };

@@ -5,8 +5,12 @@
 //  - cron del mattino: header x-cron-secret = FEED_CRON_SECRET, body { mode: 'morning', force? }.
 //    Risponde subito 202 e lavora in background per ogni utente con argomenti salvati.
 //    Senza force lavora solo se a Roma sono le 6 (il cron parte alle 4 e alle 5 UTC).
-//  - dall'app: Authorization = JWT dell'utente, body { mode: 'more', topicId? }.
-//    Genera un gruppo più piccolo e restituisce le righe inserite. Limite: MAX_MORE_PER_HOUR.
+//  - dall'app: Authorization = JWT dell'utente, e nel body:
+//    { mode: 'more', topicId? } → genera un gruppo più piccolo e restituisce le righe inserite
+//      (limite MAX_MORE_PER_HOUR);
+//    { mode: 'proxy', model?, stream?, request } → inoltra a Gemini (approfondimenti, chat), anche in
+//      streaming SSE, con la chiave del cloud (limite MAX_PROXY_PER_HOUR);
+//    { mode: 'models' } → elenco modelli Gemini disponibili per la chiave del cloud.
 //
 // Segreti (Dashboard → Edge Functions → Secrets): GEMINI_API_KEY, FEED_CRON_SECRET,
 // opzionali GEMINI_MODEL (default gemini-2.5-flash) e GEMINI_THINKING ('off' default | 'model').
@@ -33,6 +37,8 @@ const MORNING_TOTAL = 40;      // candidate del mattino, divise tra gli argoment
 const MORE_TOTAL = 12;         // candidate per ogni richiesta "more" dall'app
 const MAX_PER_TOPIC_CALL = 12; // oltre, una sola chiamata dà risultati peggiori
 const MAX_MORE_PER_HOUR = 6;
+const MAX_PROXY_PER_HOUR = 120;  // approfondimenti + chat
+const MODEL_RE = /^[a-z0-9][a-z0-9.\-]*$/i;
 const SEEN_DAYS = 7;           // titoli degli ultimi N giorni esclusi dalla generazione
 const SEEN_MAX_PER_TOPIC = 60;
 const KEEP_DAYS = 30;          // notizie più vecchie cancellate (gli eventi restano)
@@ -59,6 +65,8 @@ const CORS = {
 type Topic = { id: string; label: string; focus?: string; exclude?: string; area?: string | null };
 type Settings = { area?: string; maxAgeDays?: number; profile?: string };
 type WebChunk = { uri: string; title: string };
+// deno-lint-ignore no-explicit-any
+type Body = { mode?: string; force?: boolean; topicId?: string; model?: string; stream?: boolean; request?: any };
 type Usage = { prompt: number; output: number; thinking: number; tool: number; total: number };
 
 const json = (data: unknown, status = 200) =>
@@ -70,7 +78,7 @@ Deno.serve(async req => {
   if (req.method !== 'POST') return json({ error: 'method not allowed' }, 405);
   if (!GEMINI_KEY) return json({ error: 'GEMINI_API_KEY mancante nei segreti' }, 500);
   const admin = createClient(SB_URL, SB_SERVICE, { auth: { persistSession: false } });
-  let body: { mode?: string; force?: boolean; topicId?: string } = {};
+  let body: Body = {};
   try { body = await req.json(); } catch { /* body vuoto */ }
 
   // ── cron ──
@@ -83,21 +91,77 @@ Deno.serve(async req => {
   }
 
   // ── app (utente loggato) ──
+  // Errori in forma Gemini ({ error: { message } }): il client li gestisce come quelli di Gemini.
+  // 'dayflow-auth' / 'dayflow-rate' sono riconosciuti dal client (feedErrorMessage).
   const token = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
   const { data: userData, error: authErr } = await admin.auth.getUser(token);
   const user = userData?.user;
-  if (authErr || !user) return json({ error: 'unauthorized' }, 401);
+  if (authErr || !user) return json({ error: { message: 'dayflow-auth' } }, 401);
+  const mode = body.mode === 'proxy' || body.mode === 'models' ? body.mode : 'more';
+  const limit = mode === 'more' ? MAX_MORE_PER_HOUR : MAX_PROXY_PER_HOUR;
   const since = new Date(Date.now() - 3600_000).toISOString();
   const { count } = await admin.from('feed_runs').select('id', { count: 'exact', head: true })
-    .eq('user_id', user.id).eq('kind', 'more').gte('started_at', since);
-  if ((count ?? 0) >= MAX_MORE_PER_HOUR) return json({ error: 'troppe richieste, riprova tra poco' }, 429);
+    .eq('user_id', user.id).eq('kind', mode).gte('started_at', since);
+  if ((count ?? 0) >= limit) return json({ error: { message: 'dayflow-rate' } }, 429);
   try {
+    if (mode === 'proxy') return await proxyGemini(admin, user.id, body);
+    if (mode === 'models') return await listModels(admin, user.id);
     const res = await generateForUser(admin, user.id, 'more', MORE_TOTAL, body.topicId);
     return json(res, res.ok ? 200 : 502);
   } catch (e) {
-    return json({ error: String((e as Error)?.message ?? e) }, 500);
+    return json({ error: { message: String((e as Error)?.message ?? e) } }, 500);
   }
 });
+
+// ── proxy Gemini per approfondimenti e chat (la chiave resta nel cloud) ──────
+// body: { mode: 'proxy', model?, stream?, request: { contents, systemInstruction?, generationConfig?, tools? } }
+// Risposta: quella di Gemini così com'è (JSON, oppure SSE se stream), con lo stesso status.
+async function proxyGemini(admin: SupabaseClient, userId: string, body: Body) {
+  const t0 = Date.now();
+  const r = body.request ?? {};
+  if (!Array.isArray(r.contents) || !r.contents.length) return json({ error: { message: 'contents mancante' } }, 400);
+  const tools = (Array.isArray(r.tools) ? r.tools : [])
+    // deno-lint-ignore no-explicit-any
+    .filter((t: any) => t && typeof t === 'object' && (('google_search' in t) || ('url_context' in t)))
+    // deno-lint-ignore no-explicit-any
+    .map((t: any) => ('google_search' in t ? { google_search: {} } : { url_context: {} }));
+  const request: Record<string, unknown> = { contents: r.contents };
+  if (r.systemInstruction) request.systemInstruction = r.systemInstruction;
+  if (r.generationConfig && typeof r.generationConfig === 'object') request.generationConfig = r.generationConfig;
+  if (tools.length) request.tools = tools;
+  const model = typeof body.model === 'string' && MODEL_RE.test(body.model) ? body.model : MODEL;
+  const url = `${API}models/${encodeURIComponent(model)}:${body.stream ? 'streamGenerateContent?alt=sse' : 'generateContent'}`;
+  const res = await fetch(url, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': GEMINI_KEY },
+    body: JSON.stringify(request), signal: AbortSignal.timeout(140_000),
+  });
+  const log = (ok: boolean, detail: Record<string, unknown>) =>
+    EdgeRuntime.waitUntil(Promise.resolve(admin.from('feed_runs').insert({ user_id: userId, kind: 'proxy', ms: Date.now() - t0, ok, inserted: 0, detail: { model, stream: !!body.stream, tools: tools.length, ...detail } })));
+  if (!res.ok) {
+    const j = await res.json().catch(() => null);
+    log(false, { status: res.status, error: j?.error?.message });
+    return json(j ?? { error: { message: 'HTTP ' + res.status } }, res.status);
+  }
+  log(true, {});
+  if (body.stream) return new Response(res.body, { status: 200, headers: { ...CORS, 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' } });
+  return new Response(await res.text(), { status: 200, headers: { ...CORS, 'Content-Type': 'application/json' } });
+}
+
+// ── elenco modelli disponibili per la chiave del cloud ──────────────────────
+async function listModels(admin: SupabaseClient, userId: string) {
+  const all: unknown[] = [];
+  let token = '';
+  for (let page = 0; page < 5; page++) {
+    const res = await fetch(`${API}models?pageSize=200${token ? '&pageToken=' + encodeURIComponent(token) : ''}`, { headers: { 'x-goog-api-key': GEMINI_KEY } });
+    const j = await res.json().catch(() => null);
+    if (!res.ok) return json(j ?? { error: { message: 'HTTP ' + res.status } }, res.status);
+    all.push(...(j?.models ?? []));
+    token = j?.nextPageToken ?? '';
+    if (!token) break;
+  }
+  await admin.from('feed_runs').insert({ user_id: userId, kind: 'models', ms: 0, ok: true, inserted: 0, detail: { n: all.length } });
+  return json({ models: all });
+}
 
 // ── mattino: tutti gli utenti con argomenti salvati ────────────────────────
 async function runMorning(admin: SupabaseClient, force: boolean) {

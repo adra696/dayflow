@@ -1,4 +1,4 @@
-const CACHE = 'dayflow-v20';
+const CACHE = 'dayflow-v21';
 const STATIC = [
   './',
   './index.html',
@@ -17,6 +17,7 @@ const STATIC = [
   './js/plan.js',
   './js/oggi.js',
   './js/calendario.js',
+  './js/feedrank.js',
   './js/discover.js',
   './js/settings.js',
   './js/app.js',
