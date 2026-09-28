@@ -10,7 +10,13 @@
 //      (limite MAX_MORE_PER_HOUR);
 //    { mode: 'proxy', model?, stream?, request } → inoltra a Gemini (approfondimenti, chat), anche in
 //      streaming SSE, con la chiave del cloud (limite MAX_PROXY_PER_HOUR);
-//    { mode: 'models' } → elenco modelli Gemini disponibili per la chiave del cloud.
+//    { mode: 'models' } → elenco modelli Gemini disponibili per la chiave del cloud;
+//    { mode: 'profile' } → rigenera il profilo dei gusti dagli eventi degli ultimi 30 giorni
+//      (limite MAX_MORE_PER_HOUR): 200 { profile, profileAt } oppure
+//      422 { error: 'dayflow-few-signals', signals } se ci sono meno di 5 segnali.
+//
+// Al mattino, per ogni utente: profilo dei gusti (se serve), notizie, poi le storie seguite
+// (feed_follows): le novità finiscono in feed_items con follow_id valorizzato.
 //
 // Segreti (Dashboard → Edge Functions → Secrets): GEMINI_API_KEY, FEED_CRON_SECRET,
 // opzionali GEMINI_MODEL (default gemini-2.5-flash) e GEMINI_THINKING ('off' default | 'model').
@@ -53,6 +59,41 @@ const AREAS: Record<string, string> = {
   europa: 'Europa',
   mondo: 'mondo (fonti internazionali, anche in inglese; scrivi comunque in italiano)',
 };
+const LEVELS: Record<Level, string> = {
+  divulgativo: 'divulgativo: spiega in modo chiaro per un lettore curioso non esperto, niente gergo non spiegato',
+  tecnico: 'tecnico: il lettore è esperto, usa i termini del settore e dai dettagli tecnici, numeri e metodi',
+};
+const FOLLOWS_MAX = 6;          // storie seguite controllate ogni mattina (una chiamata ciascuna)
+const FOLLOW_ITEMS_MAX = 2;     // novità al massimo per storia
+const PROFILE_MIN_SIGNALS = 5;  // sotto, niente profilo dei gusti
+const PROFILE_DAYS = 30;        // eventi considerati per il profilo
+const PROFILE_MAX_AGE_DAYS = 7; // al mattino si rigenera se più vecchio (e non modificato a mano)
+const POS_EVENTS = ['open', 'chat', 'save', 'share', 'up', 'more'];
+const NEG_EVENTS = ['down', 'less'];
+
+// Campi JSON di ogni voce (i nomi sono letti da parseItems e dal client, non cambiarli).
+const ITEM_FIELDS = `Ogni voce ha questi campi, in quest'ordine:
+- "title": titolo in italiano, massimo 14 parole, niente clickbait. Deve essere una frase vera, con soggetto e verbo, non telegrafica.
+  Sbagliato: "Rischio 230 miliardi ricavi bancari da stablecoin". Giusto: "Le stablecoin potrebbero togliere alle banche 230 miliardi di ricavi".
+- "subtopic": sotto-argomento breve
+- "tags": 2-4 parole chiave minuscole
+- "type": uno tra ${TYPES.map(x => `"${x}"`).join(', ')}
+- "summary": 2-3 frasi concrete in italiano: cosa è successo, con fatti, numeri e nomi
+- "whyItMatters": una frase su perché conta
+- "source": nome della testata o del sito da cui viene il fatto (se più testate, la più autorevole)
+- "url": link all'articolo originale, solo se lo hai trovato con la ricerca, altrimenti ""
+- "publishedAt": data di pubblicazione, formato YYYY-MM-DD (con THH:MM se la conosci)
+- "quality": oggetto con "specificity", "novelty", "importance", interi da 1 a 5, dati con SEVERITÀ:
+  - specificity: 1 = generica, nessun dato concreto; 3 = qualche fatto o nome ma pochi dettagli; 5 = numeri, nomi e date precisi e verificabili.
+  - novelty: 1 = cosa già nota o ripetuta da giorni; 3 = sviluppo nuovo di una storia già nota; 5 = fatto davvero nuovo (primo annuncio, scoperta, svolta).
+  - importance: 1 = curiosità di nicchia senza conseguenze; 3 = conta per chi segue l'argomento; 5 = cambia le cose per molte persone, da prima pagina del settore.
+  La maggior parte delle voci deve avere 2 o 3. Il 5 è raro: al massimo un solo 5 in tutto il gruppo. Nel dubbio, il voto più basso.`;
+
+const SOURCE_RULES = `FONTI:
+- Preferisci testate giornalistiche affermate, agenzie di stampa e fonti primarie (enti, aziende, studi, documenti ufficiali).
+- Evita aggregatori, blog SEO, siti che ripubblicano comunicati stampa, contenuti sponsorizzati.
+- Stesso fatto riportato da più testate = UNA sola voce, basata su tutte quelle fonti (non una voce per testata).`;
+
 const DEFAULT_TOPICS: Topic[] = [
   { id: 'tech', label: 'Tech' }, { id: 'sport', label: 'Sport' },
   { id: 'crypto', label: 'Crypto' }, { id: 'scienza', label: 'Scienza' },
@@ -64,8 +105,18 @@ const CORS = {
   'Access-Control-Expose-Headers': 'x-dayflow-model',
 };
 
-type Topic = { id: string; label: string; focus?: string; exclude?: string; area?: string | null };
-type Settings = { area?: string; maxAgeDays?: number; profile?: string };
+type Level = 'divulgativo' | 'tecnico';
+// area: chiave di AREAS, oppure null = usa settings.area
+type Topic = { id: string; label: string; focus?: string; exclude?: string; area?: string | null; level?: Level };
+// prefs scritte dal client: moreSub/lessSub = "topicId:sotto-argomento"; blockedSources = nome o dominio
+type Prefs = { moreSub?: string[]; lessSub?: string[]; blockedSources?: string[] };
+type Settings = {
+  area?: string; maxAgeDays?: number; profile?: string;
+  profileAt?: string; profileManual?: boolean; prefs?: Prefs;
+};
+// deno-lint-ignore no-explicit-any
+type Item = Record<string, any> & { title: string; title_key: string; published_at: string | null };
+type Follow = { id: string; topic_id: string; title: string; summary: string; url: string | null; created_at: string; checked_at: string | null; updates: number };
 type WebChunk = { uri: string; title: string };
 // deno-lint-ignore no-explicit-any
 type Body = { mode?: string; force?: boolean; topicId?: string; model?: string; stream?: boolean; request?: any };
@@ -99,8 +150,8 @@ Deno.serve(async req => {
   const { data: userData, error: authErr } = await admin.auth.getUser(token);
   const user = userData?.user;
   if (authErr || !user) return json({ error: { message: 'dayflow-auth' } }, 401);
-  const mode = body.mode === 'proxy' || body.mode === 'models' ? body.mode : 'more';
-  const limit = mode === 'more' ? MAX_MORE_PER_HOUR : MAX_PROXY_PER_HOUR;
+  const mode = body.mode === 'proxy' || body.mode === 'models' || body.mode === 'profile' ? body.mode : 'more';
+  const limit = mode === 'more' || mode === 'profile' ? MAX_MORE_PER_HOUR : MAX_PROXY_PER_HOUR;
   const since = new Date(Date.now() - 3600_000).toISOString();
   const { count } = await admin.from('feed_runs').select('id', { count: 'exact', head: true })
     .eq('user_id', user.id).eq('kind', mode).gte('started_at', since);
@@ -108,6 +159,11 @@ Deno.serve(async req => {
   try {
     if (mode === 'proxy') return await proxyGemini(admin, user.id, body);
     if (mode === 'models') return await listModels(admin, user.id);
+    if (mode === 'profile') {
+      const p = await buildProfile(admin, user.id);
+      if (!p.ok) return json({ error: 'dayflow-few-signals', signals: p.signals }, 422);
+      return json({ profile: p.profile, profileAt: p.profileAt });
+    }
     const res = await generateForUser(admin, user.id, 'more', MORE_TOTAL, body.topicId);
     return json(res, res.ok ? 200 : 502);
   } catch (e) {
@@ -186,8 +242,19 @@ async function runMorning(admin: SupabaseClient, force: boolean) {
         .eq('user_id', p.id).eq('kind', 'morning').eq('ok', true).gte('started_at', todayStart);
       if ((count ?? 0) > 0) continue; // già fatto oggi
     }
+    // 1. profilo dei gusti: settimanale, solo se non modificato a mano; gli errori non fermano il resto
+    try {
+      const { data: prof } = await admin.from('profiles').select('feed_settings').eq('id', p.id).maybeSingle();
+      const s = readSettings(prof?.feed_settings);
+      const at = s.profileAt ? Date.parse(s.profileAt) : NaN;
+      if (!s.profileManual && (isNaN(at) || Date.now() - at > PROFILE_MAX_AGE_DAYS * 86400_000)) await buildProfile(admin, p.id);
+    } catch (e) { console.error('profile', p.id, e); }
+    // 2. notizie
     try { await generateForUser(admin, p.id, 'morning', MORNING_TOTAL); }
     catch (e) { console.error('morning', p.id, e); }
+    // 3. storie seguite
+    try { await checkFollows(admin, p.id); }
+    catch (e) { console.error('follows', p.id, e); }
   }
   const old = new Date(Date.now() - KEEP_DAYS * 86400_000).toISOString();
   await admin.from('feed_items').delete().lt('created_at', old);
@@ -198,7 +265,7 @@ async function runMorning(admin: SupabaseClient, force: boolean) {
 async function generateForUser(admin: SupabaseClient, userId: string, kind: 'morning' | 'more', total: number, topicId?: string) {
   const t0 = Date.now();
   const { data: prof } = await admin.from('profiles').select('feed_topics, feed_settings').eq('id', userId).maybeSingle();
-  const settings: Settings = prof?.feed_settings ?? {};
+  const settings = readSettings(prof?.feed_settings);
   let topics = normalizeTopics(prof?.feed_topics);
   if (topicId) topics = topics.filter(t => t.id === topicId);
   if (!topics.length) topics = topicId ? [] : DEFAULT_TOPICS;
@@ -254,24 +321,37 @@ async function logRun(admin: SupabaseClient, userId: string, kind: string, t0: n
 
 // ── un argomento = una chiamata Gemini con Google Search ───────────────────
 async function generateTopic(topic: Topic, n: number, maxAgeDays: number, seen: string[], settings: Settings) {
-  const area = AREAS[topic.area || settings.area || 'misto'] ?? AREAS.misto;
-  const prompt = buildPrompt(topic, n, maxAgeDays, area, seen, settings.profile);
+  const prompt = buildPrompt(topic, n, maxAgeDays, areaText(topic, settings), seen, settings);
   const { text, gm, usage, model } = await gemini(prompt);
+  const items = await parseItems(text, gm, topic.id, settings);
+  return { items, usage, model, queries: (gm?.webSearchQueries ?? []).length };
+}
+
+// Testo di Gemini (array JSON) + groundingMetadata → righe per feed_items (senza user_id/batch/kind).
+// Scarta: voci senza titolo, troppo vecchie, e le fonti bloccate dall'utente (settings.prefs.blockedSources);
+// una voce che aveva fonti e le perde tutte per il blocco viene scartata.
+// deno-lint-ignore no-explicit-any
+async function parseItems(text: string, gm: any, topicId: string, settings: Settings): Promise<Item[]> {
   const raw = extractJSON(text);
   if (!Array.isArray(raw)) throw new Error('risposta non è un array');
   const chunks: WebChunk[] = (gm?.groundingChunks ?? []).map((c: { web?: WebChunk }) => c.web).filter(Boolean);
   const perItem = mapSources(raw, text, gm);
   const resolved = await resolveAll(chunks.map(c => c.uri));
+  const blocked = blockedSourceMatcher(settings);
   const now = Date.now();
-  const items = [];
+  const items: Item[] = [];
   for (let i = 0; i < raw.length; i++) {
     const it = raw[i] ?? {};
     const title = clean(it.title, 200);
     if (!title) continue;
     const pub = parseDate(it.publishedAt);
     if (pub && (now - pub.getTime() > HARD_MAX_AGE_DAYS * 86400_000)) continue;
-    const srcs = perItem[i].map(j => ({ title: chunks[j]?.title ?? '', uri: chunks[j]?.uri ?? '', url: resolved.get(chunks[j]?.uri ?? '') ?? null }))
+    const all = perItem[i].map(j => ({ title: chunks[j]?.title ?? '', uri: chunks[j]?.uri ?? '', url: resolved.get(chunks[j]?.uri ?? '') ?? null }))
       .filter(s => s.uri);
+    const srcs = all.filter(s => !blocked(s.title, s.url));
+    if (all.length && !srcs.length) continue;
+    const declared = clean(it.source, 80);
+    if (!all.length && (blocked(declared, null) || blocked('', clean(it.url, 500) || null))) continue;
     const modelHost = host(it.url);
     // Link: la fonte Google dello stesso sito del link dichiarato, altrimenti la prima fonte Google.
     // Un link che non corrisponde a nessuna fonte trovata non si usa (potrebbe essere inventato).
@@ -279,7 +359,7 @@ async function generateTopic(topic: Topic, n: number, maxAgeDays: number, seen: 
     const url = match?.url ?? srcs.find(s => s.url)?.url ?? null;
     const q = it.quality ?? {};
     items.push({
-      topic_id: topic.id,
+      topic_id: topicId,
       subtopic: clean(it.subtopic, 60),
       tags: Array.isArray(it.tags) ? it.tags.map((t: unknown) => clean(t, 30).toLowerCase()).filter(Boolean).slice(0, 6) : [],
       type: (TYPES as readonly string[]).includes(it.type) ? it.type : 'notizia',
@@ -287,39 +367,179 @@ async function generateTopic(topic: Topic, n: number, maxAgeDays: number, seen: 
       title_key: titleKey(title),
       summary: clean(it.summary, 1200),
       why: clean(it.whyItMatters, 400),
-      source: clean(it.source, 80) || srcs[0]?.title || '',
+      source: (declared && !blocked(declared, null) ? declared : '') || srcs[0]?.title || '',
       url,
       sources: srcs,
       published_at: pub && pub.getTime() <= now + 86400_000 ? pub.toISOString() : null,
       q_specificity: score(q.specificity), q_novelty: score(q.novelty), q_importance: score(q.importance),
     });
   }
-  return { items, usage, model, queries: (gm?.webSearchQueries ?? []).length };
+  return items;
 }
 
-function buildPrompt(t: Topic, n: number, days: number, area: string, seen: string[], profile?: string) {
-  const today = new Intl.DateTimeFormat('it-IT', { timeZone: 'Europe/Rome', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date());
+function areaText(t: { area?: string | null }, settings: Settings) {
+  return AREAS[t.area || settings.area || 'misto'] ?? AREAS.misto;
+}
+// Sotto-argomenti "di più"/"di meno" dell'argomento (le voci sono "topicId:sotto-argomento").
+function subsFor(list: string[] | undefined, topicId: string) {
+  const p = topicId + ':';
+  return (list ?? []).filter(s => s.startsWith(p)).map(s => s.slice(p.length).trim()).filter(Boolean);
+}
+
+function buildPrompt(t: Topic, n: number, days: number, area: string, seen: string[], settings: Settings) {
+  const today = romeToday();
+  const more = subsFor(settings.prefs?.moreSub, t.id);
+  const less = subsFor(settings.prefs?.lessSub, t.id);
+  const blocked = settings.prefs?.blockedSources ?? [];
   return `Oggi è ${today}. Usa Google Search per trovare notizie VERE pubblicate negli ultimi ${days} giorni sull'argomento "${t.label}", poi scegli le ${n} più interessanti per un lettore curioso e già informato.
 ${t.focus ? `Focus: ${t.focus}.\n` : ''}${t.exclude ? `Escludi: ${t.exclude}.\n` : ''}Area geografica preferita: ${area}.
-${profile ? `\nPROFILO DEI GUSTI DELL'UTENTE:\n${profile}\n` : ''}
+${t.level ? `Livello: ${LEVELS[t.level]}.\n` : ''}${more.length ? `Sotto-argomenti da privilegiare: ${more.join(', ')}.\n` : ''}${less.length ? `Sotto-argomenti da ridurre molto (solo se davvero importanti): ${less.join(', ')}.\n` : ''}${settings.profile ? `\nPROFILO DEI GUSTI DELL'UTENTE:\n${settings.profile}\n` : ''}
 CRITERI:
 - Specifiche: fatti, numeri, nomi concreti. Niente notizie generiche, gossip, comunicati promozionali, liste di consigli.
 - Nuove e rilevanti: preferisci ciò che cambia qualcosa o che un appassionato vorrebbe sapere.
 - Mescola i tipi: notizie, analisi, curiosità, cose "da tenere d'occhio".
 - Varia i sotto-argomenti.
 - Ogni voce deve basarsi su una fonte trovata con la ricerca. Non inventare fatti, fonti, link o dichiarazioni.
-${seen.length ? `\nGIÀ MOSTRATE ALL'UTENTE (non riproporle, nemmeno riformulate o con un altro angolo sullo stesso fatto):\n${seen.map(s => '- ' + s).join('\n')}\n` : ''}
-Rispondi SOLO con un array JSON dentro un blocco \`\`\`json, senza altro testo. Ogni voce ha questi campi, in quest'ordine:
-- "title": titolo in italiano, massimo 12 parole, niente clickbait
-- "subtopic": sotto-argomento breve
-- "tags": 2-4 parole chiave minuscole
-- "type": uno tra ${TYPES.map(x => `"${x}"`).join(', ')}
-- "summary": 2-3 frasi concrete in italiano: cosa è successo, con fatti, numeri e nomi
-- "whyItMatters": una frase su perché conta
-- "source": nome della testata o del sito da cui viene il fatto
-- "url": link all'articolo originale, solo se lo hai trovato con la ricerca, altrimenti ""
-- "publishedAt": data di pubblicazione, formato YYYY-MM-DD (con THH:MM se la conosci)
-- "quality": oggetto con "specificity", "novelty", "importance", interi da 1 a 5, dati con severità`;
+
+${SOURCE_RULES}
+${blocked.length ? `- Non usare MAI queste fonti (l'utente le ha bloccate): ${blocked.join(', ')}.\n` : ''}${seen.length ? `\nGIÀ MOSTRATE ALL'UTENTE (non riproporle, nemmeno riformulate o con un altro angolo sullo stesso fatto):\n${seen.map(s => '- ' + s).join('\n')}\n` : ''}
+Rispondi SOLO con un array JSON dentro un blocco \`\`\`json, senza altro testo. ${ITEM_FIELDS}`;
+}
+
+function buildFollowPrompt(f: Follow, since: string, area: string, settings: Settings, level?: Level) {
+  const sinceTxt = new Intl.DateTimeFormat('it-IT', { timeZone: 'Europe/Rome', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(since));
+  const blocked = settings.prefs?.blockedSources ?? [];
+  return `Oggi è ${romeToday()}. L'utente segue questa storia:
+"${f.title}" — ${f.summary}${f.url ? ` (${f.url})` : ''}
+
+Usa Google Search per trovare novità VERE su questa storia pubblicate dopo il ${sinceTxt}: sviluppi, conseguenze, reazioni, nuovi dati. Non riproporre il fatto iniziale né cose già note prima di quella data.
+Se non c'è niente di nuovo, rispondi con un array vuoto [].
+Al massimo ${FOLLOW_ITEMS_MAX} voci. Area geografica preferita: ${area}.
+${level ? `Livello: ${LEVELS[level]}.
+` : ''}
+${SOURCE_RULES}
+${blocked.length ? `- Non usare MAI queste fonti (l'utente le ha bloccate): ${blocked.join(', ')}.\n` : ''}
+Rispondi SOLO con un array JSON dentro un blocco \`\`\`json, senza altro testo. ${ITEM_FIELDS}`;
+}
+
+// ── storie seguite: novità dal controllo precedente ─────────────────────────
+// Le novità vanno in feed_items con follow_id = id della storia (kind 'morning': il check della
+// tabella ammette solo 'morning'/'more'). Un errore su una storia non ferma le altre; checked_at
+// si aggiorna solo se la storia è stata controllata davvero (così un errore si ritenta domani).
+async function checkFollows(admin: SupabaseClient, userId: string) {
+  const t0 = Date.now();
+  const nowIso = new Date().toISOString();
+  await admin.from('feed_follows').update({ active: false }).eq('user_id', userId).eq('active', true).lt('until', nowIso);
+  const { data, error } = await admin.from('feed_follows')
+    .select('id, topic_id, title, summary, url, created_at, checked_at, updates')
+    .eq('user_id', userId).eq('active', true)
+    .order('checked_at', { ascending: true, nullsFirst: true }).limit(FOLLOWS_MAX);
+  if (error) return logRun(admin, userId, 'follows', t0, false, 0, { error: error.message });
+  const follows = (data ?? []) as Follow[];
+  if (!follows.length) return { ok: true, inserted: 0, items: [] as unknown[], errors: [] as string[] };
+
+  const { data: prof } = await admin.from('profiles').select('feed_topics, feed_settings').eq('id', userId).maybeSingle();
+  const settings = readSettings(prof?.feed_settings);
+  const topics = normalizeTopics(prof?.feed_topics);
+  const batchId = crypto.randomUUID();
+  const usage: Usage = { prompt: 0, output: 0, thinking: 0, tool: 0, total: 0 };
+  const perFollow: Record<string, unknown>[] = [];
+
+  const results = await Promise.allSettled(follows.map(async f => {
+    const since = f.checked_at ?? f.created_at;
+    const topic: Partial<Topic> = topics.find(t => t.id === f.topic_id) ?? { area: null };
+    const { text, gm, usage: u, model } = await gemini(buildFollowPrompt(f, since, areaText(topic, settings), settings, topic.level));
+    for (const k of Object.keys(usage) as (keyof Usage)[]) usage[k] += u[k];
+    const sinceMs = Date.parse(since) - 86400_000; // un giorno di tolleranza sulle date date da Gemini
+    const items = (await parseItems(text, gm, f.topic_id, settings))
+      .filter(it => !it.published_at || Date.parse(it.published_at) >= sinceMs)
+      .slice(0, FOLLOW_ITEMS_MAX);
+    let inserted = 0;
+    if (items.length) {
+      const rows = items.map(it => ({ ...it, user_id: userId, batch_id: batchId, kind: 'morning', origin: 'search', model, follow_id: f.id }));
+      const { data: ins, error: e } = await admin.from('feed_items')
+        .upsert(rows, { onConflict: 'user_id,title_key', ignoreDuplicates: true }).select('id');
+      if (e) throw new Error('insert: ' + e.message);
+      inserted = ins?.length ?? 0;
+    }
+    const { error: ue } = await admin.from('feed_follows')
+      .update({ checked_at: new Date().toISOString(), updates: (f.updates ?? 0) + inserted }).eq('id', f.id);
+    if (ue) throw new Error('update: ' + ue.message);
+    return { id: f.id, candidates: items.length, inserted };
+  }));
+
+  let inserted = 0;
+  const errors: string[] = [];
+  results.forEach((r, i) => {
+    if (r.status === 'rejected') { errors.push(`${follows[i].id}: ${String(r.reason?.message ?? r.reason)}`); return; }
+    inserted += r.value.inserted;
+    perFollow.push(r.value);
+  });
+  return logRun(admin, userId, 'follows', t0, errors.length < follows.length, inserted, {
+    model: effectiveModel(MODEL), follows: perFollow, usage, errors: errors.length ? errors : undefined,
+  });
+}
+
+// ── profilo dei gusti dagli eventi degli ultimi 30 giorni ───────────────────
+// feed_events.item_id → feed_items.id (può essere null: le notizie oltre KEEP_DAYS sono cancellate,
+// allora restano argomento/sotto-argomento/tag copiati nell'evento). Gemini SENZA ricerca.
+// Salva profile/profileAt/profileManual:false in profiles.feed_settings senza toccare le altre chiavi.
+async function buildProfile(admin: SupabaseClient, userId: string):
+  Promise<{ ok: true; profile: string; profileAt: string } | { ok: false; signals: number }> {
+  const t0 = Date.now();
+  const since = new Date(Date.now() - PROFILE_DAYS * 86400_000).toISOString();
+  const { data: evRows, error } = await admin.from('feed_events')
+    .select('kind, item_id, topic_id, subtopic, tags, created_at')
+    .eq('user_id', userId).in('kind', [...POS_EVENTS, ...NEG_EVENTS]).gte('created_at', since)
+    .order('created_at', { ascending: false }).limit(300);
+  if (error) throw new Error('feed_events: ' + error.message);
+  const evs = evRows ?? [];
+  if (evs.length < PROFILE_MIN_SIGNALS) {
+    await logRun(admin, userId, 'profile', t0, false, 0, { error: 'dayflow-few-signals', signals: evs.length });
+    return { ok: false, signals: evs.length };
+  }
+  try {
+    const ids = [...new Set(evs.map(e => e.item_id as string | null).filter((x): x is string => !!x))].slice(0, 150);
+    const titles = new Map<string, string>();
+    if (ids.length) {
+      const { data: its } = await admin.from('feed_items').select('id, title').in('id', ids);
+      for (const it of its ?? []) titles.set(it.id as string, it.title as string);
+    }
+    const { data: prof } = await admin.from('profiles').select('feed_topics').eq('id', userId).maybeSingle();
+    const labels = new Map(normalizeTopics(prof?.feed_topics).map(t => [t.id, t.label]));
+    const line = (e: Record<string, unknown>) => {
+      const parts = [labels.get(String(e.topic_id)) ?? e.topic_id, e.subtopic].filter(Boolean).join(' / ');
+      const title = e.item_id ? titles.get(String(e.item_id)) : '';
+      const tags = Array.isArray(e.tags) && e.tags.length ? ` [${e.tags.join(', ')}]` : '';
+      return `- (${e.kind}) ${parts}${title ? ': ' + title : ''}${tags}`;
+    };
+    const pos = evs.filter(e => POS_EVENTS.includes(e.kind as string)).slice(0, 120).map(line);
+    const neg = evs.filter(e => NEG_EVENTS.includes(e.kind as string)).slice(0, 60).map(line);
+    const prompt = `Sei l'assistente di un feed di notizie personale. Dai segnali qui sotto (ultimi ${PROFILE_DAYS} giorni) scrivi il PROFILO DEI GUSTI del lettore: 3-5 frasi in italiano, in terza persona ("Il lettore..."). Descrivi cosa lo interessa davvero (argomenti, sotto-argomenti, taglio: fatti, analisi, tecnica, curiosità), cosa non gli interessa, e che tipo di notizie apprezza. Sii concreto, niente frasi generiche. Solo testo semplice: niente elenchi, niente markdown, niente titolo.
+Legenda: open = ha aperto l'approfondimento, chat = ne ha chiesto di più, save = salvata, share = condivisa, up = pollice su, more = "di più su questo", down = pollice giù, less = "meno così".
+
+SEGNALI POSITIVI:
+${pos.length ? pos.join('\n') : '- nessuno'}
+
+SEGNALI NEGATIVI:
+${neg.length ? neg.join('\n') : '- nessuno'}`;
+    const { text, model } = await gemini(prompt, false);
+    const profile = clean(text.replace(/[*#_`]+/g, ''), 1200);
+    if (!profile) throw new Error('profilo vuoto');
+    const profileAt = new Date().toISOString();
+    // Rilettura subito prima della scrittura: il client scrive prefs/area in feed_settings.
+    const { data: cur, error: re } = await admin.from('profiles').select('feed_settings').eq('id', userId).maybeSingle();
+    if (re) throw new Error('profiles: ' + re.message);
+    const base = cur?.feed_settings && typeof cur.feed_settings === 'object' ? cur.feed_settings : {};
+    const { error: we } = await admin.from('profiles')
+      .update({ feed_settings: { ...base, profile, profileAt, profileManual: false } }).eq('id', userId);
+    if (we) throw new Error('profiles: ' + we.message);
+    await logRun(admin, userId, 'profile', t0, true, 0, { model, signals: evs.length, pos: pos.length, neg: neg.length });
+    return { ok: true, profile, profileAt };
+  } catch (e) {
+    await logRun(admin, userId, 'profile', t0, false, 0, { error: String((e as Error)?.message ?? e), signals: evs.length });
+    throw e;
+  }
 }
 
 // ── Gemini ─────────────────────────────────────────────────────────────────
@@ -331,11 +551,14 @@ function thinkingConfig(model: string, ignoreEnv = false) {
   return undefined;
 }
 // deno-lint-ignore no-explicit-any
-async function gemini(prompt: string): Promise<{ text: string; gm: any; usage: Usage; model: string }> {
+// search = false → nessuno strumento (es. profilo dei gusti). Passa sempre da callGemini (modello ritirato).
+async function gemini(prompt: string, search = true): Promise<{ text: string; gm: any; usage: Usage; model: string }> {
   const build = (m: string) => {
     const generationConfig: Record<string, unknown> = { temperature: TEMPERATURE };
     const tc = thinkingConfig(m); if (tc) generationConfig.thinkingConfig = tc;
-    return { url: `${API}models/${encodeURIComponent(m)}:generateContent`, body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }], tools: [{ google_search: {} }], generationConfig }) };
+    const req: Record<string, unknown> = { contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig };
+    if (search) req.tools = [{ google_search: {} }];
+    return { url: `${API}models/${encodeURIComponent(m)}:generateContent`, body: JSON.stringify(req) };
   };
   for (let attempt = 0; ; attempt++) {
     const { res, model } = await callGemini(MODEL, build, 100_000);
@@ -473,7 +696,43 @@ function normalizeTopics(raw: unknown): Topic[] {
   return raw.filter((t: any) => t && t.id && t.label).map((t: any) => ({
     id: String(t.id), label: clean(t.label, 40), focus: clean(t.focus, 300) || undefined,
     exclude: clean(t.exclude, 300) || undefined, area: t.area && AREAS[t.area] ? t.area : null,
+    level: t.level && t.level in LEVELS ? t.level as Level : undefined,
   }));
+}
+// feed_settings scritto dal client: si tiene solo ciò che ha la forma attesa.
+function readSettings(raw: unknown): Settings {
+  // deno-lint-ignore no-explicit-any
+  const s: any = raw && typeof raw === 'object' ? raw : {};
+  const list = (v: unknown, lower = false) => (Array.isArray(v) ? v : [])
+    .filter((x): x is string => typeof x === 'string')
+    .map(x => { const c = clean(x, 120); return lower ? c.toLowerCase() : c; })
+    .filter(Boolean).slice(0, 100);
+  const p = s.prefs && typeof s.prefs === 'object' ? s.prefs : {};
+  return {
+    area: typeof s.area === 'string' && AREAS[s.area] ? s.area : undefined,
+    maxAgeDays: Number(s.maxAgeDays) || undefined,
+    profile: typeof s.profile === 'string' ? clean(s.profile, 1500) || undefined : undefined,
+    profileAt: typeof s.profileAt === 'string' ? s.profileAt : undefined,
+    profileManual: s.profileManual === true,
+    prefs: {
+      moreSub: list(p.moreSub), lessSub: list(p.lessSub),
+      blockedSources: list(p.blockedSources, true).map(b => /^\S+\.\S+$/.test(b) ? b.replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/[/?#].*$/, '') : b),
+    },
+  };
+}
+// Fonte bloccata se il nome (titolo della fonte Google o testata dichiarata) o l'host del link
+// coincidono con una voce di blockedSources (minuscole); l'host vale anche per i sottodomini.
+function blockedSourceMatcher(settings: Settings) {
+  const list = settings.prefs?.blockedSources ?? [];
+  return (name: string, url: string | null) => {
+    if (!list.length) return false;
+    const n = name.toLowerCase().trim().replace(/^www\./, '');
+    const h = url ? host(url).toLowerCase() : '';
+    return list.some(b => (n && (n === b || n.endsWith('.' + b))) || (h && (h === b || h.endsWith('.' + b))));
+  };
+}
+function romeToday() {
+  return new Intl.DateTimeFormat('it-IT', { timeZone: 'Europe/Rome', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date());
 }
 function clean(v: unknown, max: number) { return String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, max); }
 function titleKey(t: string) { return t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim(); }

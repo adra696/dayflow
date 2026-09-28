@@ -1521,7 +1521,10 @@ textarea:focus-visible {
 .skip-btn,
 .pri-toggle,
 .slot-del,
-.modal-close {
+.modal-close,
+.feed-vbtn,
+.topic-edit,
+.topic-del {
   position: relative
 }
 
@@ -1533,7 +1536,10 @@ textarea:focus-visible {
 .skip-btn::after,
 .pri-toggle::after,
 .slot-del::after,
-.modal-close::after {
+.modal-close::after,
+.feed-vbtn::after,
+.topic-edit::after,
+.topic-del::after {
   content: '';
   position: absolute
 }
@@ -1543,7 +1549,9 @@ textarea:focus-visible {
 .cal-arrow::after,
 .skip-btn::after,
 .pri-toggle::after,
-.modal-close::after {
+.modal-close::after,
+.topic-edit::after,
+.topic-del::after {
   left: 50%;
   top: 50%;
   width: 44px;
@@ -1556,6 +1564,14 @@ textarea:focus-visible {
   bottom: -10px;
   left: -4px;
   right: -4px
+}
+
+/* feed-vbtn (40×32, 4px tra i due): +2px per lato in orizzontale, +6px in verticale */
+.feed-vbtn::after {
+  top: -6px;
+  bottom: -6px;
+  left: -2px;
+  right: -2px
 }
 
 /* slot-del: 6px a sinistra (verso pri-toggle), il resto a destra nel padding della riga */

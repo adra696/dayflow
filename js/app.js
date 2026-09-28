@@ -17,7 +17,10 @@ import {
   FEED, FEED_TOPICS_LS, setDiscoverHooks, normalizeTopic, renderDiscover,
   addFeedTopic, clearFeedCache, clearFeedPrefs, clearFeedSeen, closeFeedSheet, expandArticle, feedSheetOverlayClick, feedSourceClick, fetchGeminiModels,
   generateFeed, loadMoreFeed, openFeedChat, openFeedSheet, regenerateFeed, removeFeedKey, removeFeedTopic, saveFeedKey, sendFeedChat,
-  setFeedModel, setFeedModelFromInput, setFeedTopic, shareFeedCard, switchFeedSheet, toggleFeedKeyVis, toggleFeedSaved
+  setFeedModel, setFeedModelFromInput, setFeedTopic, shareFeedCard, switchFeedSheet, toggleFeedKeyVis, toggleFeedSaved,
+  voteFeedCard, feedVoteAction, toggleFollowFeedStory, unfollowFeedStory, toggleArticleSpeech,
+  editFeedTopic, cancelFeedTopicEdit, saveFeedTopicEdit, createFeedTopicFromPhrase,
+  setFeedArea, saveFeedProfile, regenFeedProfile, removeFeedPref
 } from './discover.js';
 import { openSettings, closeSettings, settingsOverlayClick, settingsGo, renderSettingsSync, settingsSyncNow } from './settings.js';
 
@@ -281,6 +284,7 @@ Object.assign(window, {
   CAL,                    // calendario.js (FAB: openEventoModal(CAL.date))
   calGoToday,             // calendario.js
   calShiftWeek,           // calendario.js
+  cancelFeedTopicEdit,    // discover.js
   clearFeedCache,         // discover.js
   clearFeedPrefs,         // discover.js
   clearFeedSeen,          // discover.js
@@ -289,13 +293,16 @@ Object.assign(window, {
   closeModal,             // plan.js
   closeSettings,          // settings.js
   confirmAppDialog,       // app.js
+  createFeedTopicFromPhrase, // discover.js
   doLogin,                // auth.js
   doResetPwd,             // auth.js
   doSignup,               // auth.js
+  editFeedTopic,          // discover.js
   expandArticle,          // discover.js
   exportBackup,           // state.js
   feedSheetOverlayClick,  // discover.js
   feedSourceClick,        // discover.js
+  feedVoteAction,         // discover.js
   fetchGeminiModels,      // discover.js
   generateFeed,           // discover.js
   goScreen,               // app.js
@@ -309,11 +316,16 @@ Object.assign(window, {
   openSettings,           // settings.js
   overlayClick,           // plan.js
   regenerateFeed,         // discover.js
+  regenFeedProfile,       // discover.js
   removeFeedKey,          // discover.js
+  removeFeedPref,         // discover.js
   removeFeedTopic,        // discover.js
   requestLogout,          // app.js
   saveFeedKey,            // discover.js
+  saveFeedProfile,        // discover.js
+  saveFeedTopicEdit,      // discover.js
   sendFeedChat,           // discover.js
+  setFeedArea,            // discover.js
   setFeedModel,           // discover.js
   setFeedModelFromInput,  // discover.js
   setFeedTopic,           // discover.js
@@ -324,8 +336,12 @@ Object.assign(window, {
   shareFeedCard,          // discover.js
   switchFeedSheet,        // discover.js
   switchTab,              // auth.js
+  toggleArticleSpeech,    // discover.js
   toggleFeedKeyVis,       // discover.js
   toggleFeedSaved,        // discover.js
+  toggleFollowFeedStory,  // discover.js
   toggleFocusMode,        // state.js
   toggleSidebar,          // state.js
+  unfollowFeedStory,      // discover.js
+  voteFeedCard,           // discover.js
 });

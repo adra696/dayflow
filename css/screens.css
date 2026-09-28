@@ -424,12 +424,115 @@ a.feed-src:hover {
 
 .feed-meta {
   display: flex;
+  flex-wrap: wrap;
+  row-gap: 4px;
   align-items: center;
   gap: 8px;
   font-family: var(--mono);
   font-size: 11px;
   color: var(--text3);
   letter-spacing: .03em
+}
+
+/* Fase 4 — riga in cima alla card: argomento, "↻ Aggiornamento", voti 👍/👎 */
+.feed-top {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px
+}
+
+.feed-upd {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--green);
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.35)
+}
+
+/* Bottoni 40×32 con 4px tra loro: l'area di tocco (TAP TARGETS) si allarga di 2px per lato
+   in orizzontale e 6px in verticale → 44×44 senza sovrapporsi al vicino */
+.feed-vote {
+  margin-left: auto;
+  display: flex;
+  gap: 4px
+}
+
+.feed-vbtn {
+  width: 40px;
+  height: 32px;
+  border-radius: 9px;
+  border: 1px solid var(--border2);
+  background: var(--surface-2);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  filter: grayscale(1);
+  opacity: .75;
+  transition: background .15s ease, border-color .15s ease, opacity .15s ease, filter .15s ease
+}
+
+.feed-vbtn:hover {
+  opacity: 1;
+  background: var(--surface-3)
+}
+
+.feed-vbtn.on {
+  filter: none;
+  opacity: 1;
+  background: var(--accent-soft);
+  border-color: rgba(139, 140, 248, 0.45)
+}
+
+/* .feed-card > * è position:relative: serve la specificità più alta */
+.feed-card > .feed-vote-pop {
+  position: absolute;
+  top: 64px;
+  right: 16px;
+  z-index: 2;
+  min-width: 210px;
+  max-width: calc(100% - 32px);
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+  border-radius: var(--r-md);
+  background: var(--surface-3);
+  border: 1px solid var(--border3);
+  box-shadow: var(--shadow-card);
+  animation: slideUp .18s var(--ease-out) both
+}
+
+.feed-vote-opt {
+  min-height: 44px;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer
+}
+
+.feed-vote-opt:hover {
+  background: rgba(255, 255, 255, 0.06)
+}
+
+.feed-vote-opt:disabled {
+  color: var(--text3);
+  cursor: default;
+  background: none
+}
+
+.feed-nsrc {
+  color: var(--text2)
 }
 
 .feed-meta-dot {
@@ -949,6 +1052,93 @@ a.feed-src:hover {
 
 .article.has-text .art-sk { display: none }
 
+/* Articolo — fase 4: strumenti (Ascolta, Segui), "In 30 secondi", elenco fonti */
+.art-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: -8px 0 16px
+}
+
+.art-tools:empty {
+  display: none
+}
+
+.art-tools .feed-btn {
+  flex: 0 1 auto;
+  min-height: 44px;
+  padding: 10px 14px
+}
+
+.art-tools .feed-btn.on {
+  background: var(--accent-soft);
+  border-color: rgba(139, 140, 248, 0.45);
+  color: var(--accent)
+}
+
+.art-tldr {
+  margin: 0 0 18px;
+  padding: 14px 16px;
+  border-radius: var(--r-md);
+  background: var(--accent-soft);
+  border: 1px solid rgba(139, 140, 248, 0.3)
+}
+
+.art-tldr[hidden] {
+  display: none
+}
+
+.art-tldr-h {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 8px
+}
+
+.art-tldr ul {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px
+}
+
+.art-tldr li {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text)
+}
+
+.art-srcs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin: -6px 0 18px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text3)
+}
+
+.art-srcs-h {
+  letter-spacing: .08em;
+  text-transform: uppercase
+}
+
+.art-srcs a {
+  color: var(--text2);
+  text-decoration: none;
+  border-bottom: 1px solid var(--border2);
+  padding: 12px 0 1px;
+  margin-top: -12px
+}
+
+.art-srcs a:hover {
+  color: var(--text)
+}
+
 /* Chat */
 .chat-log {
   display: flex;
@@ -1122,6 +1312,147 @@ a.feed-src:hover {
   font-size: 13px;
   color: var(--text2);
   margin-bottom: 10px
+}
+
+/* Argomenti — fase 4: modifica (✎) ed editor */
+.topic-row .t-name {
+  min-width: 0
+}
+
+.topic-row .t-sub {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text3);
+  line-height: 1.45;
+  margin-top: 3px;
+  overflow-wrap: anywhere
+}
+
+/* 30px + 14px di spazio: le aree di tocco (44px, TAP TARGETS) si toccano senza sovrapporsi */
+.topic-acts {
+  display: flex;
+  gap: 14px;
+  flex-shrink: 0
+}
+
+.topic-edit {
+  background: none;
+  border: none;
+  color: var(--text3);
+  cursor: pointer;
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  transition: all .15s
+}
+
+.topic-edit:hover,
+.topic-edit[aria-expanded="true"] {
+  color: var(--accent);
+  background: var(--accent-soft)
+}
+
+.topic-editor {
+  margin: -2px 0 12px;
+  padding: 14px;
+  border-radius: 10px;
+  background: var(--surface-1);
+  border: 1px solid var(--border2)
+}
+
+.topic-editor .form-label {
+  margin-top: 12px
+}
+
+.topic-editor textarea.form-input,
+.topic-phrase textarea.form-input,
+textarea.feed-profile {
+  resize: vertical;
+  min-height: 64px;
+  line-height: 1.45
+}
+
+.te-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px
+}
+
+.topic-phrase {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border)
+}
+
+/* Impostazioni Discover — preferenze e storie seguite */
+.pref-h {
+  font-size: 13px;
+  color: var(--text2);
+  margin: 10px 0 4px
+}
+
+.pref-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  border-bottom: 1px solid var(--border)
+}
+
+.pref-row:last-child {
+  border-bottom: none
+}
+
+.pref-txt {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  color: var(--text);
+  overflow-wrap: anywhere
+}
+
+.pref-list {
+  margin-bottom: 6px
+}
+
+.pref-del {
+  flex: none;
+  margin-right: 4px
+}
+
+.pref-empty {
+  margin-bottom: 0;
+  color: var(--text3)
+}
+
+.follow-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border)
+}
+
+.follow-txt {
+  flex: 1;
+  min-width: 0
+}
+
+.follow-title {
+  font-size: 14px;
+  color: var(--text);
+  line-height: 1.4;
+  margin-bottom: 2px
+}
+
+.btn-sec.follow-stop {
+  flex: none;
+  min-height: 44px;
+  padding: 10px 12px
 }
 
 /* Selettore modello Gemini: riusa .topic-row come opzione */
