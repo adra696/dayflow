@@ -407,6 +407,7 @@ async function geminiFetch(body, stream, signal) {
   if (cloudOn()) {
     try {
       const res = await feedFnFetch({ mode: 'proxy', model: feedModel(), stream: !!stream, request: body }, signal);
+      adoptCloudModel(res);
       if (res.status < 500 || !feedKey()) return res;
     } catch (e) { if (e.code !== 'network' || !feedKey()) throw e; }
   }
@@ -415,6 +416,16 @@ async function geminiFetch(body, stream, signal) {
   try {
     return await fetch(geminiUrl(stream), { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify(body), signal });
   } catch (e) { throw signal && signal.aborted ? feedAbortErr() : Object.assign(new Error('network'), { code: 'network' }); }
+}
+// Il modello scelto non esiste più: la funzione ha usato un sostituto (header x-dayflow-model)
+// → lo adotto anche nelle impostazioni, così le richieste successive lo chiedono direttamente.
+function adoptCloudModel(res) {
+  const used = (res.headers && res.headers.get('x-dayflow-model')) || '';
+  const cur = feedModel();
+  if (!used || used === cur || !GEMINI_MODEL_RE.test(used)) return;
+  try { localStorage.setItem(GEMINI_MODEL_LS, used); } catch (e) { return; }
+  showToast(`${cur} non è più disponibile: ora uso ${used}`, 'warn', 4000);
+  refreshFeedSettings();
 }
 async function geminiRequest(body) {
   const res = await geminiFetch(body, false);

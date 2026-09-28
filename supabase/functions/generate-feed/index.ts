@@ -31,6 +31,7 @@ const CRON_SECRET = Deno.env.get('FEED_CRON_SECRET') ?? '';
 const SB_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SB_SERVICE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 const API = 'https://generativelanguage.googleapis.com/v1beta/';
+const ADMIN = createClient(SB_URL, SB_SERVICE, { auth: { persistSession: false } });
 
 // ── parametri modificabili ─────────────────────────────────────────────────
 const MORNING_TOTAL = 40;      // candidate del mattino, divise tra gli argomenti
@@ -60,6 +61,7 @@ const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Expose-Headers': 'x-dayflow-model',
 };
 
 type Topic = { id: string; label: string; focus?: string; exclude?: string; area?: string | null };
@@ -77,7 +79,7 @@ Deno.serve(async req => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   if (req.method !== 'POST') return json({ error: 'method not allowed' }, 405);
   if (!GEMINI_KEY) return json({ error: 'GEMINI_API_KEY mancante nei segreti' }, 500);
-  const admin = createClient(SB_URL, SB_SERVICE, { auth: { persistSession: false } });
+  const admin = ADMIN;
   let body: Body = {};
   try { body = await req.json(); } catch { /* body vuoto */ }
 
@@ -125,26 +127,36 @@ async function proxyGemini(admin: SupabaseClient, userId: string, body: Body) {
     .filter((t: any) => t && typeof t === 'object' && (('google_search' in t) || ('url_context' in t)))
     // deno-lint-ignore no-explicit-any
     .map((t: any) => ('google_search' in t ? { google_search: {} } : { url_context: {} }));
-  const request: Record<string, unknown> = { contents: r.contents };
-  if (r.systemInstruction) request.systemInstruction = r.systemInstruction;
-  if (r.generationConfig && typeof r.generationConfig === 'object') request.generationConfig = r.generationConfig;
-  if (tools.length) request.tools = tools;
-  const model = typeof body.model === 'string' && MODEL_RE.test(body.model) ? body.model : MODEL;
-  const url = `${API}models/${encodeURIComponent(model)}:${body.stream ? 'streamGenerateContent?alt=sse' : 'generateContent'}`;
-  const res = await fetch(url, {
-    method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': GEMINI_KEY },
-    body: JSON.stringify(request), signal: AbortSignal.timeout(140_000),
-  });
+  const requested = typeof body.model === 'string' && MODEL_RE.test(body.model) ? body.model : MODEL;
+  // Il thinkingConfig arriva dal client per il modello richiesto: se si passa a un altro modello
+  // (ritirato → sostituto) va ricalcolato, e col thinking acceso serve più spazio in uscita.
+  const build = (m: string) => {
+    const request: Record<string, unknown> = { contents: r.contents };
+    if (r.systemInstruction) request.systemInstruction = r.systemInstruction;
+    if (tools.length) request.tools = tools;
+    const gc = r.generationConfig && typeof r.generationConfig === 'object' ? { ...r.generationConfig } : null;
+    if (gc && m !== requested) {
+      const tc = thinkingConfig(m, true);
+      if (tc) gc.thinkingConfig = tc; else { delete gc.thinkingConfig; if (gc.maxOutputTokens) gc.maxOutputTokens = Math.max(gc.maxOutputTokens, 8192); }
+    }
+    if (gc) request.generationConfig = gc;
+    return request;
+  };
+  const { res, model } = await callGemini(requested, m => ({
+    url: `${API}models/${encodeURIComponent(m)}:${body.stream ? 'streamGenerateContent?alt=sse' : 'generateContent'}`,
+    body: JSON.stringify(build(m)),
+  }), 140_000);
+  const hdr = { ...CORS, 'x-dayflow-model': model };
   const log = (ok: boolean, detail: Record<string, unknown>) =>
     EdgeRuntime.waitUntil(Promise.resolve(admin.from('feed_runs').insert({ user_id: userId, kind: 'proxy', ms: Date.now() - t0, ok, inserted: 0, detail: { model, stream: !!body.stream, tools: tools.length, ...detail } })));
   if (!res.ok) {
     const j = await res.json().catch(() => null);
     log(false, { status: res.status, error: j?.error?.message });
-    return json(j ?? { error: { message: 'HTTP ' + res.status } }, res.status);
+    return new Response(JSON.stringify(j ?? { error: { message: 'HTTP ' + res.status } }), { status: res.status, headers: { ...hdr, 'Content-Type': 'application/json' } });
   }
-  log(true, {});
-  if (body.stream) return new Response(res.body, { status: 200, headers: { ...CORS, 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' } });
-  return new Response(await res.text(), { status: 200, headers: { ...CORS, 'Content-Type': 'application/json' } });
+  log(true, model !== requested ? { requested } : {});
+  if (body.stream) return new Response(res.body, { status: 200, headers: { ...hdr, 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' } });
+  return new Response(await res.text(), { status: 200, headers: { ...hdr, 'Content-Type': 'application/json' } });
 }
 
 // ── elenco modelli disponibili per la chiave del cloud ──────────────────────
@@ -216,7 +228,7 @@ async function generateForUser(admin: SupabaseClient, userId: string, kind: 'mor
     for (const it of r.value.items) {
       if (seenKeys.has(it.title_key)) continue;
       seenKeys.add(it.title_key);
-      rows.push({ ...it, user_id: userId, batch_id: batchId, kind, origin: 'search', model: MODEL });
+      rows.push({ ...it, user_id: userId, batch_id: batchId, kind, origin: 'search', model: r.value.model });
     }
   });
 
@@ -229,7 +241,7 @@ async function generateForUser(admin: SupabaseClient, userId: string, kind: 'mor
   }
   const ok = inserted.length > 0;
   await logRun(admin, userId, kind, t0, ok, inserted.length, {
-    model: MODEL, topics: topics.map(t => t.id), perTopic: per, candidates: rows.length, queries, usage,
+    model: effectiveModel(MODEL), topics: topics.map(t => t.id), perTopic: per, candidates: rows.length, queries, usage,
     errors: errors.length ? errors : undefined,
   });
   return { ok, inserted: inserted.length, items: inserted, errors };
@@ -244,7 +256,7 @@ async function logRun(admin: SupabaseClient, userId: string, kind: string, t0: n
 async function generateTopic(topic: Topic, n: number, maxAgeDays: number, seen: string[], settings: Settings) {
   const area = AREAS[topic.area || settings.area || 'misto'] ?? AREAS.misto;
   const prompt = buildPrompt(topic, n, maxAgeDays, area, seen, settings.profile);
-  const { text, gm, usage } = await gemini(prompt);
+  const { text, gm, usage, model } = await gemini(prompt);
   const raw = extractJSON(text);
   if (!Array.isArray(raw)) throw new Error('risposta non è un array');
   const chunks: WebChunk[] = (gm?.groundingChunks ?? []).map((c: { web?: WebChunk }) => c.web).filter(Boolean);
@@ -282,7 +294,7 @@ async function generateTopic(topic: Topic, n: number, maxAgeDays: number, seen: 
       q_specificity: score(q.specificity), q_novelty: score(q.novelty), q_importance: score(q.importance),
     });
   }
-  return { items, usage, queries: (gm?.webSearchQueries ?? []).length };
+  return { items, usage, model, queries: (gm?.webSearchQueries ?? []).length };
 }
 
 function buildPrompt(t: Topic, n: number, days: number, area: string, seen: string[], profile?: string) {
@@ -311,22 +323,22 @@ Rispondi SOLO con un array JSON dentro un blocco \`\`\`json, senza altro testo. 
 }
 
 // ── Gemini ─────────────────────────────────────────────────────────────────
-function thinkingConfig() {
-  if (THINKING === 'model') return undefined;
-  const m = MODEL.toLowerCase();
+function thinkingConfig(model: string, ignoreEnv = false) {
+  if (THINKING === 'model' && !ignoreEnv) return undefined;
+  const m = model.toLowerCase();
   if (/^gemini-2\.5-flash(-lite)?(-|$)/.test(m)) return { thinkingBudget: 0 };
   if (m.startsWith('gemini-3')) return { thinkingLevel: 'low' };
   return undefined;
 }
 // deno-lint-ignore no-explicit-any
-async function gemini(prompt: string): Promise<{ text: string; gm: any; usage: Usage }> {
-  const generationConfig: Record<string, unknown> = { temperature: TEMPERATURE };
-  const tc = thinkingConfig(); if (tc) generationConfig.thinkingConfig = tc;
-  const body = JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }], tools: [{ google_search: {} }], generationConfig });
+async function gemini(prompt: string): Promise<{ text: string; gm: any; usage: Usage; model: string }> {
+  const build = (m: string) => {
+    const generationConfig: Record<string, unknown> = { temperature: TEMPERATURE };
+    const tc = thinkingConfig(m); if (tc) generationConfig.thinkingConfig = tc;
+    return { url: `${API}models/${encodeURIComponent(m)}:generateContent`, body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }], tools: [{ google_search: {} }], generationConfig }) };
+  };
   for (let attempt = 0; ; attempt++) {
-    const res = await fetch(`${API}models/${encodeURIComponent(MODEL)}:generateContent`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': GEMINI_KEY }, body, signal: AbortSignal.timeout(100_000),
-    });
+    const { res, model } = await callGemini(MODEL, build, 100_000);
     const j = await res.json().catch(() => null);
     if (res.ok) {
       const cand = j?.candidates?.[0] ?? {};
@@ -335,7 +347,7 @@ async function gemini(prompt: string): Promise<{ text: string; gm: any; usage: U
       if (!text.trim()) throw new Error('risposta vuota (' + (cand.finishReason ?? j?.promptFeedback?.blockReason ?? '?') + ')');
       const u = j?.usageMetadata ?? {};
       return {
-        text, gm: cand.groundingMetadata ?? null,
+        text, gm: cand.groundingMetadata ?? null, model,
         usage: { prompt: u.promptTokenCount ?? 0, output: u.candidatesTokenCount ?? 0, thinking: u.thoughtsTokenCount ?? 0, tool: u.toolUsePromptTokenCount ?? 0, total: u.totalTokenCount ?? 0 },
       };
     }
@@ -343,6 +355,64 @@ async function gemini(prompt: string): Promise<{ text: string; gm: any; usage: U
     if (attempt === 0 && (res.status === 429 || res.status >= 500)) { await sleep(4000); continue; }
     throw new Error(msg);
   }
+}
+
+// ── Modello ritirato → sostituto automatico ────────────────────────────────
+// Se Google toglie il modello (404, o 400 "not found / not supported"), si sceglie il migliore
+// tra quelli disponibili per la chiave: stabile > preview, stessa famiglia (flash → flash),
+// poi versione più alta. La scelta resta in memoria per REPLACE_TTL (a ogni avvio a freddo
+// si rifà: costa una chiamata all'elenco modelli) e viene registrata in feed_runs
+// (kind 'model-fallback'). Per renderla definitiva: segreto GEMINI_MODEL nella dashboard.
+const replaced = new Map<string, { to: string; at: number }>();
+const REPLACE_TTL = 6 * 3600_000;
+const MODEL_EXCLUDE = /embed|tts|image|imagen|live|audio|veo|aqa|native|robotics|computer-use|learnlm|gemma/i;
+function effectiveModel(m: string) {
+  const r = replaced.get(m);
+  return r && Date.now() - r.at < REPLACE_TTL ? r.to : m;
+}
+function modelGone(status: number, msg: string) {
+  return status === 404 || (status === 400 && /not found|not supported|no longer|deprecated|unsupported model|is not available/i.test(msg));
+}
+function modelFamily(id: string) { return /flash-lite/.test(id) ? 'flash-lite' : /flash/.test(id) ? 'flash' : /pro/.test(id) ? 'pro' : 'other'; }
+function modelScore(id: string, fam: string) {
+  const v = parseFloat((id.match(/^gemini-(\d+(?:\.\d+)?)/) ?? [])[1] ?? '0');
+  const f = modelFamily(id);
+  return (/preview|exp/i.test(id) ? 0 : 1e6) + (f === fam ? 1e5 : 0)
+    + ({ flash: 3e4, pro: 2e4, 'flash-lite': 1e4, other: 0 } as Record<string, number>)[f] + v * 100;
+}
+async function pickReplacement(gone: string): Promise<string | null> {
+  const res = await fetch(`${API}models?pageSize=200`, { headers: { 'x-goog-api-key': GEMINI_KEY }, signal: AbortSignal.timeout(15_000) }).catch(() => null);
+  if (!res || !res.ok) return null;
+  const j = await res.json().catch(() => null);
+  const fam = modelFamily(gone);
+  const ids: string[] = (j?.models ?? [])
+    // deno-lint-ignore no-explicit-any
+    .filter((m: any) => /^models\/gemini/.test(m?.name ?? '') && (m.supportedGenerationMethods ?? []).includes('generateContent'))
+    // deno-lint-ignore no-explicit-any
+    .map((m: any) => String(m.name).slice(7))
+    .filter((id: string) => id !== gone && MODEL_RE.test(id) && !MODEL_EXCLUDE.test(id));
+  ids.sort((a, b) => modelScore(b, fam) - modelScore(a, fam));
+  return ids[0] ?? null;
+}
+// Chiama Gemini con il modello richiesto (o il suo sostituto già noto); se risulta ritirato,
+// sceglie un sostituto e riprova una volta. build(m) prepara URL e body per il modello m.
+async function callGemini(requested: string, build: (m: string) => { url: string; body: string }, timeoutMs: number) {
+  const send = (m: string) => {
+    const { url, body } = build(m);
+    return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': GEMINI_KEY }, body, signal: AbortSignal.timeout(timeoutMs) });
+  };
+  const model = effectiveModel(requested);
+  const res = await send(model);
+  if (res.ok) return { res, model };
+  const msg = await res.clone().json().then(j => String(j?.error?.message ?? ''), () => '');
+  if (!modelGone(res.status, msg)) return { res, model };
+  const to = await pickReplacement(model);
+  if (!to) return { res, model };
+  const at = Date.now();
+  replaced.set(requested, { to, at }); replaced.set(model, { to, at });
+  console.warn(`modello ${model} non disponibile (${res.status}: ${msg}) → ${to}`);
+  EdgeRuntime.waitUntil(Promise.resolve(ADMIN.from('feed_runs').insert({ user_id: null, kind: 'model-fallback', ms: 0, ok: true, inserted: 0, detail: { from: model, to, status: res.status, error: msg } })));
+  return { res: await send(to), model: to };
 }
 
 function extractJSON(text: string) {

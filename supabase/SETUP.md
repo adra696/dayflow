@@ -95,6 +95,8 @@ I log dettagliati sono in **Edge Functions → generate-feed → Logs**.
 
 - **Quota Gemini**: ogni generazione fa una chiamata con ricerca per argomento. Al mattino, con 4 argomenti, sono 4 chiamate. Le richieste "more" dall'app (fase 3) sono al massimo 6 all'ora.
 - **Pulizia**: le notizie più vecchie di 30 giorni vengono cancellate ogni mattina. Gli eventi in `feed_events` restano, perché tengono una copia di argomento, tipo e tag.
+- **Modello ritirato da Google**: la funzione se ne accorge da sola. Se il modello non esiste più, sceglie il più adatto tra quelli disponibili, preferendo i modelli stabili e la stessa famiglia (Flash resta Flash), e continua a lavorare. Lo registra in `feed_runs` come `kind = 'model-fallback'`, con `detail` che dice da quale modello a quale. Anche l'app passa al nuovo modello e mostra un avviso. Per rendere definitivo il cambio, imposta il segreto `GEMINI_MODEL` con il nuovo nome. Controllo rapido:
+  `select started_at, detail from public.feed_runs where kind = 'model-fallback' order by started_at desc;`
 - **Fermare il cron**: `select cron.unschedule('dayflow-feed-morning');`
 - **Rigenerare il segreto del cron**:
   1. `select vault.update_secret((select id from vault.secrets where name = 'feed_cron_secret'), 'NUOVO_VALORE');`
