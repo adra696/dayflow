@@ -1786,8 +1786,9 @@ function ttsCloudFail(tts, e) {
   const dev = ttsSupported();
   const msg = e.detail === 'dayflow-tts-quota' ? 'Quota voce del mese finita: uso la voce del dispositivo'
     : e.detail === 'dayflow-auth' || e.detail === 'dayflow-rate' ? feedErrorMessage(e)
-      : dev ? 'Voce del cloud non disponibile: uso la voce del dispositivo' : 'Voce del cloud non disponibile. Riprova tra poco.';
-  showToast(msg, dev ? 'warn' : 'error', 4000);
+      : (dev ? 'Voce del cloud non disponibile: uso la voce del dispositivo' : 'Voce del cloud non disponibile. Riprova tra poco.')
+        + ' (' + (e.detail === 'dayflow-tts-off' ? 'manca la chiave nel cloud' : e.status ? e.status + (e.detail ? ': ' + String(e.detail).slice(0, 120) : '') : (e.message || e.code || 'errore')) + ')';
+  showToast(msg, dev ? 'warn' : 'error', 7000);
   if (dev) startDeviceSpeech(tts.card, tts.parts, part);
   else updateArticleTools();
 }
