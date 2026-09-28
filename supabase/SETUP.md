@@ -13,6 +13,20 @@ Cosa si ottiene: ogni mattina alle 6:00 (ora di Roma) una funzione nel cloud chi
 3. Il risultato in basso mostra una colonna `feed_cron_secret` con una stringa lunga. **Copiala**: serve al passo 3.
    Per rivederla più tardi: `select decrypted_secret from vault.decrypted_secrets where name = 'feed_cron_secret';`
 
+Se compare l'avviso "creates a table without enabling Row Level Security", scegli l'opzione che attiva RLS: lo script lo attiva comunque.
+
+Controllo, da eseguire da solo. Il risultato atteso è `2 | feed_events:true, feed_items:true, feed_runs:true | 5 | 1`:
+
+```sql
+select
+  (select count(*) from information_schema.columns where table_schema='public' and table_name='profiles' and column_name in ('feed_topics','feed_settings')) as colonne_profilo,
+  (select string_agg(tablename || ':' || rowsecurity, ', ') from pg_tables where schemaname='public' and tablename like 'feed_%') as tabelle_rls,
+  (select count(*) from pg_policies where schemaname='public' and tablename like 'feed_%') as policy,
+  (select count(*) from vault.secrets where name='feed_cron_secret') as segreto;
+```
+
+Se manca qualcosa, lo script si è fermato a metà: riesegui le sezioni mancanti una alla volta. Si possono ripetere senza problemi.
+
 Crea:
 - le colonne `feed_topics` e `feed_settings` su `profiles`;
 - la tabella `feed_items` (notizie);
