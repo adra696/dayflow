@@ -1,4 +1,4 @@
-const CACHE = 'dayflow-v24';
+const CACHE = 'dayflow-v25';
 const STATIC = [
   './',
   './index.html',

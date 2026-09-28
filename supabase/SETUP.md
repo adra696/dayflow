@@ -112,6 +112,32 @@ where kind in ('follows', 'profile') order by started_at desc limit 20;
 
 ---
 
+## 8. Voce del cloud per "Ascolta" (Google Cloud Text-to-Speech)
+
+"Ascolta" legge gli approfondimenti con le voci italiane **Chirp 3 HD** di Google, generate dalla funzione (la chiave resta nei segreti Supabase). Senza questa configurazione l'app usa la voce del dispositivo come prima.
+
+1. **Google Cloud Console** → scegli (o crea) un progetto con la **fatturazione attiva** (serve anche per la parte gratuita) → **API e servizi** → **Libreria** → cerca **Cloud Text-to-Speech API** → **Abilita**.
+2. **API e servizi** → **Credenziali** → **Crea credenziali** → **Chiave API**. Poi **Modifica chiave** → **Restrizioni API** → **Limita chiave** → seleziona solo **Cloud Text-to-Speech API** → **Salva**. Non servono restrizioni per sito web: la chiave la usa solo la funzione.
+3. **Supabase** → **Edge Functions** → **Secrets** → aggiungi `GOOGLE_TTS_KEY` = la chiave del passo 2. Facoltativo: `TTS_MONTH_CAP` (default `900000`) per cambiare il tetto mensile di caratteri.
+4. Ripubblica la funzione: **Edge Functions** → `generate-feed` → **Code** → incolla il nuovo `functions/generate-feed/index.ts` → **Deploy** (Verify JWT resta disattivato).
+5. Nell'app: **Impostazioni** → **Discover** → "Voce di Ascolta" deve mostrare "Google Cloud · consigliata" con l'elenco delle voci; "▶ Prova" legge una frase.
+
+Come funziona:
+- **Mode `tts`** (JWT dell'utente): `{ mode: 'tts', text, voice? }` → `200 { audio, chars, voice }` (`audio` = MP3 in base64). Testo massimo 1500 caratteri (l'app divide l'articolo in pezzi); `voice` deve essere `it-IT-…` (default `it-IT-Chirp3-HD-Aoede`). Errori: `503 dayflow-tts-off` (manca `GOOGLE_TTS_KEY`), `429 dayflow-tts-quota` (tetto del mese raggiunto), `429 dayflow-rate` (più di 400 pezzi in un'ora per utente), `400` testo/voce non validi, `502` errore di Google. In tutti questi casi l'app passa alla voce del dispositivo.
+- **Mode `tts-voices`**: `{ voices: [{ name, gender }], monthChars, cap, defaultVoice }`, voci italiane Chirp 3 HD (elenco tenuto in memoria 24 ore). Non ha limite orario e non scrive in `feed_runs`.
+- **Tetto mensile**: la quota gratuita di Google è di 1.000.000 di caratteri al mese per tutto il progetto (oltre: 30 $ per milione). La funzione somma i caratteri di tutti gli utenti dal primo del mese (UTC) e si ferma a `TTS_MONTH_CAP` (900.000), con un margine per le righe registrate in ritardo.
+- Ogni chiamata è registrata in `feed_runs` con `kind = 'tts'`, `inserted` = caratteri sintetizzati (0 se fallita) e `detail.voice`.
+
+Consumo del mese:
+
+```sql
+select sum(inserted) from public.feed_runs where kind = 'tts' and started_at >= date_trunc('month', now());
+```
+
+(`date_trunc` usa il fuso del database, di solito UTC come la funzione.) Attenzione: il cron cancella le righe di `feed_runs` più vecchie di 60 giorni, quindi lo storico del consumo dura due mesi.
+
+---
+
 ## Note
 
 - **Quota Gemini**: ogni generazione fa una chiamata con ricerca per argomento. Al mattino, con 4 argomenti, sono 4 chiamate, più una per ogni storia seguita (massimo 6) e una senza ricerca per il profilo dei gusti (al massimo una a settimana). Le richieste "more" e "profile" dall'app sono al massimo 6 all'ora ciascuna.
