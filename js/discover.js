@@ -1445,15 +1445,18 @@ function testFeedTtsVoice() {
   const v = ttsVoice(); if (v) u.voice = v;
   speechSynthesis.speak(u);
 }
+function refreshTtsVoices() {
+  if (!ttsSupported()) return;
+  speechSynthesis.getVoices(); // chiede al sistema di ricaricare l'elenco
+  setTimeout(() => { refreshFeedSettings(); showToast(plural(ttsItVoices().length, 'voce italiana', 'voci italiane'), 'info', 1800); }, 400);
+}
 function ttsSettingsHTML() {
   if (!ttsSupported()) return '';
   const list = ttsItVoices();
   let pick = '';
   try { pick = localStorage.getItem(FEED_TTS_VOICE_LS) || ''; } catch (e) { }
-  if (!list.length) {
-    // su iOS/Chrome l'elenco arriva dopo: ridisegna quando è pronto
-    if (!FEED.ttsWait) { FEED.ttsWait = true; speechSynthesis.addEventListener('voiceschanged', () => { FEED.ttsWait = false; refreshFeedSettings(); }, { once: true }); }
-  }
+  // l'elenco può arrivare o cambiare dopo (voce scaricata): ridisegna ogni volta che il sistema lo aggiorna
+  if (!FEED.ttsListen) { FEED.ttsListen = true; speechSynthesis.addEventListener('voiceschanged', () => refreshFeedSettings()); }
   const auto = list[0];
   return `
     <div class="settings-row">
@@ -1462,7 +1465,8 @@ function ttsSettingsHTML() {
         <option value=""${pick ? '' : ' selected'}>Automatica${auto ? ' · ' + escFeed(auto.name) : ''}</option>
         ${list.map(v => `<option value="${escFeed(v.voiceURI)}"${v.voiceURI === pick ? ' selected' : ''}>${escFeed(v.name)}</option>`).join('')}
       </select>
-      <div class="form-btns" style="margin-top:10px"><button class="btn-sec" onclick="testFeedTtsVoice()">▶ Prova</button></div>` : '<div class="settings-val">Nessuna voce italiana trovata su questo dispositivo.</div>'}
+      <div class="settings-val" style="margin-top:8px">${plural(list.length, 'voce italiana', 'voci italiane')} su questo dispositivo</div>` : '<div class="settings-val">Nessuna voce italiana trovata su questo dispositivo.</div>'}
+      <div class="form-btns" style="margin-top:10px">${list.length ? '<button class="btn-sec" onclick="testFeedTtsVoice()">▶ Prova</button>' : ''}<button class="btn-sec" onclick="refreshTtsVoices()">↻ Aggiorna elenco</button></div>
       <div class="feed-hint" style="margin-top:8px">Le voci migliori vanno scaricate: su iPhone Impostazioni → Accessibilità → Contenuti letti → Voci → Italiano → scegli una voce "Migliorata" o "Premium" (es. Alice, Federica, Luca). Poi riapri DayFlow e selezionala qui.</div>
     </div>`;
 }
@@ -2000,7 +2004,7 @@ export {
   // fase 4
   voteFeedCard, feedVoteAction, toggleFollowFeedStory, unfollowFeedStory, toggleArticleSpeech,
   editFeedTopic, cancelFeedTopicEdit, saveFeedTopicEdit, createFeedTopicFromPhrase,
-  setFeedArea, saveFeedProfile, regenFeedProfile, removeFeedPref, setFeedTtsVoice, testFeedTtsVoice,
+  setFeedArea, saveFeedProfile, regenFeedProfile, removeFeedPref, setFeedTtsVoice, testFeedTtsVoice, refreshTtsVoices,
   // test
   parseArticleText, articleFromBlocks, applyFeedSettingsOps
 };
