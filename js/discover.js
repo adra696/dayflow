@@ -1,7 +1,7 @@
-﻿import { todayStr, uid, showToast, setSS, fmtHeaderDate } from './utils.js';
+﻿import { todayStr, uid, showToast, setSS, fmtHeaderDate, plural } from './utils.js';
 import { SUPA_URL, SUPA_KEY, sb, curUser, SETTINGS, curScreen, calcPct, updateTopProgressBar } from './state.js';
 import { sbSaveFeedTopics } from './sync.js';
-import { topicWeights, rankFeedItems } from './feedrank.js';
+import { topicWeights, rankFeedItems, mergeNearDuplicates, feedCardSources, subtopicKey } from './feedrank.js';
 
 // Dipendenza "verso l'alto" (settings.js importa già discover.js: importarla qui farebbe un ciclo):
 // app.js la registra con setDiscoverHooks() all'avvio.
@@ -40,7 +40,20 @@ const FEED_VIEWED_LS = 'dayflow_feed_viewed'; // { id: ts } card del cloud già 
 const FEED_VIEWED_TTL = 7 * 24 * 60 * 60 * 1000;
 const FEED_EVQ_LS = 'dayflow_feed_evq';     // eventi in coda per feed_events
 const FEED_VIEW_MS = 1500;                  // sotto questa permanenza la card è "scorsa via" (skip)
-const FEED_ITEM_COLS = 'id,created_at,topic_id,subtopic,tags,type,title,summary,why,source,url,published_at,q_specificity,q_novelty,q_importance,article';
+const FEED_ITEM_COLS = 'id,created_at,topic_id,subtopic,tags,type,title,summary,why,source,url,sources,published_at,q_specificity,q_novelty,q_importance,article';
+const FEED_ITEM_COLS_P4 = FEED_ITEM_COLS + ',follow_id'; // follow_id arriva con lo SQL 04 (se manca: senza)
+const FEED_VOTES_LS = 'dayflow_feed_votes';   // { id: { v: 'up'|'down', ts } } voti delle card (30 giorni)
+const FEED_VOTES_TTL = 30 * 24 * 60 * 60 * 1000;
+const FEED_SET_LS = 'dayflow_feed_settings';  // { uid, s: feed_settings, ops: [modifiche non ancora nel cloud] }
+const FEED_AREAS = [
+  { id: 'misto', label: 'Misto', note: 'italiane quando ci sono, altrimenti internazionali' },
+  { id: 'italia', label: 'Italia', note: 'fonti e fatti italiani' },
+  { id: 'europa', label: 'Europa', note: '' },
+  { id: 'mondo', label: 'Mondo', note: 'fonti internazionali, anche in inglese' }
+];
+const FEED_LEVELS = [{ id: 'divulgativo', label: 'Divulgativo' }, { id: 'tecnico', label: 'Tecnico' }];
+const FEED_TOPIC_TXT_MAX = 300;               // focus / esclusioni di un argomento
+const FEED_PROFILE_MAX = 1500;
 const FEED_PALETTE = ['#60a5fa', '#34d399', '#fbbf24', '#c084fc', '#f472b6', '#fb923c', '#2dd4bf', '#a3e635'];
 const FEED_DEFAULT_TOPICS = [
   { id: 'tech', label: 'Tech', emoji: '🔵', color: '#60a5fa' },
@@ -49,7 +62,9 @@ const FEED_DEFAULT_TOPICS = [
   { id: 'scienza', label: 'Scienza', emoji: '🧬', color: '#c084fc' }
 ];
 const FEED = { topics: [], activeTopic: 'all', data: null, loading: false, error: null, more: false, moreTopic: null, moreError: null, sheet: null, card: null, chat: [], chatBusy: false, articleStream: null, articlePartial: null, pullInit: false, endObs: null, saved: null,
-  pool: null, poolLoading: null, weights: {}, viewedIds: null, cloudMore: null, evQ: null, evFlushing: false, viewObs: null, viewing: new Map(), evInit: false };
+  pool: null, poolLoading: null, weights: {}, viewedIds: null, cloudMore: null, evQ: null, evFlushing: false, viewObs: null, viewing: new Map(), evInit: false,
+  noFollowCol: false, votePop: null, setStore: null, setFlush: null, setFlushAgain: false, setFetchedAt: 0,
+  follows: null, followsLoading: null, followsErr: null, profileBusy: false, topicEdit: null, topicDraft: null, topicPhraseBusy: false, tts: null };
 
 // ── DISCOVER FEED (Gemini) ────────────────────────────────
 // (costanti e stato FEED dichiarati in testa allo script, sezione STATE)
@@ -73,9 +88,17 @@ function geminiThinkingConfig(model = feedModel()) {
   return undefined;
 }
 function feedCacheKey(ds) { return 'dayflow_feed_' + (ds || todayStr()); }
+// Argomento: id stabile, label, emoji, colore + fase 4: focus / exclude (≤300 caratteri),
+// area ('misto'|'italia'|'europa'|'mondo', null = quella generale), level ('divulgativo'|'tecnico').
 function normalizeTopic(t, i) {
   const label = String(t.label || '').trim().slice(0, 24);
-  return { id: String(t.id || label.toLowerCase().replace(/[^a-z0-9]+/g, '-') || uid()), label, emoji: String(t.emoji || '✦').trim().slice(0, 4) || '✦', color: t.color || FEED_PALETTE[(i || 0) % FEED_PALETTE.length] };
+  const txt = v => String(v || '').replace(/\s+/g, ' ').trim().slice(0, FEED_TOPIC_TXT_MAX);
+  return {
+    id: String(t.id || label.toLowerCase().replace(/[^a-z0-9]+/g, '-') || uid()), label, emoji: String(t.emoji || '✦').trim().slice(0, 4) || '✦', color: t.color || FEED_PALETTE[(i || 0) % FEED_PALETTE.length],
+    focus: txt(t.focus), exclude: txt(t.exclude),
+    area: FEED_AREAS.some(a => a.id === t.area) ? t.area : null,
+    level: t.level === 'tecnico' ? 'tecnico' : 'divulgativo'
+  };
 }
 function loadFeedTopics() {
   let t = null;
@@ -232,7 +255,10 @@ function rowToCard(r) {
     q: [r.q_specificity, r.q_novelty, r.q_importance], createdAt: Date.parse(r.created_at) || now, pubAt: isNaN(pub) ? null : pub,
     // mezzanotte UTC esatta = Gemini ha dato solo la data
     pubDay: !isNaN(pub) && /T00:00:00(\.0+)?(Z|\+00(:?00)?)$/.test(r.published_at) ? r.published_at.slice(0, 10) : '',
-    genAt: now
+    genAt: now,
+    followId: r.follow_id || null, // aggiornamento di una storia seguita
+    // fonti della ricerca Google: [{ title (spesso il dominio), url (null se non risolto) }]
+    sources: Array.isArray(r.sources) ? r.sources.filter(x => x && (x.title || x.url)).map(x => ({ title: String(x.title || ''), url: feedSafeUrl(x.url) })) : []
   };
   card.ageMinutes = Math.max(1, Math.round((now - (card.pubAt || card.createdAt)) / 60000));
   if (r.article && Array.isArray(r.article.sections)) card.fullArticle = r.article;
@@ -256,24 +282,30 @@ async function loadFeedPool() {
   if (FEED.poolLoading) return FEED.poolLoading;
   const run = (async () => {
     const uid = curUser.id, now = Date.now();
-    const [it, ev] = await Promise.all([
-      sb.from('feed_items').select(FEED_ITEM_COLS).eq('user_id', uid).gte('created_at', new Date(now - FEED_POOL_HOURS * 3600000).toISOString()).order('created_at', { ascending: false }).limit(400),
-      sb.from('feed_events').select('item_id,topic_id,kind').eq('user_id', uid).gte('created_at', new Date(now - FEED_EV_DAYS * 86400000).toISOString()).order('created_at', { ascending: false }).limit(5000)
+    const items = cols => sb.from('feed_items').select(cols).eq('user_id', uid).gte('created_at', new Date(now - FEED_POOL_HOURS * 3600000).toISOString()).order('created_at', { ascending: false }).limit(400);
+    let [it, ev] = await Promise.all([
+      items(FEED.noFollowCol ? FEED_ITEM_COLS : FEED_ITEM_COLS_P4),
+      sb.from('feed_events').select('item_id,topic_id,kind').eq('user_id', uid).gte('created_at', new Date(now - FEED_EV_DAYS * 86400000).toISOString()).order('created_at', { ascending: false }).limit(5000),
+      syncFeedSettings().catch(() => false) // preferenze aggiornate prima di ordinare (se il cloud non risponde: copia locale)
     ]);
+    // SQL 04 non ancora eseguito: niente colonna follow_id
+    if (it.error && !FEED.noFollowCol && /follow_id/.test(it.error.message || '')) { FEED.noFollowCol = true; it = await items(FEED_ITEM_COLS); }
     if (it.error) throw Object.assign(new Error('pool'), { code: 'pool', detail: it.error.message });
     const viewed = new Set(Object.keys(loadFeedViewedLS()));
     const events = ev.error ? [] : (ev.data || []);
     events.forEach(e => { if (e.item_id && ['view', 'skip', 'down', 'less'].includes(e.kind)) viewed.add(e.item_id); });
     FEED.viewedIds = viewed;
     FEED.pool = (it.data || []).map(rowToCard);
-    FEED.weights = topicWeights(events.concat(feedEvQ()), FEED.topics.map(t => t.id));
+    FEED.weights = topicWeights(feedEvQ().slice().reverse().concat(events), FEED.topics.map(t => t.id));
   })();
   FEED.poolLoading = run;
   try { await run; } finally { if (FEED.poolLoading === run) FEED.poolLoading = null; }
 }
 function feedPoolLeft(topicId) {
   const active = new Set(FEED.topics.map(t => t.id));
-  const inFeed = new Set((FEED.data ? FEED.data.cards : []).map(c => c.id));
+  const inFeed = new Set();
+  // anche le notizie unite a una card già nel feed (stesso fatto, altra testata)
+  (FEED.data ? FEED.data.cards : []).forEach(c => { inFeed.add(c.id); (c.mergedIds || []).forEach(x => inFeed.add(x)); });
   const titles = new Set((FEED.data ? FEED.data.cards : []).map(c => c.title.toLowerCase()));
   const viewed = FEED.viewedIds || new Set();
   return (FEED.pool || []).filter(c => active.has(c.topicId) && (!topicId || c.topicId === topicId)
@@ -281,7 +313,12 @@ function feedPoolLeft(topicId) {
 }
 function pickFromPool(topicId, n) {
   const shown = FEED.data ? feedVisibleCards(topicId || 'all') : [];
-  return rankFeedItems(feedPoolLeft(topicId), FEED.weights, { offset: shown.length, prevTypes: shown.slice(-2).map(c => c.type || '') }).slice(0, n);
+  const pr = feedPrefs();
+  // stesso fatto da più testate → una card con "N fonti"; poi ordinamento con le preferenze esplicite
+  return rankFeedItems(mergeNearDuplicates(feedPoolLeft(topicId)), FEED.weights, {
+    offset: shown.length, prevTypes: shown.slice(-2).map(c => c.type || ''),
+    moreSub: pr.moreSub, lessSub: pr.lessSub, blockedSources: pr.blockedSources
+  }).slice(0, n);
 }
 // Chiede alla funzione un nuovo gruppo di notizie (mode 'more'); una richiesta alla volta.
 async function requestCloudMore(topicId) {
@@ -339,7 +376,7 @@ function logFeedEvent(card, kind, dwell) {
     type: card.type || null, tags: card.tags && card.tags.length ? card.tags : null,
     dwell_ms: dwell == null ? null : Math.round(Math.min(dwell, 600000)), created_at: new Date().toISOString()
   });
-  if (card.db && (kind === 'view' || kind === 'skip')) markFeedViewed(card.id);
+  if (card.db && (kind === 'view' || kind === 'skip')) { markFeedViewed(card.id); (card.mergedIds || []).forEach(markFeedViewed); }
   saveFeedEvQ();
   clearTimeout(feedEvTimer); feedEvTimer = setTimeout(flushFeedEvents, 4000);
 }
@@ -396,9 +433,233 @@ function initFeedEvents() {
   FEED.evInit = true;
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') { endAllFeedViews(); flushFeedEvents(); } });
   window.addEventListener('pagehide', () => { endAllFeedViews(); saveFeedEvQ(); });
+  // Popover dei voti: si chiude toccando fuori o scorrendo il feed
+  document.addEventListener('click', e => { if (FEED.votePop && !(e.target.closest && e.target.closest('.feed-vote-pop, .feed-vote'))) closeFeedVotePop(); });
+  const f = document.getElementById('disc-feed');
+  if (f) f.addEventListener('scroll', () => { if (FEED.votePop) closeFeedVotePop(); }, { passive: true });
   if (feedEvQ().length) flushFeedEvents();
+  if (cloudOn()) syncFeedSettings().catch(() => { }); // modifiche rimaste in coda da una sessione offline
 }
 function feedSourceClick(id) { logFeedEvent(feedCardById(id), 'open'); }
+
+// ── Impostazioni del feed nel cloud (profiles.feed_settings) ──
+// { area, profile, profileAt, profileManual, prefs: { moreSub, lessSub, blockedSources }, …altre chiavi }
+// Il JSON è condiviso con la Edge Function (che scrive profile/profileAt): il client non lo sovrascrive
+// mai intero. Ogni modifica è un'operazione (ops) salvata subito in localStorage e applicata sull'ultima
+// versione letta dal cloud (leggi → applica → update); se il cloud non risponde resta in coda e riparte
+// al prossimo caricamento del feed. Operazioni: { k, v } imposta una chiave; { list, add | del } in prefs.
+function feedSetStore() {
+  const u = curUser ? curUser.id : null;
+  if (!FEED.setStore || FEED.setStore.uid !== u) {
+    let o = null;
+    try { o = JSON.parse(localStorage.getItem(FEED_SET_LS) || 'null'); } catch (e) { }
+    FEED.setStore = o && o.uid === u && o.s && typeof o.s === 'object' ? { uid: u, s: o.s, ops: Array.isArray(o.ops) ? o.ops : [] } : { uid: u, s: {}, ops: [] };
+  }
+  return FEED.setStore;
+}
+function saveFeedSetStore() { try { localStorage.setItem(FEED_SET_LS, JSON.stringify(feedSetStore())); } catch (e) { } }
+function applyFeedSettingsOps(s, ops) {
+  const out = Object.assign({}, s && typeof s === 'object' && !Array.isArray(s) ? s : {});
+  out.prefs = Object.assign({}, out.prefs && typeof out.prefs === 'object' && !Array.isArray(out.prefs) ? out.prefs : {});
+  (ops || []).forEach(op => {
+    if (!op) return;
+    if (op.k) { out[op.k] = op.v; return; }
+    if (!op.list) return;
+    const v = String(op.add ?? op.del ?? '').trim(); if (!v) return;
+    const l = (Array.isArray(out.prefs[op.list]) ? out.prefs[op.list] : []).filter(x => typeof x === 'string' && x.toLowerCase() !== v.toLowerCase());
+    out.prefs[op.list] = op.add != null ? [...l, v].slice(-100) : l;
+  });
+  return out;
+}
+function feedSettings() { return feedSetStore().s || {}; }
+function feedPrefs() {
+  const p = feedSettings().prefs || {};
+  const arr = l => (Array.isArray(l) ? l : []).filter(x => typeof x === 'string' && x.trim());
+  return { moreSub: arr(p.moreSub), lessSub: arr(p.lessSub), blockedSources: arr(p.blockedSources) };
+}
+function changeFeedSettings(ops) {
+  const st = feedSetStore();
+  st.s = applyFeedSettingsOps(st.s, ops);
+  if (st.uid) st.ops.push(...ops);
+  saveFeedSetStore();
+  if (cloudOn()) syncFeedSettings().then(ok => { if (!ok) console.warn('feed_settings: modifica in coda, riprovo più tardi'); }, () => { });
+}
+// Legge feed_settings dal cloud e, se ci sono modifiche in coda, le applica e le scrive.
+// Una sola esecuzione alla volta; una chiamata durante l'esecuzione la fa ripetere alla fine.
+async function syncFeedSettings() {
+  if (!cloudOn()) return false;
+  if (FEED.setFlush) { FEED.setFlushAgain = true; return FEED.setFlush; }
+  const run = (async () => {
+    let ok;
+    do { FEED.setFlushAgain = false; ok = await syncFeedSettingsOnce(); } while (ok && FEED.setFlushAgain);
+    return ok;
+  })();
+  FEED.setFlush = run;
+  try { return await run; } finally { if (FEED.setFlush === run) FEED.setFlush = null; }
+}
+async function syncFeedSettingsOnce() {
+  const uid = curUser.id;
+  FEED.setFetchedAt = Date.now();
+  const res = await sb.from('profiles').select('feed_settings').eq('id', uid).maybeSingle();
+  if (!curUser || curUser.id !== uid || res.error) return false;
+  const fs = res.data && res.data.feed_settings;
+  const remote = fs && typeof fs === 'object' && !Array.isArray(fs) ? fs : {};
+  const st = feedSetStore();
+  const ops = st.ops.slice();
+  if (ops.length) {
+    const merged = applyFeedSettingsOps(remote, ops);
+    const up = await sb.from('profiles').update({ feed_settings: merged }).eq('id', uid);
+    if (!curUser || curUser.id !== uid || up.error) { if (up && up.error) console.warn('feed_settings', up.error.message); return false; }
+    st.ops = st.ops.slice(ops.length); // quelle aggiunte durante l'update restano in coda
+    st.s = applyFeedSettingsOps(merged, st.ops);
+  } else st.s = applyFeedSettingsOps(remote, []);
+  saveFeedSetStore();
+  return true;
+}
+
+// ── Voti 👍/👎 (card del cloud) ──
+// Il voto resta in localStorage per card (evidenziato alla riapertura); ogni tocco registra up / down,
+// il secondo tocco sullo stesso voto registra unvote. Dopo il voto un popover propone "di più / meno
+// su «sotto-argomento»", "Non mostrarmi <fonte>" o "Segui la storia".
+function loadFeedVotes() {
+  let o = {};
+  try { o = JSON.parse(localStorage.getItem(FEED_VOTES_LS) || '{}') || {}; } catch (e) { }
+  const cut = Date.now() - FEED_VOTES_TTL;
+  Object.keys(o).forEach(k => { if (!o[k] || !(o[k].ts > cut)) delete o[k]; });
+  return o;
+}
+function feedVote(id) { const v = loadFeedVotes()[id]; return v ? v.v : ''; }
+function setFeedVote(id, v) {
+  const o = loadFeedVotes();
+  if (v) o[id] = { v, ts: Date.now() }; else delete o[id];
+  try { localStorage.setItem(FEED_VOTES_LS, JSON.stringify(o)); } catch (e) { }
+}
+function paintFeedVote(id) {
+  const v = feedVote(id);
+  document.querySelectorAll(`.feed-slide[data-id="${CSS.escape(id)}"] .feed-vbtn`).forEach(b => {
+    const on = b.dataset.v === v;
+    b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on));
+  });
+}
+function voteFeedCard(id, v) {
+  const c = feedCardById(id); if (!c || !c.db) return;
+  const cur = feedVote(id);
+  closeFeedVotePop();
+  if (cur === v) { setFeedVote(id, ''); logFeedEvent(c, 'unvote'); paintFeedVote(id); return; }
+  setFeedVote(id, v);
+  logFeedEvent(c, v);
+  paintFeedVote(id);
+  openFeedVotePop(c, v);
+}
+// Fonte che il 👎 propone di bloccare: la prima non ancora bloccata (dominio se c'è, altrimenti nome)
+function feedBlockCandidate(c) {
+  const blocked = feedPrefs().blockedSources.map(b => b.toLowerCase());
+  return feedCardSources(c).find(x => !blocked.includes((x.domain || x.name).toLowerCase())) || null;
+}
+function feedVoteOptions(c, v) {
+  const pr = feedPrefs();
+  const has = (l, k) => l.some(x => x.toLowerCase() === k);
+  const opts = [];
+  if (c.subtopic) {
+    const k = subtopicKey(c.topicId, c.subtopic);
+    const list = v === 'up' ? pr.moreSub : pr.lessSub;
+    const done = has(list, k);
+    opts.push({ act: v === 'up' ? 'more' : 'less', label: (done ? '✓ ' : '') + (v === 'up' ? 'Di più su' : 'Meno su') + ` «${c.subtopic}»`, done });
+  }
+  if (v === 'down') {
+    const src = feedBlockCandidate(c);
+    if (src) opts.push({ act: 'block', label: 'Non mostrarmi ' + (src.domain || src.name) });
+  } else if (cloudOn()) {
+    const f = feedFollowOf(c.id);
+    opts.push({ act: 'follow', label: f ? '✓ Storia seguita' : 'Segui la storia', done: !!f });
+  }
+  return opts;
+}
+function openFeedVotePop(c, v) {
+  const opts = feedVoteOptions(c, v);
+  if (!opts.length) return;
+  const card = document.querySelector(`.feed-slide[data-id="${CSS.escape(c.id)}"] .feed-card`); if (!card) return;
+  const pop = document.createElement('div');
+  pop.className = 'feed-vote-pop';
+  pop.setAttribute('role', 'menu');
+  pop.innerHTML = opts.map(o => `<button type="button" role="menuitem" class="feed-vote-opt" ${o.done ? 'disabled' : ''} onclick="feedVoteAction('${escFeed(c.id)}','${o.act}')">${escFeed(o.label)}</button>`).join('');
+  card.appendChild(pop);
+  FEED.votePop = c.id;
+  if (v === 'up' && cloudOn() && !FEED.follows && !FEED.followsLoading) loadFeedFollows().catch(() => { });
+}
+function closeFeedVotePop() {
+  FEED.votePop = null;
+  document.querySelectorAll('.feed-vote-pop').forEach(el => el.remove());
+}
+function feedVoteAction(id, act) {
+  const c = feedCardById(id);
+  closeFeedVotePop();
+  if (!c) return;
+  if (act === 'more' || act === 'less') {
+    if (!c.subtopic) return;
+    const val = `${c.topicId}:${c.subtopic.trim()}`;
+    changeFeedSettings(act === 'more'
+      ? [{ list: 'moreSub', add: val }, { list: 'lessSub', del: val }]
+      : [{ list: 'lessSub', add: val }, { list: 'moreSub', del: val }]);
+    logFeedEvent(c, act);
+    showToast((act === 'more' ? 'Più notizie su «' : 'Meno notizie su «') + c.subtopic + '»', 'info', 2200);
+  } else if (act === 'block') {
+    const src = feedBlockCandidate(c); if (!src) return;
+    changeFeedSettings([{ list: 'blockedSources', add: (src.domain || src.name).toLowerCase() }]);
+    showToast('Non vedrai più notizie da ' + (src.domain || src.name), 'info', 2600);
+  } else if (act === 'follow') followFeedStory(id);
+  refreshFeedSettings();
+}
+
+// ── Storie seguite (feed_follows) ──
+// Ogni mattina la funzione cerca novità sulle storie attive (14 giorni) e le inserisce con follow_id.
+const FEED_FOLLOW_COLS = 'id,item_id,topic_id,title,created_at,until,updates,checked_at';
+async function loadFeedFollows(force) {
+  if (!cloudOn()) return [];
+  if (FEED.followsLoading) return FEED.followsLoading;
+  if (FEED.follows && !force) return FEED.follows;
+  const uid = curUser.id;
+  const run = (async () => {
+    const { data, error } = await sb.from('feed_follows').select(FEED_FOLLOW_COLS).eq('user_id', uid).eq('active', true)
+      .gte('until', new Date().toISOString()).order('created_at', { ascending: false }).limit(50);
+    if (!curUser || curUser.id !== uid) return [];
+    if (error) { FEED.followsErr = error.message; FEED.follows = FEED.follows || []; return FEED.follows; }
+    FEED.followsErr = null;
+    FEED.follows = data || [];
+    return FEED.follows;
+  })();
+  FEED.followsLoading = run;
+  try { return await run; } finally { if (FEED.followsLoading === run) FEED.followsLoading = null; }
+}
+function feedFollowOf(itemId) { return (FEED.follows || []).find(f => f.item_id === itemId) || null; }
+async function followFeedStory(id) {
+  const c = feedCardById(id);
+  if (!c || !c.db || !cloudOn()) return;
+  await loadFeedFollows();
+  if (feedFollowOf(c.id)) { showToast('Segui già questa storia', 'info', 1800); return; }
+  const { data, error } = await sb.from('feed_follows')
+    .insert({ item_id: c.id, topic_id: c.topicId, title: String(c.title).slice(0, 300), summary: String(c.summary || '').slice(0, 1200), url: feedSafeUrl(c.url) || null })
+    .select(FEED_FOLLOW_COLS).single();
+  if (error || !data) { console.warn('feed_follows', error && error.message); showToast('Non riesco a seguire la storia', 'error'); return; }
+  (FEED.follows = FEED.follows || []).unshift(data);
+  showToast('Storia seguita per 14 giorni: le novità arrivano al mattino', 'info', 3000);
+  updateArticleTools();
+  refreshFeedSettings();
+}
+async function stopFollowFeedStory(f) {
+  if (!f || !cloudOn()) return;
+  const { error } = await sb.from('feed_follows').update({ active: false }).eq('id', f.id);
+  if (error) { showToast('Non riesco a smettere di seguire la storia', 'error'); return; }
+  FEED.follows = (FEED.follows || []).filter(x => x.id !== f.id);
+  showToast('Non segui più questa storia', 'info', 1800);
+  updateArticleTools();
+  refreshFeedSettings();
+}
+function unfollowFeedStory(i) { stopFollowFeedStory((FEED.follows || [])[i]); }
+function toggleFollowFeedStory(id) {
+  const f = feedFollowOf(id);
+  if (f) stopFollowFeedStory(f); else followFeedStory(id);
+}
 
 // ── Gemini REST ──
 // Cloud (proxy nella Edge Function) se loggato; chiave locale se non loggato o se il cloud
@@ -524,6 +785,7 @@ function feedErrorMessage(e) {
   if (e.code === 'pool') return 'Non riesco a leggere le notizie dal cloud.';
   if (e.detail === 'dayflow-auth') return 'Sessione scaduta: esci e rientra in DayFlow.';
   if (e.detail === 'dayflow-rate') return 'Troppe richieste in poco tempo. Riprova tra qualche minuto.';
+  if (e.detail === 'dayflow-few-signals') return 'Servono almeno 5 reazioni alle notizie';
   if (e.code === 'http') {
     // Gemini risponde 400 INVALID_ARGUMENT anche per chiave errata: si distingue dal detail
     if (e.status === 401 || e.status === 403 || (e.status === 400 && /api[ _-]?key/i.test(e.detail || ''))) return 'Chiave API non valida o non autorizzata.';
@@ -621,6 +883,7 @@ function renderFeed() {
   const f = document.getElementById('disc-feed'); if (!f) return;
   if (FEED.endObs) { FEED.endObs.disconnect(); FEED.endObs = null; }
   endAllFeedViews(); // il DOM viene ricostruito: chiudo le viste in corso (ripartono con le nuove card)
+  FEED.votePop = null;
   const stale = document.getElementById('disc-stale');
   const regen = document.getElementById('disc-regen');
   if (regen) regen.disabled = FEED.loading;
@@ -699,12 +962,20 @@ function feedVisibleCards(topicId = FEED.activeTopic) {
 }
 function feedCardHTML(c, i) {
   const t = feedTopic(c.topicId);
+  const id = escFeed(c.id);
+  const v = c.db ? feedVote(c.id) : '';
+  // 👍/👎 solo sulle notizie del cloud (i segnali vanno in feed_events e feed_settings)
+  const vote = c.db ? `<div class="feed-vote" role="group" aria-label="Valuta la notizia">
+          <button type="button" class="feed-vbtn${v === 'up' ? ' on' : ''}" data-v="up" aria-pressed="${v === 'up'}" aria-label="Mi interessa" onclick="voteFeedCard('${id}','up')">👍</button>
+          <button type="button" class="feed-vbtn${v === 'down' ? ' on' : ''}" data-v="down" aria-pressed="${v === 'down'}" aria-label="Non mi interessa" onclick="voteFeedCard('${id}','down')">👎</button>
+        </div>` : '';
+  const nSrc = feedCardSources(c).length;
   return `
-      <article class="feed-slide card" data-id="${escFeed(c.id)}"><div class="feed-card" style="--tc:${escFeed(t.color)};animation-delay:${Math.min(i, 3) * 40}ms">
-        <div class="feed-badge"><span>${escFeed(t.emoji)}</span>${escFeed(t.label)}</div>
+      <article class="feed-slide card" data-id="${id}"><div class="feed-card" style="--tc:${escFeed(t.color)};animation-delay:${Math.min(i, 3) * 40}ms">
+        <div class="feed-top"><div class="feed-badge"><span>${escFeed(t.emoji)}</span>${escFeed(t.label)}</div>${c.followId ? '<div class="feed-upd">↻ Aggiornamento</div>' : ''}${vote}</div>
         <h2 class="feed-title">${escFeed(c.title)}</h2>
         <div class="feed-summary"><p>${escFeed(c.summary)}</p>${c.why ? `<p class="feed-why"><b>Perché conta</b> ${escFeed(c.why)}</p>` : ''}</div>
-        <div class="feed-meta">${feedSourceHTML(c)}<span class="feed-meta-dot"></span><span>${escFeed(feedRelTime(c))}</span><span class="feed-meta-dot"></span><span class="feed-idx"></span></div>
+        <div class="feed-meta">${feedSourceHTML(c)}${nSrc >= 2 ? `<span class="feed-meta-dot"></span><span class="feed-nsrc">${nSrc} fonti</span>` : ''}<span class="feed-meta-dot"></span><span>${escFeed(feedRelTime(c))}</span><span class="feed-meta-dot"></span><span class="feed-idx"></span></div>
         <div class="feed-actions">
           <button class="feed-btn pri" onclick="expandArticle('${escFeed(c.id)}')">📖 Leggi</button>
           <button class="feed-btn sec" onclick="openFeedChat('${escFeed(c.id)}')">💬 Chiedi</button>
@@ -917,6 +1188,7 @@ function openFeedSheet(mode, card) {
   const title = document.getElementById('fsheet-title');
   const isCard = mode === 'article' || mode === 'chat';
   if (FEED.articleStream && (!isCard || !FEED.card || FEED.card.id !== FEED.articleStream.id)) abortArticleStream();
+  if (FEED.tts && (!isCard || !FEED.card || FEED.card.id !== FEED.tts.id)) stopArticleSpeech();
   tabs.style.display = isCard ? 'flex' : 'none';
   document.getElementById('fsheet-tab-article').classList.toggle('on', mode === 'article');
   document.getElementById('fsheet-tab-chat').classList.toggle('on', mode === 'chat');
@@ -926,7 +1198,7 @@ function openFeedSheet(mode, card) {
   renderFeedSheet();
 }
 function switchFeedSheet(mode) { openFeedSheet(mode); }
-function closeFeedSheet() { abortArticleStream(); FEED.sheet = null; document.getElementById('feed-sheet').classList.remove('open'); }
+function closeFeedSheet() { abortArticleStream(); stopArticleSpeech(); FEED.sheet = null; FEED.topicEdit = null; FEED.topicDraft = null; document.getElementById('feed-sheet').classList.remove('open'); }
 function feedSheetOverlayClick(e) { if (e.target === document.getElementById('feed-sheet')) closeFeedSheet(); }
 function renderFeedSheet() {
   const b = document.getElementById('fsheet-body'); if (!b) return;
@@ -947,15 +1219,17 @@ async function expandArticle(id) {
   streamArticle(card);
 }
 // Formato testo dell'articolo (parsabile a pezzi):
-//   riga 1 = titolo · riga vuota · "## Sottotitolo" · paragrafi separati da riga vuota.
-// parseArticleText(text, final) → { title, blocks: [{ tag: 'h3'|'p', text }] }.
+//   riga 1 = titolo · riga vuota · 3 righe "- punto" ("In breve") · riga vuota ·
+//   "## Sottotitolo" · paragrafi separati da riga vuota.
+// parseArticleText(text, final) → { title, tldr: [string], blocks: [{ tag: 'h3'|'p', text }] }.
+// Le righe "- " prima del primo blocco sono il riassunto "In breve" (un'etichetta "In breve" si salta).
 // Se !final l'ultima riga incompleta è inclusa nell'ultimo blocco (titolo solo a riga chiusa).
 function parseArticleText(text, final) {
   const lines = String(text || '').replace(/\r\n?/g, '\n').split('\n');
   const complete = final ? lines.length : lines.length - 1;
   const clean = s => s.replace(/\*\*|__/g, '').trim();
   let title = '', titleDone = false, para = null;
-  const blocks = [];
+  const blocks = [], tldr = [];
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
     if (!titleDone) {
@@ -965,23 +1239,32 @@ function parseArticleText(text, final) {
       titleDone = true; continue;
     }
     if (!line) { para = null; continue; }
+    if (!blocks.length) {
+      if (/^(#+\s*)?(\*\*|__)?\s*in (breve|30 secondi)\s*:?\s*(\*\*|__)?\s*:?$/i.test(line)) { para = null; continue; }
+      if (/^[-•*]\s+/.test(line)) { para = null; const t = clean(line.replace(/^[-•*]\s+/, '')); if (t) tldr.push(t); continue; }
+    }
     if (/^#{1,6}(\s|$)/.test(line)) { para = null; blocks.push({ tag: 'h3', text: clean(line.replace(/^#+\s*/, '')) }); continue; }
     const t = clean(line);
     if (para) para.text += ' ' + t;
     else { para = { tag: 'p', text: t }; blocks.push(para); }
   }
-  return { title, blocks };
+  return { title, tldr, blocks };
 }
-function articleFromBlocks(title, blocks) {
+// fullArticle = { title, tldr?: [3 punti], sections }; gli articoli in cache senza tldr restano validi.
+function articleFromBlocks(title, blocks, tldr) {
   const sections = [];
   let cur = null;
   blocks.forEach(b => {
     if (b.tag === 'h3') { if (b.text) { cur = { heading: b.text, paragraphs: [] }; sections.push(cur); } }
     else if (b.text) { if (!cur) { cur = { heading: '', paragraphs: [] }; sections.push(cur); } cur.paragraphs.push(b.text); }
   });
-  return { title, sections: sections.filter(s => s.paragraphs.length || s.heading) };
+  const art = { title, sections: sections.filter(s => s.paragraphs.length || s.heading) };
+  const pts = (tldr || []).filter(Boolean).slice(0, 3);
+  if (pts.length) art.tldr = pts;
+  return art;
 }
 function abortArticleStream() {
+  stopArticleSpeech();
   const st = FEED.articleStream; if (!st) return;
   FEED.articleStream = null;
   if (st.raf) cancelAnimationFrame(st.raf);
@@ -996,7 +1279,10 @@ async function streamArticle(card) {
   const url = feedSafeUrl(card.url);
   // Notizie del cloud: l'articolo si basa sulla pagina vera (url_context), con la ricerca come riserva
   const srcBlock = url ? `\nArticolo originale: ${url}\n\nLeggi l'articolo originale a quell'indirizzo e basati soprattutto su quello; se non riesci ad aprirlo, cerca la notizia con Google Search. Non inventare fatti, numeri o citazioni.` : '';
-  const prompt = `Scrivi in italiano un articolo di approfondimento (400-600 parole) a partire da questa notizia.\nTitolo: ${card.title}\nRiassunto: ${card.summary}\nFonte: ${card.source}\nArgomento: ${feedTopic(card.topicId).label}${srcBlock}\n\nTono giornalistico, chiaro, senza retorica. Contestualizza, spiega le implicazioni e chiudi con cosa aspettarsi. Non inventare citazioni virgolettate attribuite a persone reali.\n\nFORMATO DI OUTPUT (testo semplice, niente JSON, niente elenchi puntati, niente grassetti):\n- Prima riga: solo il titolo dell'articolo.\n- Poi una riga vuota.\n- 3-4 sezioni: ogni sezione inizia con una riga "## Sottotitolo breve", seguita da 1-3 paragrafi.\n- Separa ogni paragrafo e ogni sottotitolo con una riga vuota.`;
+  const level = feedTopic(card.topicId).level === 'tecnico'
+    ? 'Il lettore conosce la materia: usa i termini tecnici corretti e vai nel dettaglio.'
+    : 'Il lettore è curioso ma non esperto: spiega in parole semplici i termini tecnici.';
+  const prompt = `Scrivi in italiano un articolo di approfondimento (400-600 parole) a partire da questa notizia.\nTitolo: ${card.title}\nRiassunto: ${card.summary}\nFonte: ${card.source}\nArgomento: ${feedTopic(card.topicId).label}${srcBlock}\n\nTono giornalistico, chiaro, senza retorica. ${level} Contestualizza, spiega le implicazioni e chiudi con cosa aspettarsi. Non inventare citazioni virgolettate attribuite a persone reali.\n\nFORMATO DI OUTPUT (testo semplice, niente JSON, niente grassetti):\n- Prima riga: solo il titolo dell'articolo.\n- Poi una riga vuota.\n- "In breve": esattamente 3 righe che iniziano con "- ", ognuna un punto essenziale in una frase (massimo 20 parole). Non scrivere l'etichetta "In breve".\n- Poi una riga vuota.\n- 3-4 sezioni: ogni sezione inizia con una riga "## Sottotitolo breve", seguita da 1-3 paragrafi (niente elenchi puntati nelle sezioni).\n- Separa ogni paragrafo e ogni sottotitolo con una riga vuota.`;
   // 400-600 parole ≈ 800-1100 token: 3072 basta a thinking spento; con thinking attivo (pro, gemini-3,
   // sconosciuti) i token di ragionamento contano in maxOutputTokens → margine più alto.
   const thinking = geminiThinkingConfig();
@@ -1020,7 +1306,7 @@ async function streamArticle(card) {
     }
     if (FEED.articleStream !== st) return;
     const parsed = parseArticleText(full, true);
-    const art = articleFromBlocks(parsed.title || card.title, parsed.blocks);
+    const art = articleFromBlocks(parsed.title || card.title, parsed.blocks, parsed.tldr);
     if (!art.sections.some(s => s.paragraphs.length)) throw Object.assign(new Error('empty'), { code: 'empty' });
     st.text = full;
     if (st.raf) { cancelAnimationFrame(st.raf); st.raf = 0; }
@@ -1041,6 +1327,7 @@ async function streamArticle(card) {
       disc.textContent = feedArticleDisclaimer(card);
       root.appendChild(disc);
       root.removeAttribute('id');
+      updateArticleTools(); // compare "Ascolta"
     }
   } catch (e) {
     if (e.code === 'abort' || FEED.articleStream !== st) return;
@@ -1067,8 +1354,15 @@ function paintArticleStream(st, final) {
   st.raf = 0;
   const root = articleStreamRoot(st.id); if (!root) return;
   const body = root.querySelector('.art-body'); if (!body) return;
-  const { title, blocks } = parseArticleText(st.text, final);
+  const { title, blocks, tldr } = parseArticleText(st.text, final);
   if (title) { const h = root.querySelector('h2'); if (h && h.textContent !== title) h.textContent = title; }
+  const box = root.querySelector('.art-tldr');
+  if (box) {
+    const pts = tldr.slice(0, 3), ul = box.querySelector('ul');
+    box.hidden = !pts.length;
+    while (ul.children.length > pts.length) ul.lastElementChild.remove();
+    pts.forEach((t, i) => { let li = ul.children[i]; if (!li) { li = document.createElement('li'); ul.appendChild(li); } if (li.textContent !== t) li.textContent = t; });
+  }
   const els = st.els;
   blocks.forEach((bl, i) => {
     let el = els[i];
@@ -1081,24 +1375,87 @@ function paintArticleStream(st, final) {
   });
   while (els.length > blocks.length) els.pop().remove();
   els.forEach((el, i) => el.classList.toggle('art-tail', !final && i === els.length - 1));
-  root.classList.toggle('has-text', blocks.length > 0);
+  root.classList.toggle('has-text', blocks.length > 0 || tldr.length > 0);
 }
 function feedArticleDisclaimer(c) {
   return feedSafeUrl(c.url) ? `Basato su ${c.source} · riscritto dall'AI · può contenere imprecisioni` : "Articolo generato dall'AI · può contenere imprecisioni";
 }
+function feedTldrHTML(pts) {
+  const l = (Array.isArray(pts) ? pts : []).filter(Boolean).slice(0, 3);
+  return l.length ? `<div class="art-tldr"><div class="art-tldr-h">In 30 secondi</div><ul>${l.map(x => `<li>${escFeed(x)}</li>`).join('')}</ul></div>` : '';
+}
+// Pulsanti sotto il titolo dell'articolo: Ascolta (solo ad articolo completo) e Segui la storia (notizie del cloud)
+function articleToolsInner(c) {
+  if (!c) return '';
+  const out = [];
+  if (c.fullArticle && ttsSupported()) {
+    const on = !!(FEED.tts && FEED.tts.id === c.id);
+    out.push(`<button type="button" class="feed-btn sec art-tool${on ? ' on' : ''}" aria-pressed="${on}" onclick="toggleArticleSpeech()">${on ? '■ Stop' : '🔊 Ascolta'}</button>`);
+  }
+  if (c.db && cloudOn()) {
+    const f = feedFollowOf(c.id);
+    out.push(`<button type="button" class="feed-btn sec art-tool${f ? ' on' : ''}" aria-pressed="${!!f}" onclick="toggleFollowFeedStory('${escFeed(c.id)}')">${f ? '✓ Storia seguita' : '📌 Segui la storia'}</button>`);
+  }
+  return out.join('');
+}
+function updateArticleTools() {
+  const el = document.getElementById('fart-tools');
+  if (el && FEED.sheet === 'article') el.innerHTML = articleToolsInner(FEED.card);
+}
+
+// ── Ascolta (speechSynthesis) ──
+// Una utterance per blocco (titolo, punti "in breve", sottotitoli, paragrafi), tutte in coda subito:
+// su iOS solo la prima deve partire da un tocco. Si ferma chiudendo il foglio, aprendo un'altra card
+// o interrompendo l'articolo.
+function ttsSupported() { return typeof window !== 'undefined' && 'speechSynthesis' in window && typeof window.SpeechSynthesisUtterance === 'function'; }
+function toggleArticleSpeech() { if (FEED.tts) stopArticleSpeech(); else startArticleSpeech(); }
+function startArticleSpeech() {
+  const c = FEED.card, a = c && c.fullArticle;
+  if (!a || !ttsSupported()) return;
+  stopArticleSpeech(false);
+  const parts = [a.title, ...(a.tldr && a.tldr.length ? ['In breve.', ...a.tldr] : []), ...a.sections.flatMap(s => [s.heading, ...s.paragraphs])]
+    .map(x => String(x || '').trim()).filter(Boolean);
+  if (!parts.length) return;
+  const voices = speechSynthesis.getVoices() || [];
+  const voice = voices.find(v => /^it[-_]it$/i.test(v.lang)) || voices.find(v => /^it([-_]|$)/i.test(v.lang)) || null;
+  const tts = { id: c.id };
+  FEED.tts = tts;
+  const done = () => { if (FEED.tts === tts) { FEED.tts = null; updateArticleTools(); } };
+  parts.forEach((txt, i) => {
+    const u = new SpeechSynthesisUtterance(txt);
+    u.lang = 'it-IT';
+    if (voice) u.voice = voice;
+    if (i === parts.length - 1) u.onend = done;
+    u.onerror = e => { if (e && (e.error === 'interrupted' || e.error === 'canceled')) return; done(); };
+    speechSynthesis.speak(u);
+  });
+  updateArticleTools();
+}
+function stopArticleSpeech(update = true) {
+  const had = FEED.tts;
+  FEED.tts = null;
+  if (had && ttsSupported()) { try { speechSynthesis.cancel(); } catch (e) { } }
+  if (had && update) updateArticleTools();
+}
 function renderFeedArticle(b) {
   const c = FEED.card; if (!c) { b.innerHTML = ''; return; }
   const t = feedTopic(c.topicId);
-  const meta = `<div class="feed-meta">${feedSourceHTML(c)}<span class="feed-meta-dot"></span><span>${escFeed(feedRelTime(c))}</span><span class="feed-meta-dot"></span><span>${escFeed(t.label)}</span></div>`;
-  const head = `<h2>${escFeed(c.fullArticle ? c.fullArticle.title : c.title)}</h2>${meta}`;
+  const srcs = feedCardSources(c);
+  const meta = `<div class="feed-meta">${feedSourceHTML(c)}${srcs.length >= 2 ? `<span class="feed-meta-dot"></span><span class="feed-nsrc">${srcs.length} fonti</span>` : ''}<span class="feed-meta-dot"></span><span>${escFeed(feedRelTime(c))}</span><span class="feed-meta-dot"></span><span>${escFeed(t.label)}</span></div>`;
+  // Stesso fatto da più testate: elenco delle fonti (link se c'è)
+  const srcList = srcs.length >= 2 ? `<div class="art-srcs"><span class="art-srcs-h">Fonti</span>${srcs.map(x => x.url ? `<a href="${escFeed(x.url)}" target="_blank" rel="noopener noreferrer">${escFeed(x.domain || x.name)} ↗</a>` : `<span>${escFeed(x.domain || x.name)}</span>`).join('')}</div>` : '';
+  const tools = `<div class="art-tools" id="fart-tools">${articleToolsInner(c)}</div>`;
+  if (c.db && cloudOn() && !FEED.follows && !FEED.followsLoading) loadFeedFollows().then(updateArticleTools, () => { });
+  const head = `<h2>${escFeed(c.fullArticle ? c.fullArticle.title : c.title)}</h2>${meta}${tools}${srcList}`;
   if (c.fullArticle) {
-    b.innerHTML = `<div class="article">${head}${c.fullArticle.sections.map(s => `${s.heading ? `<h3>${escFeed(s.heading)}</h3>` : ''}${s.paragraphs.map(p => `<p>${escFeed(p)}</p>`).join('')}`).join('')}<div class="feed-disclaimer">${escFeed(feedArticleDisclaimer(c))}</div></div>`;
+    const a = c.fullArticle;
+    b.innerHTML = `<div class="article">${head}${feedTldrHTML(a.tldr)}${a.sections.map(s => `${s.heading ? `<h3>${escFeed(s.heading)}</h3>` : ''}${s.paragraphs.map(p => `<p>${escFeed(p)}</p>`).join('')}`).join('')}<div class="feed-disclaimer">${escFeed(feedArticleDisclaimer(c))}</div></div>`;
     return;
   }
   const st = FEED.articleStream;
   if (st && st.id === c.id) {
     // Struttura statica; il testo arriva via paintArticleStream (render sincrono dello stato già ricevuto)
-    b.innerHTML = `<div class="article" id="fart" data-id="${escFeed(c.id)}"><h2>${escFeed(c.title)}</h2>${meta}<div class="art-body"></div><div class="art-sk"><div class="sk-line w90"></div><div class="sk-line w90"></div><div class="sk-line w70"></div><div class="sk-line w40" style="margin-top:10px"></div><div class="sk-line w90"></div><div class="sk-line w70"></div></div><div class="feed-meta art-status"><div class="feed-spinner"></div><span>Gemini sta scrivendo…</span></div></div>`;
+    b.innerHTML = `<div class="article" id="fart" data-id="${escFeed(c.id)}"><h2>${escFeed(c.title)}</h2>${meta}${tools}${srcList}<div class="art-tldr" hidden><div class="art-tldr-h">In 30 secondi</div><ul></ul></div><div class="art-body"></div><div class="art-sk"><div class="sk-line w90"></div><div class="sk-line w90"></div><div class="sk-line w70"></div><div class="sk-line w40" style="margin-top:10px"></div><div class="sk-line w90"></div><div class="sk-line w70"></div></div><div class="feed-meta art-status"><div class="feed-spinner"></div><span>Gemini sta scrivendo…</span></div></div>`;
     st.els = [];
     paintArticleStream(st, false);
     return;
@@ -1106,7 +1463,7 @@ function renderFeedArticle(b) {
   const partial = FEED.articlePartial && FEED.articlePartial.id === c.id ? parseArticleText(FEED.articlePartial.text, true) : null;
   const partialHtml = partial && partial.blocks.length ? partial.blocks.map(bl => `<${bl.tag}>${escFeed(bl.text)}</${bl.tag}>`).join('') : `<p>${escFeed(c.summary)}</p>`;
   const h2 = partial && partial.title ? partial.title : c.title;
-  b.innerHTML = `<div class="article"><h2>${escFeed(h2)}</h2>${meta}${partialHtml}${c.articleError ? `<p style="color:var(--red)">${escFeed(c.articleError)}</p>` : ''}<div class="feed-actions"><button class="feed-btn pri" onclick="expandArticle('${escFeed(c.id)}')">↻ ${c.articleError ? 'Riprova' : "Genera l'articolo"}</button></div></div>`;
+  b.innerHTML = `<div class="article"><h2>${escFeed(h2)}</h2>${meta}${tools}${partial && partial.tldr.length ? feedTldrHTML(partial.tldr) : ''}${partialHtml}${c.articleError ? `<p style="color:var(--red)">${escFeed(c.articleError)}</p>` : ''}<div class="feed-actions"><button class="feed-btn pri" onclick="expandArticle('${escFeed(c.id)}')">↻ ${c.articleError ? 'Riprova' : "Genera l'articolo"}</button></div></div>`;
 }
 
 // Chat contestuale
@@ -1140,7 +1497,7 @@ async function sendFeedChat(preset) {
   FEED.chatBusy = true;
   if (FEED.sheet === 'chat') renderFeedSheet();
   try {
-    const article = c.fullArticle ? '\n\nArticolo esteso:\n' + c.fullArticle.sections.map(s => s.heading + '\n' + s.paragraphs.join('\n')).join('\n\n') : '';
+    const article = c.fullArticle ? '\n\nArticolo esteso:\n' + (c.fullArticle.tldr ? c.fullArticle.tldr.map(x => '- ' + x).join('\n') + '\n\n' : '') + c.fullArticle.sections.map(s => s.heading + '\n' + s.paragraphs.join('\n')).join('\n\n') : '';
     const url = feedSafeUrl(c.url);
     const system = `Sei l'assistente di DayFlow. Rispondi in italiano, in modo chiaro e conciso (massimo 120 parole), restando ancorato alla notizia seguente. Se non sai qualcosa, dillo. Non inventare citazioni di persone reali.\n\nNotizia: ${c.title}\nRiassunto: ${c.summary}\nFonte: ${c.source}${url ? `\nArticolo originale: ${url} (puoi leggerlo)` : ''}\nArgomento: ${feedTopic(c.topicId).label}${article}`;
     const contents = FEED.chat.map(m => ({ role: m.role, parts: [{ text: m.text }] }));
@@ -1155,30 +1512,138 @@ async function sendFeedChat(preset) {
 }
 
 // Argomenti
+// Ogni argomento si modifica con ✎ (nome, emoji, focus, esclusioni, area, livello); "Crea da una frase"
+// chiede a Gemini (via proxy, senza strumenti, responseSchema) un argomento già compilato da confermare.
+function feedAreaLabel(id) { const a = FEED_AREAS.find(x => x.id === id); return a ? a.label : 'Misto'; }
+function feedTopicSummary(t) {
+  const bits = [];
+  if (t.focus) bits.push('Focus: ' + t.focus);
+  if (t.exclude) bits.push('Escludi: ' + t.exclude);
+  if (t.area) bits.push('Area: ' + feedAreaLabel(t.area));
+  if (t.level === 'tecnico') bits.push('Tecnico');
+  return bits.join(' · ');
+}
 function renderFeedTopicsSheet(b) {
+  const ai = feedAIReady();
+  const busy = FEED.topicPhraseBusy;
   b.innerHTML = `
-    <div class="feed-hint" style="margin-bottom:14px">Il feed viene generato sugli argomenti attivi. Dopo una modifica, rigenera per aggiornarlo.</div>
-    ${FEED.topics.map(t => `<div class="topic-row" style="--tc:${escFeed(t.color)}"><div class="t-emoji">${escFeed(t.emoji)}</div><div class="t-name">${escFeed(t.label)}</div><button class="topic-del" onclick="removeFeedTopic('${escFeed(t.id)}')" ${FEED.topics.length <= 1 ? 'disabled' : ''} aria-label="Rimuovi">×</button></div>`).join('')}
+    <div class="feed-hint" style="margin-bottom:14px">Il feed viene generato sugli argomenti attivi. Con ✎ scegli focus, esclusioni, area e livello: valgono dalle prossime notizie.</div>
+    ${FEED.topics.map(t => `<div class="topic-row" style="--tc:${escFeed(t.color)}"><div class="t-emoji">${escFeed(t.emoji)}</div><div class="t-name"><div>${escFeed(t.label)}</div>${feedTopicSummary(t) ? `<div class="t-sub">${escFeed(feedTopicSummary(t))}</div>` : ''}</div><div class="topic-acts"><button class="topic-edit" onclick="editFeedTopic('${escFeed(t.id)}')" aria-label="Modifica ${escFeed(t.label)}" aria-expanded="${FEED.topicEdit === t.id}">✎</button><button class="topic-del" onclick="removeFeedTopic('${escFeed(t.id)}')" ${FEED.topics.length <= 1 ? 'disabled' : ''} aria-label="Rimuovi ${escFeed(t.label)}">×</button></div></div>${FEED.topicEdit === t.id ? feedTopicEditorHTML(t, false) : ''}`).join('')}
+    ${FEED.topicEdit === '__new' && FEED.topicDraft ? feedTopicEditorHTML(FEED.topicDraft, true) : ''}
     <div class="topic-form">
       <input class="form-input emoji" id="topic-emoji" maxlength="4" placeholder="✦" aria-label="Emoji">
       <input class="form-input" id="topic-label" maxlength="24" placeholder="Nuovo argomento (es. Cinema)" onkeydown="if(event.key==='Enter') addFeedTopic()">
       <button class="btn-pri" onclick="addFeedTopic()">Aggiungi</button>
+    </div>
+    ${ai ? `<div class="topic-phrase">
+      <label class="form-label" for="topic-phrase">Crea da una frase</label>
+      <textarea class="form-input" id="topic-phrase" rows="2" maxlength="300" placeholder="Es. novità sulle auto elettriche in Europa, niente gossip sui manager"></textarea>
+      <div class="form-btns" style="margin-top:8px"><button class="btn-sec" onclick="createFeedTopicFromPhrase()" ${busy ? 'disabled' : ''}>${busy ? 'Preparo l\'argomento…' : '✦ Prepara argomento'}</button></div>
+    </div>` : ''}`;
+}
+function feedTopicEditorHTML(t, isNew) {
+  const areaOpts = `<option value=""${!t.area ? ' selected' : ''}>Come generale (${escFeed(feedAreaLabel(feedSettings().area))})</option>`
+    + FEED_AREAS.map(a => `<option value="${a.id}"${t.area === a.id ? ' selected' : ''}>${escFeed(a.label)}</option>`).join('');
+  const levelOpts = FEED_LEVELS.map(l => `<option value="${l.id}"${(t.level || 'divulgativo') === l.id ? ' selected' : ''}>${escFeed(l.label)}</option>`).join('');
+  return `<div class="topic-editor" id="topic-editor">
+      ${isNew ? '<div class="settings-lbl">Nuovo argomento · controlla e conferma</div>' : ''}
+      <div class="topic-form" style="margin-top:0">
+        <input class="form-input emoji" id="te-emoji" maxlength="4" value="${escFeed(t.emoji)}" aria-label="Emoji">
+        <input class="form-input" id="te-label" maxlength="24" value="${escFeed(t.label)}" aria-label="Nome dell'argomento">
+      </div>
+      <label class="form-label" for="te-focus">Focus</label>
+      <textarea class="form-input" id="te-focus" rows="2" maxlength="${FEED_TOPIC_TXT_MAX}" placeholder="Cosa ti interessa di più (es. startup italiane, chip)">${escFeed(t.focus || '')}</textarea>
+      <label class="form-label" for="te-exclude">Escludi</label>
+      <textarea class="form-input" id="te-exclude" rows="2" maxlength="${FEED_TOPIC_TXT_MAX}" placeholder="Cosa non vuoi vedere (es. gossip, recensioni)">${escFeed(t.exclude || '')}</textarea>
+      <div class="te-grid">
+        <div><label class="form-label" for="te-area">Area</label><select class="form-select" id="te-area">${areaOpts}</select></div>
+        <div><label class="form-label" for="te-level">Livello</label><select class="form-select" id="te-level">${levelOpts}</select></div>
+      </div>
+      <div class="form-btns" style="margin-top:14px">
+        <button class="btn-sec" onclick="cancelFeedTopicEdit()">Annulla</button>
+        <button class="btn-pri" onclick="saveFeedTopicEdit()">${isNew ? 'Aggiungi' : 'Salva'}</button>
+      </div>
     </div>`;
+}
+function editFeedTopic(id) {
+  FEED.topicEdit = FEED.topicEdit === id ? null : id;
+  FEED.topicDraft = null;
+  renderFeedSheet();
+  const el = document.getElementById('topic-editor'); if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+function cancelFeedTopicEdit() { FEED.topicEdit = null; FEED.topicDraft = null; renderFeedSheet(); }
+function readFeedTopicEditor() {
+  const v = id => (document.getElementById(id)?.value || '');
+  return { label: v('te-label').trim(), emoji: v('te-emoji').trim(), focus: v('te-focus'), exclude: v('te-exclude'), area: v('te-area') || null, level: v('te-level') };
+}
+function saveFeedTopicEdit() {
+  const f = readFeedTopicEditor();
+  if (!f.label) { showToast('Serve un nome per l\'argomento', 'warn'); return; }
+  if (FEED.topicEdit === '__new') {
+    if (addFeedTopicObj(Object.assign({}, FEED.topicDraft || {}, f))) { FEED.topicEdit = null; FEED.topicDraft = null; renderFeedSheet(); }
+    return;
+  }
+  const i = FEED.topics.findIndex(t => t.id === FEED.topicEdit); if (i < 0) return;
+  const old = FEED.topics[i];
+  FEED.topics[i] = normalizeTopic(Object.assign({}, old, f, { emoji: f.emoji || old.emoji }), i);
+  FEED.topicEdit = null;
+  saveFeedTopics();
+  renderFeedChips();
+  if (curScreen === 'recap') renderFeed(); // nome/emoji nelle card
+  renderFeedSheet();
+  showToast('Argomento aggiornato: vale dalle prossime notizie', 'info', 2400);
+}
+async function createFeedTopicFromPhrase() {
+  const phrase = (document.getElementById('topic-phrase')?.value || '').trim();
+  if (!phrase) { showToast('Scrivi una frase sull\'argomento', 'warn'); return; }
+  if (FEED.topicPhraseBusy) return;
+  if (FEED.topics.length >= 10) { showToast('Massimo 10 argomenti', 'warn'); return; }
+  FEED.topicPhraseBusy = true;
+  if (FEED.sheet === 'topics') renderFeedSheet();
+  const keep = document.getElementById('topic-phrase'); if (keep) keep.value = phrase;
+  try {
+    const schema = {
+      type: 'OBJECT',
+      properties: { label: { type: 'STRING' }, emoji: { type: 'STRING' }, focus: { type: 'STRING' }, exclude: { type: 'STRING' }, level: { type: 'STRING', enum: ['divulgativo', 'tecnico'] } },
+      required: ['label', 'emoji', 'focus', 'exclude', 'level']
+    };
+    const prompt = `Un utente di un'app di notizie descrive con una frase un argomento da seguire:\n"${phrase.slice(0, 300)}"\n\nTrasformala in un argomento del feed:\n- "label": nome breve in italiano, 1-3 parole, massimo 24 caratteri.\n- "emoji": una sola emoji adatta.\n- "focus": cosa privilegiare, in una frase in italiano (massimo 250 caratteri).\n- "exclude": cosa escludere se l'utente lo dice, altrimenti "".\n- "level": "tecnico" se chiede dettagli per addetti ai lavori, altrimenti "divulgativo".`;
+    const out = await geminiJSON(prompt, schema, 0.3);
+    if (!out || !out.label) throw Object.assign(new Error('parse'), { code: 'parse' });
+    FEED.topicDraft = normalizeTopic({ id: '__draft', label: out.label, emoji: out.emoji, focus: out.focus, exclude: out.exclude, level: out.level, area: null, color: '#8b8cf8' });
+    FEED.topicEdit = '__new';
+  } catch (e) {
+    console.error('createFeedTopicFromPhrase', e);
+    showToast(feedErrorMessage(e), 'error');
+  }
+  FEED.topicPhraseBusy = false;
+  if (FEED.sheet === 'topics') {
+    renderFeedSheet();
+    const ta = document.getElementById('topic-phrase'); if (ta && !FEED.topicDraft) ta.value = phrase;
+    const el = document.getElementById('topic-editor'); if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
 }
 function addFeedTopic() {
   const lbl = (document.getElementById('topic-label')?.value || '').trim();
   const emoji = (document.getElementById('topic-emoji')?.value || '').trim();
   if (!lbl) return;
-  if (FEED.topics.length >= 10) { showToast('Massimo 10 argomenti', 'warn'); return; }
+  addFeedTopicObj({ label: lbl, emoji: emoji || '✦' });
+}
+// Nuovo argomento (campi facoltativi focus/exclude/area/level); false se non aggiunto.
+function addFeedTopicObj(o) {
+  const lbl = String(o.label || '').trim();
+  if (!lbl) return false;
+  if (FEED.topics.length >= 10) { showToast('Massimo 10 argomenti', 'warn'); return false; }
   let id = lbl.toLowerCase().replace(/[^a-z0-9àèéìòù]+/g, '-').replace(/^-|-$/g, '') || uid();
   if (FEED.topics.some(t => t.id === id)) id += '-' + Math.random().toString(36).slice(2, 5);
   const used = new Set(FEED.topics.map(t => t.color));
   const color = FEED_PALETTE.find(c => !used.has(c)) || FEED_PALETTE[FEED.topics.length % FEED_PALETTE.length];
-  FEED.topics.push(normalizeTopic({ id, label: lbl, emoji: emoji || '✦', color }));
+  FEED.topics.push(normalizeTopic(Object.assign({}, o, { id, label: lbl, emoji: o.emoji || '✦', color })));
   const saved = afterFeedTopicsChange();
   // Nuovo argomento: la funzione prepara subito qualche notizia (dopo che il profilo è salvato,
   // perché legge gli argomenti da profiles.feed_topics).
   if (cloudOn()) Promise.resolve(saved).then(() => requestCloudMore(id)).catch(e => console.warn('nuovo argomento', e));
+  return true;
 }
 function removeFeedTopic(id) {
   if (FEED.topics.length <= 1) return;
@@ -1197,7 +1662,22 @@ function afterFeedTopicsChange() {
 // Impostazioni Discover: markup unico, renderizzabile in qualsiasi contenitore.
 // Oggi l'unico contenitore è #settings-discover-body (pannello Impostazioni globale);
 // le azioni (chiave, modello, cache, cronologia, interessi) ri-renderizzano con refreshFeedSettings().
-function renderFeedSettings(b) { if (b) b.innerHTML = feedSettingsHTML(); }
+function renderFeedSettings(b) {
+  if (!b) return;
+  // Il profilo dei gusti in modifica sopravvive ai re-render (caricamenti in background, altre azioni)
+  const prev = document.getElementById('set-feed-profile');
+  const keep = prev && prev.dataset.dirty ? { value: prev.value, focus: document.activeElement === prev } : null;
+  b.innerHTML = feedSettingsHTML();
+  if (keep) {
+    const ta = document.getElementById('set-feed-profile');
+    if (ta) { ta.value = keep.value; ta.dataset.dirty = '1'; if (keep.focus) ta.focus({ preventScroll: true }); }
+  }
+  // Dati del cloud (area, profilo, preferenze, storie seguite): ricaricati all'apertura, al massimo ogni 30 s
+  if (cloudOn() && Date.now() - FEED.setFetchedAt > 30000) {
+    FEED.setFetchedAt = Date.now();
+    Promise.allSettled([syncFeedSettings(), loadFeedFollows(true)]).then(refreshFeedSettings);
+  }
+}
 function refreshFeedSettings() { if (SETTINGS.open) renderFeedSettings(document.getElementById('settings-discover-body')); }
 function feedSettingsHTML() {
   const key = feedKey();
@@ -1212,7 +1692,7 @@ function feedSettingsHTML() {
       <div class="settings-val">${FEED.pool ? `${FEED.pool.length} nelle ultime 72 ore · ${left} ancora da vedere` : 'Non ancora caricate: apri Discover'}</div>
       <div class="feed-hint" style="margin-top:6px">Ogni mattina alle 6 il cloud cerca notizie vere sui tuoi argomenti; quando stanno per finire ne prepara altre. L'ordine segue quello che apri.${feedEvQ().length ? ` · ${feedEvQ().length} interazioni in attesa di invio` : ''}</div>
     </div>` : '';
-  return `${cloudRow}
+  return `${cloudRow}${cloud ? feedCloudSettingsHTML() : ''}
     <div class="settings-row">
       <div class="settings-lbl">${cloud ? 'Chiave API Gemini locale (facoltativa)' : 'Chiave API Gemini'}</div>
       <div class="settings-val">${key ? escFeed(masked) : cloud ? 'Nessuna · Discover usa la chiave nel cloud' : 'Nessuna chiave salvata'}</div>
@@ -1253,6 +1733,100 @@ function feedSettingsHTML() {
         <button class="btn-sec" onclick="clearFeedPrefs()" ${prefs.length ? '' : 'disabled'}>Azzera interessi</button>
       </div>
     </div>`;
+}
+// Righe cloud delle impostazioni Discover: area generale, profilo dei gusti, preferenze, storie seguite.
+function feedCloudSettingsHTML() {
+  const fs = feedSettings();
+  const area = FEED_AREAS.some(a => a.id === fs.area) ? fs.area : 'misto';
+  const pr = feedPrefs();
+  const when = fs.profileAt && !isNaN(Date.parse(fs.profileAt)) ? new Date(fs.profileAt).toLocaleDateString('it-IT', { day: 'numeric', month: 'long' }) : '';
+  const profMeta = !fs.profile ? 'Ancora nessun profilo: si crea da solo quando avrai reagito ad almeno 5 notizie, oppure scrivilo tu.'
+    : fs.profileManual ? `Scritto da te${when ? ' il ' + when : ''}: non viene rigenerato in automatico. "Rigenera" torna a quello automatico.`
+      : `Generato automaticamente${when ? ' il ' + when : ''} dalle tue reazioni; si aggiorna ogni settimana finché non lo modifichi.`;
+  const topicLbl = id => { const t = FEED.topics.find(x => x.id === id); return t ? t.label : id; };
+  const subLbl = v => { const i = v.indexOf(':'); return i > 0 ? `${topicLbl(v.slice(0, i))} · ${v.slice(i + 1)}` : v; };
+  const prefList = (list, key, fmt) => list.length
+    ? `<div class="pref-list">${list.map((v, i) => `<div class="pref-row"><span class="pref-txt">${escFeed(fmt(v))}</span><button class="topic-del pref-del" onclick="removeFeedPref('${key}', ${i})" aria-label="Rimuovi ${escFeed(fmt(v))}">×</button></div>`).join('')}</div>`
+    : '<div class="settings-val pref-empty">Nessuna</div>';
+  const follows = FEED.follows || [];
+  const followHTML = FEED.follows == null ? '<div class="settings-val">Caricamento…</div>'
+    : FEED.followsErr && !follows.length ? '<div class="settings-val">Non disponibili (serve lo SQL 04 su Supabase).</div>'
+      : !follows.length ? '<div class="settings-val">Nessuna storia seguita. Tocca 👍 su una notizia e scegli "Segui la storia".</div>'
+        : follows.map((f, i) => {
+          const until = f.until ? new Date(f.until).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' }) : '';
+          return `<div class="follow-row"><div class="follow-txt"><div class="follow-title">${escFeed(f.title)}</div><div class="feed-hint">${escFeed(topicLbl(f.topic_id))}${until ? ' · fino al ' + escFeed(until) : ''}${f.updates ? ' · ' + plural(f.updates, 'aggiornamento', 'aggiornamenti') : ''}</div></div><button class="btn-sec follow-stop" onclick="unfollowFeedStory(${i})">Smetti di seguire</button></div>`;
+        }).join('');
+  return `
+    <div class="settings-row">
+      <label class="settings-lbl" for="set-feed-area" style="display:block">Area geografica</label>
+      <select class="form-select" id="set-feed-area" onchange="setFeedArea(this.value)">${FEED_AREAS.map(a => `<option value="${a.id}"${a.id === area ? ' selected' : ''}>${escFeed(a.label)}${a.note ? ' · ' + escFeed(a.note) : ''}</option>`).join('')}</select>
+      <div class="feed-hint" style="margin-top:8px">Vale per tutti gli argomenti, tranne quelli con un'area propria (Argomenti → ✎).</div>
+    </div>
+    <div class="settings-row">
+      <label class="settings-lbl" for="set-feed-profile" style="display:block">Profilo dei gusti</label>
+      <textarea class="form-input feed-profile" id="set-feed-profile" rows="5" maxlength="${FEED_PROFILE_MAX}" placeholder="Es. Mi interessano le startup italiane e i chip; poco sport minore, niente gossip." oninput="this.dataset.dirty='1'">${escFeed(fs.profile || '')}</textarea>
+      <div class="feed-hint" style="margin-top:8px">${escFeed(profMeta)}</div>
+      <div class="form-btns" style="margin-top:10px">
+        <button class="btn-pri" onclick="saveFeedProfile()">Salva</button>
+        <button class="btn-sec" onclick="regenFeedProfile()" ${FEED.profileBusy ? 'disabled' : ''}>${FEED.profileBusy ? 'Rigenero…' : '↻ Rigenera'}</button>
+      </div>
+    </div>
+    <div class="settings-row">
+      <div class="settings-lbl">Preferenze da 👍 / 👎</div>
+      <div class="pref-h">Di più su</div>${prefList(pr.moreSub, 'moreSub', subLbl)}
+      <div class="pref-h">Meno su</div>${prefList(pr.lessSub, 'lessSub', subLbl)}
+      <div class="pref-h">Fonti bloccate</div>${prefList(pr.blockedSources, 'blockedSources', v => v)}
+    </div>
+    <div class="settings-row">
+      <div class="settings-lbl">Storie seguite</div>
+      ${followHTML}
+      <div class="feed-hint" style="margin-top:8px">Per 14 giorni il cloud cerca ogni mattina le novità: arrivano nel feed col badge "↻ Aggiornamento".</div>
+    </div>`;
+}
+function setFeedArea(v) {
+  if (!FEED_AREAS.some(a => a.id === v)) return;
+  changeFeedSettings([{ k: 'area', v }]);
+  showToast('Area: ' + feedAreaLabel(v) + ' · vale dalle prossime notizie', 'info', 2200);
+  refreshFeedSettings();
+}
+function saveFeedProfile() {
+  const ta = document.getElementById('set-feed-profile');
+  const text = (ta ? ta.value : '').trim().slice(0, FEED_PROFILE_MAX);
+  // Profilo svuotato = torna a quello automatico
+  changeFeedSettings([{ k: 'profile', v: text }, { k: 'profileManual', v: !!text }, { k: 'profileAt', v: new Date().toISOString() }]);
+  if (ta) delete ta.dataset.dirty;
+  showToast(text ? 'Profilo salvato' : 'Profilo svuotato: tornerà quello automatico', 'info', 2200);
+  refreshFeedSettings();
+}
+async function regenFeedProfile() {
+  if (!cloudOn() || FEED.profileBusy) return;
+  FEED.profileBusy = true;
+  const ta = document.getElementById('set-feed-profile'); if (ta) delete ta.dataset.dirty;
+  refreshFeedSettings();
+  try {
+    const res = await feedFnFetch({ mode: 'profile' });
+    if (!res.ok) throw await feedHttpError(res);
+    let j = null; try { j = await res.json(); } catch (e) { }
+    if (!j || typeof j.profile !== 'string') throw Object.assign(new Error('parse'), { code: 'parse' });
+    // La funzione ha già scritto il profilo in feed_settings: aggiorno solo la copia locale
+    const st = feedSetStore();
+    st.s = Object.assign({}, st.s, { profile: j.profile, profileAt: j.profileAt || new Date().toISOString(), profileManual: false });
+    st.ops = st.ops.filter(op => !(op && ['profile', 'profileAt', 'profileManual'].includes(op.k)));
+    saveFeedSetStore();
+    showToast('Profilo rigenerato', 'info', 2000);
+  } catch (e) {
+    console.warn('regenFeedProfile', e);
+    showToast(feedErrorMessage(e), e.detail === 'dayflow-few-signals' ? 'warn' : 'error');
+  } finally {
+    FEED.profileBusy = false;
+    refreshFeedSettings();
+  }
+}
+function removeFeedPref(list, i) {
+  const v = feedPrefs()[list] && feedPrefs()[list][i];
+  if (!v) return;
+  changeFeedSettings([{ list, del: v }]);
+  refreshFeedSettings();
 }
 function clearFeedCache() {
   FEED.data = null; FEED.error = null; saveFeedCache();
@@ -1365,5 +1939,11 @@ export {
   FEED, FEED_TOPICS_LS, setDiscoverHooks, escFeed, normalizeTopic, renderDiscover, renderFeedSettings,
   addFeedTopic, clearFeedCache, clearFeedPrefs, clearFeedSeen, closeFeedSheet, expandArticle, feedSheetOverlayClick, fetchGeminiModels,
   feedSourceClick, generateFeed, loadMoreFeed, openFeedChat, openFeedSheet, regenerateFeed, removeFeedKey, removeFeedTopic, saveFeedKey, sendFeedChat,
-  setFeedModel, setFeedModelFromInput, setFeedTopic, shareFeedCard, switchFeedSheet, toggleFeedKeyVis, toggleFeedSaved
+  setFeedModel, setFeedModelFromInput, setFeedTopic, shareFeedCard, switchFeedSheet, toggleFeedKeyVis, toggleFeedSaved,
+  // fase 4
+  voteFeedCard, feedVoteAction, toggleFollowFeedStory, unfollowFeedStory, toggleArticleSpeech,
+  editFeedTopic, cancelFeedTopicEdit, saveFeedTopicEdit, createFeedTopicFromPhrase,
+  setFeedArea, saveFeedProfile, regenFeedProfile, removeFeedPref,
+  // test
+  parseArticleText, articleFromBlocks, applyFeedSettingsOps
 };

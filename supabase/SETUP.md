@@ -89,11 +89,32 @@ I log dettagliati sono in **Edge Functions → generate-feed → Logs**.
 
 **Mandami in chat il risultato di D ed E.** Una foto o un copia-incolla di qualche riga basta.
 
+## 7. Fase 4: storie seguite, profilo dei gusti, preferenze
+
+1. SQL Editor → nuova query → incolla tutto `sql/04-feed-phase4.sql` → **Run** (se compare l'avviso RLS, scegli l'opzione che lo attiva). Si può rieseguire. L'ultima query deve restituire `follow_id = 1` e `policy = 4`.
+   Crea la colonna `feed_items.follow_id` e la tabella `feed_follows` (storie seguite, scadono dopo 14 giorni).
+2. Ripubblica la funzione: **Edge Functions** → `generate-feed` → scheda **Code** → incolla tutto il nuovo `functions/generate-feed/index.ts` → **Deploy**. Verify JWT resta disattivato.
+
+Cosa fa in più la funzione:
+- **Ogni mattina, per ogni utente**, in quest'ordine:
+  1. rigenera il **profilo dei gusti** se non l'hai modificato a mano e ha più di 7 giorni (servono almeno 5 segnali negli ultimi 30 giorni: aperture, chat, salvate, condivise, 👍, "di più", 👎, "meno così"); gli errori qui non fermano il resto;
+  2. genera le notizie come prima, tenendo conto di livello per argomento, sotto-argomenti "di più"/"di meno", fonti bloccate e profilo;
+  3. controlla al massimo 6 **storie seguite** (le meno recenti per prime): per ognuna cerca novità dall'ultimo controllo, al massimo 2 notizie, che finiscono in `feed_items` con `follow_id` (nell'app: badge "Aggiornamento").
+- **Nuovo mode `profile`** dall'app (JWT dell'utente, massimo 6 all'ora): rigenera subito il profilo. Risposta `200 { profile, profileAt }`, oppure `422 { error: 'dayflow-few-signals', signals }` se i segnali sono meno di 5.
+- Il profilo, la data (`profileAt`), `profileManual` e le preferenze (`prefs`: `moreSub`, `lessSub`, `blockedSources`) stanno in `profiles.feed_settings`.
+
+Nuovi `kind` in `feed_runs`: `follows` (controllo storie seguite; `detail.follows` ha le notizie trovate per ogni storia) e `profile` (`ok = false` con `detail.error = 'dayflow-few-signals'` se i segnali non bastano). Controllo:
+
+```sql
+select started_at, kind, ok, inserted, detail from public.feed_runs
+where kind in ('follows', 'profile') order by started_at desc limit 20;
+```
+
 ---
 
 ## Note
 
-- **Quota Gemini**: ogni generazione fa una chiamata con ricerca per argomento. Al mattino, con 4 argomenti, sono 4 chiamate. Le richieste "more" dall'app (fase 3) sono al massimo 6 all'ora.
+- **Quota Gemini**: ogni generazione fa una chiamata con ricerca per argomento. Al mattino, con 4 argomenti, sono 4 chiamate, più una per ogni storia seguita (massimo 6) e una senza ricerca per il profilo dei gusti (al massimo una a settimana). Le richieste "more" e "profile" dall'app sono al massimo 6 all'ora ciascuna.
 - **Pulizia**: le notizie più vecchie di 30 giorni vengono cancellate ogni mattina. Gli eventi in `feed_events` restano, perché tengono una copia di argomento, tipo e tag.
 - **Modello ritirato da Google**: la funzione se ne accorge da sola. Se il modello non esiste più, sceglie il più adatto tra quelli disponibili, preferendo i modelli stabili e la stessa famiglia (Flash resta Flash), e continua a lavorare. Lo registra in `feed_runs` come `kind = 'model-fallback'`, con `detail` che dice da quale modello a quale. Anche l'app passa al nuovo modello e mostra un avviso. Per rendere definitivo il cambio, imposta il segreto `GEMINI_MODEL` con il nuovo nome. Controllo rapido:
   `select started_at, detail from public.feed_runs where kind = 'model-fallback' order by started_at desc;`
