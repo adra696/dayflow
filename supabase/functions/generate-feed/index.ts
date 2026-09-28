@@ -24,7 +24,7 @@
 //
 // Segreti (Dashboard → Edge Functions → Secrets): GEMINI_API_KEY, FEED_CRON_SECRET,
 // opzionali GEMINI_MODEL (default gemini-2.5-flash) e GEMINI_THINKING ('off' default | 'model'),
-// GOOGLE_TTS_KEY (chiave API con Cloud Text-to-Speech; senza, i modi tts rispondono 503
+// GOOGLE_TTS_SA (JSON della chiave di un service account, preferito) o GOOGLE_TTS_KEY (chiave API con Cloud Text-to-Speech; senza, i modi tts rispondono 503
 // 'dayflow-tts-off') e TTS_MONTH_CAP (default 900000 caratteri al mese).
 // SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY sono già presenti in ogni Edge Function.
 //
@@ -44,6 +44,10 @@ const SB_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SB_SERVICE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 const API = 'https://generativelanguage.googleapis.com/v1beta/';
 const TTS_KEY = Deno.env.get('GOOGLE_TTS_KEY') ?? '';
+// Service account (JSON della chiave, preferito): alcuni progetti rifiutano le chiavi API con
+// "API keys are not supported by this API. Expected OAuth2 access token".
+const TTS_SA = Deno.env.get('GOOGLE_TTS_SA') ?? '';
+const TTS_ON = !!(TTS_SA || TTS_KEY);
 const TTS_API = 'https://texttospeech.googleapis.com/v1/';
 const ADMIN = createClient(SB_URL, SB_SERVICE, { auth: { persistSession: false } });
 
@@ -167,7 +171,7 @@ Deno.serve(async req => {
   if (authErr || !user) return json({ error: { message: 'dayflow-auth' } }, 401);
   const MODES = ['proxy', 'models', 'profile', 'tts', 'tts-voices'];
   const mode = typeof body.mode === 'string' && MODES.includes(body.mode) ? body.mode : 'more';
-  if ((mode === 'tts' || mode === 'tts-voices') && !TTS_KEY) return json({ error: { message: 'dayflow-tts-off' } }, 503);
+  if ((mode === 'tts' || mode === 'tts-voices') && !TTS_ON) return json({ error: { message: 'dayflow-tts-off' } }, 503);
   // tts-voices: niente limite orario (elenco in cache, nessun costo) e nessuna riga in feed_runs
   if (mode !== 'tts-voices') {
     const limit = mode === 'more' || mode === 'profile' ? MAX_MORE_PER_HOUR : mode === 'tts' ? MAX_TTS_PER_HOUR : MAX_PROXY_PER_HOUR;
@@ -260,6 +264,45 @@ async function listModels(admin: SupabaseClient, userId: string) {
 // 503 'dayflow-tts-off' (manca GOOGLE_TTS_KEY) o consumo non verificabile; 502 errore di Google.
 // Ogni chiamata va in feed_runs (kind 'tts', inserted = caratteri sintetizzati, 0 se fallita):
 // la somma del mese è il consumo di tutto il progetto.
+// ── autenticazione Text-to-Speech ───────────────────────────────────────────
+// Con GOOGLE_TTS_SA: JWT firmato RS256 con la chiave privata del service account → token OAuth2
+// (valido 1h, tenuto in memoria fino a 5 minuti dalla scadenza). Altrimenti chiave API.
+const ttsTok = { token: '', exp: 0 };
+function b64url(data: Uint8Array | string) {
+  const bytes = typeof data === 'string' ? new TextEncoder().encode(data) : data;
+  let bin = ''; for (const b of bytes) bin += String.fromCharCode(b);
+  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+async function ttsAccessToken(): Promise<string> {
+  if (ttsTok.token && Date.now() < ttsTok.exp - 300_000) return ttsTok.token;
+  let sa: { client_email?: string; private_key?: string; token_uri?: string };
+  try { sa = JSON.parse(TTS_SA); } catch { throw new Error('GOOGLE_TTS_SA non è un JSON valido'); }
+  if (!sa.client_email || !sa.private_key) throw new Error('GOOGLE_TTS_SA senza client_email/private_key');
+  const tokenUri = sa.token_uri || 'https://oauth2.googleapis.com/token';
+  const now = Math.floor(Date.now() / 1000);
+  const unsigned = b64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' })) + '.' + b64url(JSON.stringify({
+    iss: sa.client_email, scope: 'https://www.googleapis.com/auth/cloud-platform', aud: tokenUri, iat: now, exp: now + 3600,
+  }));
+  const pem = sa.private_key.replace(/-----[^-]+-----/g, '').replace(/\s+/g, '');
+  const der = Uint8Array.from(atob(pem), c => c.charCodeAt(0));
+  const key = await crypto.subtle.importKey('pkcs8', der, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['sign']);
+  const sig = new Uint8Array(await crypto.subtle.sign('RSASSA-PKCS1-v1_5', key, new TextEncoder().encode(unsigned)));
+  const res = await fetch(tokenUri, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion: unsigned + '.' + b64url(sig) }),
+    signal: AbortSignal.timeout(15_000),
+  });
+  const j = await res.json().catch(() => null);
+  if (!res.ok || typeof j?.access_token !== 'string') throw new Error(`token service account ${res.status}: ${j?.error_description ?? j?.error ?? ''}`);
+  ttsTok.token = j.access_token;
+  ttsTok.exp = Date.now() + (Number(j.expires_in) || 3600) * 1000;
+  return ttsTok.token;
+}
+async function ttsAuth(): Promise<Record<string, string>> {
+  return TTS_SA ? { Authorization: `Bearer ${await ttsAccessToken()}` } : { 'x-goog-api-key': TTS_KEY };
+}
+
 async function synthTts(admin: SupabaseClient, userId: string, body: Body) {
   const t0 = Date.now();
   const text = typeof body.text === 'string' ? body.text.replace(/\s+/g, ' ').trim() : '';
@@ -277,9 +320,12 @@ async function synthTts(admin: SupabaseClient, userId: string, body: Body) {
   if (used + text.length > TTS_MONTH_CAP) return json({ error: { message: 'dayflow-tts-quota' } }, 429);
   const log = (ok: boolean, detail: Record<string, unknown>) =>
     EdgeRuntime.waitUntil(Promise.resolve(admin.from('feed_runs').insert({ user_id: userId, kind: 'tts', ms: Date.now() - t0, ok, inserted: ok ? text.length : 0, detail: { voice, chars: text.length, ...detail } })));
+  let auth: Record<string, string>;
+  try { auth = await ttsAuth(); }
+  catch (e) { const m = String((e as Error)?.message ?? e); log(false, { error: m }); return json({ error: { message: `tts auth: ${m}` } }, 502); }
   const res = await fetch(`${TTS_API}text:synthesize`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': TTS_KEY },
+    headers: { 'Content-Type': 'application/json', ...auth },
     body: JSON.stringify({ input: { text }, voice: { languageCode: 'it-IT', name: voice }, audioConfig: { audioEncoding: 'MP3' } }),
     signal: AbortSignal.timeout(30_000),
   }).catch(e => { console.error('tts fetch', e); return null; });
@@ -324,7 +370,10 @@ type TtsVoice = { name: string; gender: string };
 let ttsVoiceCache: { at: number; voices: TtsVoice[] } | null = null;
 async function ttsVoices() {
   if (!ttsVoiceCache || Date.now() - ttsVoiceCache.at > TTS_VOICES_TTL) {
-    const res = await fetch(`${TTS_API}voices?languageCode=it-IT`, { headers: { 'x-goog-api-key': TTS_KEY }, signal: AbortSignal.timeout(15_000) }).catch(() => null);
+    let auth: Record<string, string>;
+    try { auth = await ttsAuth(); }
+    catch (e) { return json({ error: { message: `tts auth: ${String((e as Error)?.message ?? e)}` } }, 502); }
+    const res = await fetch(`${TTS_API}voices?languageCode=it-IT`, { headers: auth, signal: AbortSignal.timeout(15_000) }).catch(() => null);
     const j = res ? await res.json().catch(() => null) : null;
     if (!res || !res.ok) return json({ error: { message: `tts-voices ${res?.status ?? 'rete'}: ${j?.error?.message ?? ''}` } }, 502);
     const voices: TtsVoice[] = (Array.isArray(j?.voices) ? j.voices : [])
