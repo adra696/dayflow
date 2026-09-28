@@ -70,7 +70,7 @@ const FEED_DEFAULT_TOPICS = [
 const FEED = { topics: [], activeTopic: 'all', data: null, loading: false, error: null, more: false, moreTopic: null, moreError: null, sheet: null, card: null, chat: [], chatBusy: false, articleStream: null, articlePartial: null, pullInit: false, endObs: null, saved: null,
   pool: null, poolLoading: null, weights: {}, viewedIds: null, cloudMore: null, evQ: null, evFlushing: false, viewObs: null, viewing: new Map(), evInit: false,
   noFollowCol: false, votePop: null, setStore: null, setFlush: null, setFlushAgain: false, setFetchedAt: 0,
-  follows: null, followsLoading: null, followsErr: null, profileBusy: false, topicEdit: null, topicDraft: null, topicPhraseBusy: false, tts: null };
+  follows: null, followsLoading: null, followsErr: null, profileBusy: false, topicEdit: null, topicDraft: null, topicPhraseBusy: false, tts: null, lastTap: null };
 // Ascolta con la voce del cloud: elemento audio unico, pezzi dell'articolo aperto in memoria
 // (cacheKey = "cardId|voce"), elenco voci + consumo del mese, prove per voce.
 const TTSC = { audio: null, silent: '', speechUnlocked: false, cacheKey: '', blobs: new Map(), voices: null, voicesLoading: null, samples: new Map(), testSeq: 0, skipUntil: 0 };
@@ -446,6 +446,7 @@ function initFeedEvents() {
   document.addEventListener('click', e => { if (FEED.votePop && !(e.target.closest && e.target.closest('.feed-vote-pop, .feed-vote'))) closeFeedVotePop(); });
   const f = document.getElementById('disc-feed');
   if (f) f.addEventListener('scroll', () => { if (FEED.votePop) closeFeedVotePop(); }, { passive: true });
+  if (f) f.addEventListener('click', feedDoubleTap);
   if (feedEvQ().length) flushFeedEvents();
   if (cloudOn()) syncFeedSettings().catch(() => { }); // modifiche rimaste in coda da una sessione offline
 }
@@ -554,11 +555,48 @@ function voteFeedCard(id, v) {
   const c = feedCardById(id); if (!c || !c.db) return;
   const cur = feedVote(id);
   closeFeedVotePop();
-  if (cur === v) { setFeedVote(id, ''); logFeedEvent(c, 'unvote'); paintFeedVote(id); return; }
+  if (cur === v) {
+    setFeedVote(id, ''); logFeedEvent(c, 'unvote'); paintFeedVote(id);
+    if (v === 'up' && c.subtopic) { changeFeedSettings([{ list: 'moreSub', del: subtopicVal(c) }]); refreshFeedSettings(); }
+    return;
+  }
   setFeedVote(id, v);
   logFeedEvent(c, v);
   paintFeedVote(id);
-  openFeedVotePop(c, v);
+  if (v === 'up') feedMoreLikeThis(c); else openFeedVotePop(c, v);
+}
+function subtopicVal(c) { return `${c.topicId}:${c.subtopic.trim()}`; }
+// 👍: niente menu, solo "più notizie come questa" (il voto alza già il peso dell'argomento;
+// con un sottotema lo si aggiunge anche a moreSub)
+function feedMoreLikeThis(c) {
+  if (c.subtopic) {
+    const val = subtopicVal(c);
+    changeFeedSettings([{ list: 'moreSub', add: val }, { list: 'lessSub', del: val }]);
+    logFeedEvent(c, 'more');
+    refreshFeedSettings();
+  }
+  showToast('Ti mostrerò più notizie come questa', 'info', 2000);
+}
+// Doppio tocco su una card del cloud = 👍 (mai toglie un voto già messo)
+const FEED_DTAP_MS = 320;
+function feedDoubleTap(e) {
+  const t = e.target;
+  if (!t || !t.closest || t.closest('button, a, input, textarea, select, .feed-vote-pop')) { FEED.lastTap = null; return; }
+  const slide = t.closest('.feed-slide.card'); if (!slide) return;
+  const id = slide.dataset.id, now = performance.now(), last = FEED.lastTap;
+  if (!last || last.id !== id || now - last.t > FEED_DTAP_MS) { FEED.lastTap = { id, t: now }; return; }
+  FEED.lastTap = null;
+  try { const sel = window.getSelection && window.getSelection(); if (sel) sel.removeAllRanges(); } catch (err) { }
+  const c = feedCardById(id); if (!c || !c.db) return;
+  feedTapBurst(slide);
+  if (feedVote(id) !== 'up') voteFeedCard(id, 'up');
+}
+function feedTapBurst(slide) {
+  const card = slide.querySelector('.feed-card'); if (!card) return;
+  const b = document.createElement('div');
+  b.className = 'feed-tap-burst'; b.setAttribute('aria-hidden', 'true'); b.textContent = '👍';
+  card.appendChild(b);
+  setTimeout(() => b.remove(), 800);
 }
 // Fonte che il 👎 propone di bloccare: la prima non ancora bloccata (dominio se c'è, altrimenti nome)
 function feedBlockCandidate(c) {
@@ -606,7 +644,7 @@ function feedVoteAction(id, act) {
   if (!c) return;
   if (act === 'more' || act === 'less') {
     if (!c.subtopic) return;
-    const val = `${c.topicId}:${c.subtopic.trim()}`;
+    const val = subtopicVal(c);
     changeFeedSettings(act === 'more'
       ? [{ list: 'moreSub', add: val }, { list: 'lessSub', del: val }]
       : [{ list: 'lessSub', add: val }, { list: 'moreSub', del: val }]);
@@ -1419,7 +1457,7 @@ function updateArticleTools() {
 }
 
 // ── Ascolta (speechSynthesis) ──
-// Una utterance per blocco (titolo, punti "in breve", sottotitoli, paragrafi), tutte in coda subito:
+// Una utterance per blocco (sottotitoli e paragrafi), tutte in coda subito:
 // su iOS solo la prima deve partire da un tocco. Si ferma chiudendo il foglio, aprendo un'altra card
 // o interrompendo l'articolo.
 function ttsSupported() { return typeof window !== 'undefined' && 'speechSynthesis' in window && typeof window.SpeechSynthesisUtterance === 'function'; }
@@ -1456,6 +1494,7 @@ function testFeedTtsVoice() {
   try { speechSynthesis.cancel(); } catch (e) { }
   const u = new SpeechSynthesisUtterance('Ciao, questa è la voce che leggerà i tuoi approfondimenti.');
   u.lang = 'it-IT';
+  u.rate = TTS_RATE;
   const v = ttsVoice(); if (v) u.voice = v;
   speechSynthesis.speak(u);
 }
@@ -1578,11 +1617,16 @@ function setFeedTtsCloudVoice(name) {
 }
 
 // ── Ascolta: testo → parti → pezzi ──
-// Parti = titolo, "In breve." + punti, sottotitoli, paragrafi (come la voce del dispositivo).
+// Parti = sottotitoli e paragrafi: si parte dal corpo dell'articolo, senza titolo né "In breve"
+// (solo se il corpo è vuoto si leggono i punti in breve).
 function ttsArticleParts(a) {
-  return [a.title, ...(a.tldr && a.tldr.length ? ['In breve.', ...a.tldr] : []), ...a.sections.flatMap(s => [s.heading, ...s.paragraphs])]
-    .map(x => String(x || '').replace(/\s+/g, ' ').trim()).filter(Boolean);
+  const clean = l => l.map(x => String(x || '').replace(/\s+/g, ' ').trim()).filter(Boolean);
+  const body = clean((a.sections || []).flatMap(s => [s.heading, ...(s.paragraphs || [])]));
+  return body.length ? body : clean(a.tldr || []);
 }
+// Velocità di lettura (1 = normale): voce del cloud via playbackRate (tono invariato), dispositivo via rate
+const TTS_RATE = 1.15;
+function ttsApplyRate(el) { try { el.preservesPitch = true; el.defaultPlaybackRate = TTS_RATE; el.playbackRate = TTS_RATE; } catch (e) { } }
 // Un testo lungo diviso in pezzi ≤ max caratteri ai confini di frase (una frase più lunga di max
 // si taglia a una virgola o a uno spazio). Il cloud rifiuta i pezzi oltre 1500 caratteri.
 function ttsSplit(text, max = TTS_CHUNK_MAX) {
@@ -1646,6 +1690,7 @@ function startDeviceSpeech(c, parts, from) {
   list.forEach((txt, i) => {
     const u = new SpeechSynthesisUtterance(txt);
     u.lang = 'it-IT';
+    u.rate = TTS_RATE;
     if (voice) u.voice = voice;
     if (i === list.length - 1) u.onend = done;
     u.onerror = e => { if (e && (e.error === 'interrupted' || e.error === 'canceled')) return; done(); };
@@ -1735,6 +1780,7 @@ async function ttsPlayChunk(tts, i) {
   el.onended = () => { if (FEED.tts === tts && tts.i === i) ttsPlayChunk(tts, i + 1); };
   el.onerror = () => { if (FEED.tts === tts && tts.i === i) ttsCloudFail(tts, Object.assign(new Error('decode'), { code: 'decode' })); };
   el.src = tts.url;
+  ttsApplyRate(el);
   if (tts.loading) { tts.loading = false; updateArticleTools(); }
   try { await el.play(); ttsSetPlaybackState('playing'); }
   catch (e) {
@@ -1832,6 +1878,7 @@ async function testFeedTtsCloud() {
   const done = () => { try { URL.revokeObjectURL(url); } catch (e) { } };
   el.onended = done; el.onerror = done;
   el.src = url;
+  ttsApplyRate(el);
   const p = el.play(); if (p && p.catch) p.catch(() => { });
   if (TTSC.voices && TTSC.voices.monthChars != null) TTSC.voices.at = 0; // consumo da rileggere
 }

@@ -323,6 +323,7 @@
 
 .feed-card {
   --tc: var(--accent);
+  touch-action: manipulation;
   flex: 1;
   min-height: 0;
   display: flex;
@@ -488,6 +489,29 @@ a.feed-src:hover {
   opacity: 1;
   background: var(--accent-soft);
   border-color: rgba(139, 140, 248, 0.45)
+}
+
+/* doppio tocco sulla card = 👍 */
+.feed-card > .feed-tap-burst {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 3;
+  font-size: 72px;
+  line-height: 1;
+  pointer-events: none;
+  animation: feedTapBurst .8s var(--ease-out) both
+}
+
+@keyframes feedTapBurst {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(.4) }
+  25% { opacity: 1; transform: translate(-50%, -50%) scale(1.15) }
+  45% { transform: translate(-50%, -50%) scale(1) }
+  100% { opacity: 0; transform: translate(-50%, -80%) scale(1) }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .feed-card > .feed-tap-burst { animation-duration: .5s }
 }
 
 /* .feed-card > * è position:relative: serve la specificità più alta */
