@@ -20,7 +20,7 @@ import {
   setFeedModel, setFeedModelFromInput, setFeedTopic, shareFeedCard, switchFeedSheet, toggleFeedKeyVis, toggleFeedSaved,
   voteFeedCard, feedVoteAction, toggleFollowFeedStory, unfollowFeedStory, toggleArticleSpeech,
   editFeedTopic, cancelFeedTopicEdit, saveFeedTopicEdit, createFeedTopicFromPhrase,
-  setFeedArea, saveFeedProfile, regenFeedProfile, removeFeedPref
+  setFeedArea, saveFeedProfile, regenFeedProfile, removeFeedPref, setFeedTtsVoice, testFeedTtsVoice
 } from './discover.js';
 import { openSettings, closeSettings, settingsOverlayClick, settingsGo, renderSettingsSync, settingsSyncNow } from './settings.js';
 
@@ -329,10 +329,12 @@ Object.assign(window, {
   setFeedModel,           // discover.js
   setFeedModelFromInput,  // discover.js
   setFeedTopic,           // discover.js
+  setFeedTtsVoice,        // discover.js
   setSelectedDate,        // state.js
   settingsGo,             // settings.js
   settingsOverlayClick,   // settings.js
   settingsSyncNow,        // settings.js
+  testFeedTtsVoice,       // discover.js
   shareFeedCard,          // discover.js
   switchFeedSheet,        // discover.js
   switchTab,              // auth.js

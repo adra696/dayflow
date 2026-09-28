@@ -44,6 +44,7 @@ const FEED_ITEM_COLS = 'id,created_at,topic_id,subtopic,tags,type,title,summary,
 const FEED_ITEM_COLS_P4 = FEED_ITEM_COLS + ',follow_id'; // follow_id arriva con lo SQL 04 (se manca: senza)
 const FEED_VOTES_LS = 'dayflow_feed_votes';   // { id: { v: 'up'|'down', ts } } voti delle card (30 giorni)
 const FEED_VOTES_TTL = 30 * 24 * 60 * 60 * 1000;
+const FEED_TTS_VOICE_LS = 'dayflow_tts_voice'; // voiceURI della voce scelta per Ascolta (solo locale)
 const FEED_SET_LS = 'dayflow_feed_settings';  // { uid, s: feed_settings, ops: [modifiche non ancora nel cloud] }
 const FEED_AREAS = [
   { id: 'misto', label: 'Misto', note: 'italiane quando ci sono, altrimenti internazionali' },
@@ -1408,6 +1409,63 @@ function updateArticleTools() {
 // su iOS solo la prima deve partire da un tocco. Si ferma chiudendo il foglio, aprendo un'altra card
 // o interrompendo l'articolo.
 function ttsSupported() { return typeof window !== 'undefined' && 'speechSynthesis' in window && typeof window.SpeechSynthesisUtterance === 'function'; }
+// Voci italiane dalla migliore: scelta dell'utente, poi Premium/Migliorata/Siri, poi voci "vere"
+// (Alice, Federica, Luca…); in fondo le voci Eloquence di iOS (Eddy, Rocko, Grandma…), che suonano male.
+const TTS_BAD = /(eddy|flo|grandma|grandpa|nonna|nonno|reed|rocko|sandy|shelley|albert|bad news|bahh|bells|boing|bubbles|cellos|good news|jester|organ|superstar|trinoids|whisper|wobble|zarvox)/i;
+function ttsVoiceScore(v) {
+  let sc = 0;
+  if (/^it[-_]it$/i.test(v.lang)) sc += 2;
+  if (/premium/i.test(v.name) || /premium/i.test(v.voiceURI || '')) sc += 30;
+  if (/enhanced|migliorat|siri|neural|natural|online/i.test(v.name) || /enhanced|siri/i.test(v.voiceURI || '')) sc += 20;
+  if (/alice|federica|luca|emma|paola|elsa|diego|isabella|giorgio|cosimo/i.test(v.name)) sc += 5;
+  if (TTS_BAD.test(v.name)) sc -= 50;
+  return sc;
+}
+function ttsItVoices() {
+  if (!ttsSupported()) return [];
+  const all = speechSynthesis.getVoices() || [];
+  return all.filter(v => /^it([-_]|$)/i.test(v.lang)).sort((a, b) => ttsVoiceScore(b) - ttsVoiceScore(a) || a.name.localeCompare(b.name));
+}
+function ttsVoice() {
+  const list = ttsItVoices();
+  let pick = '';
+  try { pick = localStorage.getItem(FEED_TTS_VOICE_LS) || ''; } catch (e) { }
+  return (pick && list.find(v => v.voiceURI === pick)) || list[0] || null;
+}
+function setFeedTtsVoice(uri) {
+  try { if (uri) localStorage.setItem(FEED_TTS_VOICE_LS, uri); else localStorage.removeItem(FEED_TTS_VOICE_LS); } catch (e) { }
+  testFeedTtsVoice();
+}
+function testFeedTtsVoice() {
+  if (!ttsSupported()) return;
+  stopArticleSpeech();
+  try { speechSynthesis.cancel(); } catch (e) { }
+  const u = new SpeechSynthesisUtterance('Ciao, questa è la voce che leggerà i tuoi approfondimenti.');
+  u.lang = 'it-IT';
+  const v = ttsVoice(); if (v) u.voice = v;
+  speechSynthesis.speak(u);
+}
+function ttsSettingsHTML() {
+  if (!ttsSupported()) return '';
+  const list = ttsItVoices();
+  let pick = '';
+  try { pick = localStorage.getItem(FEED_TTS_VOICE_LS) || ''; } catch (e) { }
+  if (!list.length) {
+    // su iOS/Chrome l'elenco arriva dopo: ridisegna quando è pronto
+    if (!FEED.ttsWait) { FEED.ttsWait = true; speechSynthesis.addEventListener('voiceschanged', () => { FEED.ttsWait = false; refreshFeedSettings(); }, { once: true }); }
+  }
+  const auto = list[0];
+  return `
+    <div class="settings-row">
+      <label class="settings-lbl" for="set-tts-voice" style="display:block">Voce di "Ascolta"</label>
+      ${list.length ? `<select class="form-select" id="set-tts-voice" onchange="setFeedTtsVoice(this.value)">
+        <option value=""${pick ? '' : ' selected'}>Automatica${auto ? ' · ' + escFeed(auto.name) : ''}</option>
+        ${list.map(v => `<option value="${escFeed(v.voiceURI)}"${v.voiceURI === pick ? ' selected' : ''}>${escFeed(v.name)}</option>`).join('')}
+      </select>
+      <div class="form-btns" style="margin-top:10px"><button class="btn-sec" onclick="testFeedTtsVoice()">▶ Prova</button></div>` : '<div class="settings-val">Nessuna voce italiana trovata su questo dispositivo.</div>'}
+      <div class="feed-hint" style="margin-top:8px">Le voci migliori vanno scaricate: su iPhone Impostazioni → Accessibilità → Contenuti letti → Voci → Italiano → scegli una voce "Migliorata" o "Premium" (es. Alice, Federica, Luca). Poi riapri DayFlow e selezionala qui.</div>
+    </div>`;
+}
 function toggleArticleSpeech() { if (FEED.tts) stopArticleSpeech(); else startArticleSpeech(); }
 function startArticleSpeech() {
   const c = FEED.card, a = c && c.fullArticle;
@@ -1416,8 +1474,7 @@ function startArticleSpeech() {
   const parts = [a.title, ...(a.tldr && a.tldr.length ? ['In breve.', ...a.tldr] : []), ...a.sections.flatMap(s => [s.heading, ...s.paragraphs])]
     .map(x => String(x || '').trim()).filter(Boolean);
   if (!parts.length) return;
-  const voices = speechSynthesis.getVoices() || [];
-  const voice = voices.find(v => /^it[-_]it$/i.test(v.lang)) || voices.find(v => /^it([-_]|$)/i.test(v.lang)) || null;
+  const voice = ttsVoice();
   const tts = { id: c.id };
   FEED.tts = tts;
   const done = () => { if (FEED.tts === tts) { FEED.tts = null; updateArticleTools(); } };
@@ -1692,7 +1749,7 @@ function feedSettingsHTML() {
       <div class="settings-val">${FEED.pool ? `${FEED.pool.length} nelle ultime 72 ore · ${left} ancora da vedere` : 'Non ancora caricate: apri Discover'}</div>
       <div class="feed-hint" style="margin-top:6px">Ogni mattina alle 6 il cloud cerca notizie vere sui tuoi argomenti; quando stanno per finire ne prepara altre. L'ordine segue quello che apri.${feedEvQ().length ? ` · ${feedEvQ().length} interazioni in attesa di invio` : ''}</div>
     </div>` : '';
-  return `${cloudRow}${cloud ? feedCloudSettingsHTML() : ''}
+  return `${cloudRow}${cloud ? feedCloudSettingsHTML() : ''}${ttsSettingsHTML()}
     <div class="settings-row">
       <div class="settings-lbl">${cloud ? 'Chiave API Gemini locale (facoltativa)' : 'Chiave API Gemini'}</div>
       <div class="settings-val">${key ? escFeed(masked) : cloud ? 'Nessuna · Discover usa la chiave nel cloud' : 'Nessuna chiave salvata'}</div>
@@ -1943,7 +2000,7 @@ export {
   // fase 4
   voteFeedCard, feedVoteAction, toggleFollowFeedStory, unfollowFeedStory, toggleArticleSpeech,
   editFeedTopic, cancelFeedTopicEdit, saveFeedTopicEdit, createFeedTopicFromPhrase,
-  setFeedArea, saveFeedProfile, regenFeedProfile, removeFeedPref,
+  setFeedArea, saveFeedProfile, regenFeedProfile, removeFeedPref, setFeedTtsVoice, testFeedTtsVoice,
   // test
   parseArticleText, articleFromBlocks, applyFeedSettingsOps
 };
