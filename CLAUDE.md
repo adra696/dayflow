@@ -73,7 +73,7 @@ If you add a new upward call, add it to the matching hook object (and to the des
 
 Supabase is loaded via CDN as a classic script before the app scripts: `<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">`.
 
-**Service worker** (`sw.js`): cache-first for every app asset listed in `STATIC` (HTML, CSS, JS, manifest, icons). Any new or renamed asset must be added to `STATIC`, and **every release must bump `CACHE`** (`dayflow-vNN`) or installed PWAs keep the old files. Supabase and Gemini are always network (POST bodies never touch the Cache API); Google Fonts and jsdelivr are stale-while-revalidate.
+**Service worker** (`sw.js`): cache-first for every app asset listed in `STATIC` (HTML, CSS, JS, manifest, icons). Any new or renamed asset must be added to `STATIC`, and **every release must bump `CACHE`** (`dayflow-vNN`) or installed PWAs keep the old files. Bump `APP_VERSION` in `js/state.js` to the same `vNN` (enforced by `test/version.test.js`): Settings → Info shows it, plus "Versione vNN già scaricata: chiudi e riapri" when `caches.keys()` holds a newer `dayflow-vNN` than the running code (`renderVersionNote()` in `settings.js`). Supabase and Gemini are always network (POST bodies never touch the Cache API); Google Fonts and jsdelivr are stale-while-revalidate.
 
 ### Four Screens (tabs)
 

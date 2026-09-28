@@ -25,7 +25,7 @@ let isProgrammaticScroll = false;
 let selectedDate = todayStr();
 let mMode = 'list', editId = null;
 
-const APP_VERSION = '1.0';
+const APP_VERSION = 'v27'; // = numero di CACHE in sw.js (test/version.test.js): va alzato insieme a ogni release
 const SETTINGS = { open: false, trigger: null };             // pannello Impostazioni globale
 const DLG = { open: false, resolve: null, busy: false, keepOpen: false, trigger: null }; // dialog di conferma
 let allDaysLoaded = false;

@@ -92,10 +92,24 @@ function renderSettings() {
       <h2 class="settings-sec-title" id="st-h-info">Info</h2>
       <div class="settings-row">
         <div class="settings-val">DayFlow ${escFeed(APP_VERSION)}</div>
+        <div class="feed-hint" id="settings-version-note" style="margin-top:6px"></div>
       </div>
     </section>`;
   renderFeedSettings(document.getElementById('settings-discover-body'));
   renderSettingsSync();
+  renderVersionNote();
+}
+// Il service worker scarica la versione nuova mentre gira quella vecchia (cache dayflow-vNN):
+// se c'è una cache più recente del codice in esecuzione, basta chiudere e riaprire l'app.
+async function renderVersionNote() {
+  const el = document.getElementById('settings-version-note');
+  if (!el) return;
+  const cur = parseInt(APP_VERSION.replace(/\D/g, ''), 10);
+  let newest = 0;
+  try {
+    if (typeof caches !== 'undefined') (await caches.keys()).forEach(k => { const m = /^dayflow-v(\d+)$/.exec(k); if (m) newest = Math.max(newest, +m[1]); });
+  } catch (e) { }
+  el.textContent = newest > cur ? `Versione v${newest} già scaricata: chiudi e riapri l'app per usarla.` : 'Versione aggiornata.';
 }
 function renderSettingsSync() {
   if (!SETTINGS.open) return;
