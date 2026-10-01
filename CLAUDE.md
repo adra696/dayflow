@@ -97,7 +97,7 @@ Supabase is loaded via CDN as a classic script before the app scripts: `<script 
 | Screen ID | Nav label | Purpose |
 |---|---|---|
 | `#screen-plan` | Pianifica | Morning: set 3 daily tasks + review habits + recurring commitments + weekly habits |
-| `#screen-oggi` | Oggi | Dashboard: check off habits, progress bar, stats |
+| `#screen-oggi` | Oggi | Dashboard: daily tasks card on top (`#hoggi-tasks`, above the "Abitudini — x/y" header), then habits + recurring commitments (`#hoggi-list`), progress bar, stats |
 | `#screen-recap` | Discover | AI news feed (Gemini): vertical snap cards, topic chips, article drill-down + contextual chat. The id is kept as `recap` for routing compatibility. |
 | `#screen-calendario` | Calendario | iOS-style calendar: week strip + single-day hourly timeline, events only |
 

@@ -139,7 +139,10 @@ function renderHOggiList(day, today) {
     };
     tlist.appendChild(it);
   });
-  tr.appendChild(tlist); c.appendChild(tr);
+  tr.appendChild(tlist);
+  // Le attività del giorno stanno in cima alla schermata, sopra l'intestazione "Abitudini"
+  const top = document.getElementById('hoggi-tasks');
+  if (top) top.replaceChildren(tr); else c.appendChild(tr);
 }
 function updateOggiStats(today) { const pct = calcPct(today) || 0; updateTopProgressBar(pct); if (pct === 100 && lastTopPct < 100) shootConfetti(); setLastTopPct(pct); }
 function addRipple(el, e) { const r = document.createElement('span'); r.className = 'ripple'; const rect = el.getBoundingClientRect(); const sz = Math.max(rect.width, rect.height) * 2; r.style.cssText = `width:${sz}px;height:${sz}px;left:${e.clientX - rect.left - sz / 2}px;top:${e.clientY - rect.top - sz / 2}px`; el.appendChild(r); setTimeout(() => r.remove(), 520); }
