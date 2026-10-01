@@ -57,10 +57,9 @@ textarea:focus-visible {
 }
 
 .auth-sub {
-  font-family: var(--mono);
-  font-size: 11px;
+  font-family: var(--sans);
+  font-size: var(--fs-small);
   color: var(--text3);
-  letter-spacing: .08em;
   margin-bottom: 36px
 }
 
@@ -80,11 +79,10 @@ textarea:focus-visible {
   border: none;
   border-radius: 7px;
   color: var(--text3);
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: .08em;
-  text-transform: uppercase;
-  padding: 9px 0;
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 500;
+  padding: 8px 0;
   cursor: pointer;
   transition: all .18s ease
 }
@@ -100,13 +98,12 @@ textarea:focus-visible {
 }
 
 .auth-label {
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--text3);
-  letter-spacing: .08em;
-  text-transform: uppercase;
+  font-family: var(--sans);
+  font-size: var(--fs-small);
+  font-weight: 500;
+  color: var(--text2);
   display: block;
-  margin-bottom: 8px
+  margin-bottom: 6px
 }
 
 .auth-input {
@@ -138,12 +135,10 @@ textarea:focus-visible {
   border: none;
   border-radius: var(--r-sm);
   padding: 13px;
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: .1em;
-  text-transform: uppercase;
+  font-family: var(--sans);
+  font-size: var(--fs-body);
   cursor: pointer;
-  font-weight: 500;
+  font-weight: 600;
   margin-top: 8px;
   transition: transform .15s ease, background .15s ease, box-shadow .15s ease
 }
@@ -166,19 +161,19 @@ textarea:focus-visible {
 }
 
 .auth-err {
-  font-family: var(--mono);
-  font-size: 11px;
+  font-family: var(--sans);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
   color: var(--red);
-  letter-spacing: .04em;
   margin-top: 10px;
   min-height: 16px
 }
 
 .auth-ok {
-  font-family: var(--mono);
-  font-size: 11px;
+  font-family: var(--sans);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
   color: var(--green);
-  letter-spacing: .04em;
   margin-top: 10px;
   min-height: 16px
 }
@@ -1126,12 +1121,11 @@ textarea:focus-visible {
 }
 
 .form-label {
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--text3);
-  letter-spacing: .08em;
-  text-transform: uppercase;
-  margin-bottom: 8px;
+  font-family: var(--sans);
+  font-size: var(--fs-small);
+  font-weight: 500;
+  color: var(--text2);
+  margin-bottom: 6px;
   display: block
 }
 
@@ -1162,8 +1156,8 @@ textarea:focus-visible {
   background: var(--bg);
   border: 1px solid var(--border2);
   color: var(--text);
-  font-family: var(--mono);
-  font-size: 13px;
+  font-family: var(--sans);
+  font-size: var(--fs-body);
   /* a destra spazio per la freccia: il testo lungo finisce in "…" invece di passarci sotto */
   padding: 13px 40px 13px 15px;
   border-radius: var(--r-sm);
@@ -1318,22 +1312,6 @@ textarea:focus-visible {
 
 .btn-del:hover {
   background: rgba(239, 68, 68, 0.2)
-}
-
-/* Campi negli sheet (Impostazioni, articolo/chat/argomenti): contenuto → sans, etichette senza maiuscolo */
-.fsheet .form-select {
-  font-family: var(--sans);
-  font-size: var(--fs-body)
-}
-
-.fsheet .form-label {
-  font-family: var(--sans);
-  font-size: var(--fs-small);
-  font-weight: 500;
-  letter-spacing: 0;
-  text-transform: none;
-  color: var(--text2);
-  margin-bottom: 6px
 }
 
 .hmanage-row {
@@ -1510,10 +1488,9 @@ textarea:focus-visible {
 
 /* PASSWORD RESET LINK */
 .auth-link {
-  font-family: var(--mono);
-  font-size: 11px;
+  font-family: var(--sans);
+  font-size: var(--fs-small);
   color: var(--text2);
-  letter-spacing: .08em;
   background: none;
   border: none;
   cursor: pointer;
