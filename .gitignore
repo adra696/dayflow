@@ -1,0 +1,17 @@
+# Mock Supabase per test locali senza login
+_mock.html
+_mock-supabase.js
+
+# Output temporanei di Claude (screenshot, handoff)
+Claude outputs/
+
+# Node / editor / OS
+node_modules/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+*.log
+.env
+.env.*
