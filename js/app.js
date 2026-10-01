@@ -28,6 +28,7 @@ import {
   setFeedModel, setFeedModelFromInput, setFeedArea, saveFeedProfile, regenFeedProfile, removeFeedPref,
   setFeedTtsVoice, testFeedTtsVoice, refreshTtsVoices, setFeedTtsEngine, setFeedTtsCloudVoice, testFeedTtsCloud, refreshTtsCloudVoices
 } from './discover-settings.js';
+import { applyTheme, setTheme, setAccent } from './theme.js';
 import { openSettings, closeSettings, settingsOverlayClick, settingsGo, settingsOpenPage, settingsBack, renderSettingsSync, settingsSyncNow } from './settings.js';
 
 // ── HOOK (dipendenze verso l'alto) ─────────────────────────
@@ -38,6 +39,9 @@ setSyncHooks({ FEED, FEED_TOPICS_LS, ensureEventi, normalizeTopic, renderCalDay,
 setAuthHooks({ initApp, closeAppDialog });
 setDiscoverHooks({ renderFeedSettings, renderTtsSettings, articleToolsInner });
 setArticleHooks({ openSettings, renderFeedTopicsSheet });
+
+// Tema: gli attributi su <html> li mette già lo script inline in <head>; qui allinea <meta name="theme-color">
+applyTheme();
 
 async function initApp(user) {
   if (curUser && curUser.id === user.id) return;
@@ -342,7 +346,9 @@ Object.assign(window, {
   setFeedTtsVoice,        // discover-settings.js
   setFeedTtsCloudVoice,   // discover-settings.js
   setFeedTtsEngine,       // discover-settings.js
+  setAccent,              // theme.js
   setSelectedDate,        // state.js
+  setTheme,               // theme.js
   settingsBack,           // settings.js
   settingsGo,             // settings.js
   settingsOpenPage,       // settings.js

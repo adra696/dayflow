@@ -105,7 +105,7 @@
 
 .slot-add:hover {
   background: var(--accent-soft);
-  border-color: rgba(139, 140, 248, 0.5);
+  border-color: rgba(var(--accent-rgb), 0.5);
   color: var(--accent)
 }
 
@@ -209,7 +209,7 @@
 
 .chip.on {
   background: var(--accent-soft);
-  border-color: rgba(139, 140, 248, 0.45);
+  border-color: rgba(var(--accent-rgb), 0.45);
   color: var(--accent)
 }
 
@@ -221,7 +221,7 @@
 
 .chip.add:hover {
   color: var(--accent);
-  border-color: rgba(139, 140, 248, 0.5)
+  border-color: rgba(var(--accent-rgb), 0.5)
 }
 
 /* Wrapper feed + indicatore pull-to-refresh */
@@ -277,7 +277,7 @@
 
 .feed-ptr.ready .feed-ptr-pill {
   color: var(--accent);
-  border-color: rgba(139, 140, 248, 0.45)
+  border-color: rgba(var(--accent-rgb), 0.45)
 }
 
 .feed-ptr.ready .feed-ptr-pill svg {
@@ -491,7 +491,7 @@ a.feed-src:hover {
   filter: none;
   opacity: 1;
   background: var(--accent-soft);
-  border-color: rgba(139, 140, 248, 0.45)
+  border-color: rgba(var(--accent-rgb), 0.45)
 }
 
 /* doppio tocco sulla card = 👍 */
@@ -644,7 +644,7 @@ a.feed-src:hover {
 
 .feed-btn.ico.on {
   background: var(--accent-soft);
-  border-color: rgba(139, 140, 248, 0.45);
+  border-color: rgba(var(--accent-rgb), 0.45);
   color: var(--accent)
 }
 
@@ -674,7 +674,7 @@ a.feed-src:hover {
   align-items: center;
   justify-content: center;
   background: var(--accent-soft);
-  border: 1px solid rgba(139, 140, 248, 0.3);
+  border: 1px solid rgba(var(--accent-rgb), 0.3);
   color: var(--accent);
   font-size: 22px;
   margin-bottom: 4px
@@ -760,7 +760,7 @@ a.feed-src:hover {
 .feed-link {
   color: var(--accent);
   text-decoration: none;
-  border-bottom: 1px solid rgba(139, 140, 248, 0.35);
+  border-bottom: 1px solid rgba(var(--accent-rgb), 0.35);
   padding-bottom: 1px
 }
 
@@ -1089,7 +1089,7 @@ a.feed-src:hover {
 
 .art-tools .feed-btn.on {
   background: var(--accent-soft);
-  border-color: rgba(139, 140, 248, 0.45);
+  border-color: rgba(var(--accent-rgb), 0.45);
   color: var(--accent)
 }
 
@@ -1098,7 +1098,7 @@ a.feed-src:hover {
   padding: 14px 16px;
   border-radius: var(--r-md);
   background: var(--accent-soft);
-  border: 1px solid rgba(139, 140, 248, 0.3)
+  border: 1px solid rgba(var(--accent-rgb), 0.3)
 }
 
 .art-tldr[hidden] {
@@ -1184,7 +1184,7 @@ a.feed-src:hover {
 .chat-msg.user {
   align-self: flex-end;
   background: var(--accent-soft);
-  border: 1px solid rgba(139, 140, 248, 0.3);
+  border: 1px solid rgba(var(--accent-rgb), 0.3);
   color: var(--text);
   border-bottom-right-radius: 4px
 }
@@ -2049,7 +2049,7 @@ textarea.feed-profile {
 
 .ev-toggle.on::after {
   transform: translateX(18px);
-  background: #0a0a0b
+  background: var(--bg)
 }
 
 .ev-time-row {

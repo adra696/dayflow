@@ -4,6 +4,7 @@ import { pendingSync, habitsDirty, SYNC_INFO, hasUnsyncedChanges, noteSync, flus
 import { FEED, escFeed, cloudOn, loadFeedTopics } from './discover-state.js';
 import { ttsSupported, ttsEngine } from './discover-tts.js';
 import { renderFeedSettings, renderTtsSettings } from './discover-settings.js';
+import { themeShortLabel, renderThemeSettings } from './theme.js';
 
 // ── IMPOSTAZIONI (pannello globale) ───────────────────────
 // Schermo pieno su mobile, sheet centrato da 768px. Struttura iOS: pagina radice (#settings-root) con un
@@ -16,12 +17,13 @@ const SETTINGS_PAGES = {
   account: { title: 'Account', icon: '👤' },
   abitudini: { title: 'Abitudini e impegni', icon: '✅' },
   oggi: { title: 'Oggi', icon: '☀️' },
+  aspetto: { title: 'Aspetto', icon: '🎨' },
   discover: { title: 'Discover', icon: '📰' },
   ascolta: { title: 'Ascolta', icon: '🔊' },
   dati: { title: 'Dati', icon: '💾' },
   info: { title: 'Info', icon: 'ℹ️' }
 };
-const SETTINGS_GROUPS = [['account', 'abitudini', 'oggi'], ['discover', 'ascolta'], ['dati', 'info']];
+const SETTINGS_GROUPS = [['account', 'abitudini', 'oggi', 'aspetto'], ['discover', 'ascolta'], ['dati', 'info']];
 // id storici delle sezioni (prima del menu) → pagina
 const SETTINGS_ALIAS = { impegni: 'abitudini', tts: 'ascolta' };
 let settingsUid = null; // utente per cui sono state costruite le sotto-pagine (bozze come il profilo dei gusti)
@@ -116,7 +118,7 @@ function ensureSettingsPages() {
   if (wrap.childElementCount && settingsUid === uid) return;
   settingsUid = uid;
   wrap.innerHTML = Object.keys(SETTINGS_PAGES).map(id => `<div class="settings-pg" id="settings-pg-${id}" hidden>${id === 'discover' ? '<div id="settings-discover-body"></div>'
-    : id === 'ascolta' ? '<div id="settings-tts-body"></div>' : ''}</div>`).join('');
+    : id === 'ascolta' ? '<div id="settings-tts-body"></div>' : id === 'aspetto' ? '<div id="settings-theme-body"></div>' : ''}</div>`).join('');
   settingsInitEdgeSwipe();
 }
 // ── Swipe indietro dal bordo sinistro della sotto-pagina (solo touch, stile iOS) ──
@@ -266,6 +268,7 @@ function settingsRootVal(id) {
     return `<span aria-hidden="true">${nHab} · ${nImp}</span><span class="settings-sr">${plural(nHab, 'abitudine', 'abitudini')}, ${plural(nImp, 'impegno', 'impegni')}</span>`;
   }
   if (id === 'oggi') return focusMode ? 'Focus attivo' : 'Focus spento';
+  if (id === 'aspetto') return themeShortLabel();
   if (id === 'discover') {
     if (!FEED.topics.length) loadFeedTopics(); // come renderDiscover(): solo lettura di localStorage/default
     return plural(FEED.topics.length, 'argomento', 'argomenti');
@@ -296,6 +299,7 @@ function renderSettingsRoot() {
 function renderSettingsPage(id) {
   if (id === 'discover') { renderFeedSettings($id('settings-discover-body')); return; }
   if (id === 'ascolta') { renderTtsSettings($id('settings-tts-body')); return; }
+  if (id === 'aspetto') { renderThemeSettings($id('settings-theme-body')); return; }
   const el = $id('settings-pg-' + id); if (!el) return;
   if (id === 'account') {
     const email = curUser && curUser.email ? curUser.email : '—';
