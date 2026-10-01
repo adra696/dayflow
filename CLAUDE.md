@@ -22,7 +22,7 @@ Since 18 Sep 2026 the app is split into native ES modules: `index.html` loads a 
 
 | File | Content |
 |---|---|
-| `index.html` | `<head>` (meta, CSP, manifest, fonts, Supabase CDN, 4 CSS links, a tiny inline script that applies the saved theme before the first paint, 19 `modulepreload` links, the `js/app.js` module script) + the whole `<body>`: auth screen, shell, 4 screens, modals, settings panel, app dialog |
+| `index.html` | `<head>` (meta, CSP, manifest, fonts, Supabase CDN, 4 CSS links, a tiny inline script that before the first paint applies the saved theme and, when a Supabase session is stored (`localStorage` `sb-<project ref>-auth-token`, checked by `test/version.test.js`), adds `html.has-session` so the login form stays invisible (only the `#auth-screen` background shows) until `app.js` has checked the session — removed in the `finally` of the startup `getSession()` block, or after 5 s as a safety net, 19 `modulepreload` links, the `js/app.js` module script) + the whole `<body>`: auth screen, shell, 4 screens, modals, settings panel, app dialog |
 | `css/tokens.css` | Reset, `:root` custom properties (design tokens), the theme/accent overrides (`:root[data-theme=…]`, `:root[data-accent=…]`), `html`/`body`, the `max-width: 767px` 16px input rule |
 | `css/base.css` | Auth screen, shell, topbar, sync indicator, progress, focus mode, stats, habit rows, modals, toast, TAP TARGETS block, settings panel, app dialog |
 | `css/screens.css` | Pianifica, Oggi tasks, Discover (feed, sheet, article, chat, topics, model picker), Calendario (strip, all-day band, timeline, event editor) |
