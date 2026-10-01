@@ -28,6 +28,11 @@ textarea:focus-visible {
   -webkit-backdrop-filter: var(--glass-blur)
 }
 
+/* Sessione salvata (script inline in <head>): resta solo lo sfondo finché app.js non decide login o Oggi */
+html.has-session #auth-screen > * {
+  visibility: hidden
+}
+
 #auth-screen.hidden {
   display: none;
   opacity: 0;

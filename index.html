@@ -28,8 +28,10 @@
   <link rel="stylesheet" href="css/base.css">
   <link rel="stylesheet" href="css/screens.css">
   <link rel="stylesheet" href="css/desktop.css">
-  <!-- Tema scelto in Impostazioni → Aspetto, prima del primo paint (vedi js/theme.js) -->
-  <script>(function () { try { var t = JSON.parse(localStorage.getItem('dayflow_theme') || 'null'), r = document.documentElement; if (t && t.theme && t.theme !== 'grafite') r.dataset.theme = t.theme; if (t && t.accent && t.accent !== 'viola') r.dataset.accent = t.accent; } catch (e) { } })();</script>
+  <!-- Prima del primo paint: tema scelto in Impostazioni → Aspetto (vedi js/theme.js) e, se c'è una sessione
+       Supabase salvata, html.has-session nasconde il modulo di login finché app.js non ha controllato la sessione
+       (tolta da app.js; dopo 5 s si toglie comunque, così il login ricompare se l'avvio si blocca) -->
+  <script>(function () { var r = document.documentElement; try { var t = JSON.parse(localStorage.getItem('dayflow_theme') || 'null'); if (t && t.theme && t.theme !== 'grafite') r.dataset.theme = t.theme; if (t && t.accent && t.accent !== 'viola') r.dataset.accent = t.accent; } catch (e) { } try { if (localStorage.getItem('sb-iqlxjazrshqzqrltkjoz-auth-token')) { r.classList.add('has-session'); setTimeout(function () { r.classList.remove('has-session'); }, 5000); } } catch (e) { } })();</script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <link rel="modulepreload" href="js/utils.js">
   <link rel="modulepreload" href="js/state.js">

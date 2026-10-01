@@ -115,6 +115,9 @@ sb.auth.onAuthStateChange(async (event, session) => {
     }
   } catch (e) {
     console.error('getSession error', e);
+  } finally {
+    // Sessione controllata: initApp ha già nascosto il login, altrimenti il modulo torna visibile
+    document.documentElement.classList.remove('has-session');
   }
 })();
 
