@@ -1,7 +1,7 @@
 import './setup.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseArticleText, articleFromBlocks, applyFeedSettingsOps, normalizeTopic, ttsSplit, ttsChunks } from '../js/discover.js';
+import { parseArticleText, articleFromBlocks, applyFeedSettingsOps, normalizeTopic, ttsSplit, ttsChunks, ttsArticleParts } from '../js/discover.js';
 import { feedSourceCount } from '../js/feedrank.js';
 
 test('parseArticleText: 3 punti "In breve" dopo il titolo, poi le sezioni', () => {
@@ -93,4 +93,19 @@ test('ttsSplit: default 1500 caratteri; ttsChunks tiene l\'indice della parte', 
   assert.deepEqual(ch[0], { text: 'Titolo', part: 0 });
   assert.ok(ch.slice(1).every(c => c.part === 1));
   assert.equal(ch.length, 1 + out.length);
+});
+
+test('ttsArticleParts: parte dal corpo, senza titolo, in breve né riassunto', () => {
+  const card = { title: 'Everest pulito', summary: 'Nuove regole per i rifiuti sull\'Everest.' };
+  const a = {
+    title: 'Everest pulito', tldr: ['uno', 'due', 'tre'],
+    sections: [
+      { heading: 'In breve', paragraphs: ['- uno', '- due'] },
+      { heading: '', paragraphs: ['Everest pulito', '1. punto', 'Nuove regole per i rifiuti sull’Everest.', 'Il primo paragrafo vero.'] },
+      { heading: 'Le sanzioni', paragraphs: ['Multe agli alpinisti.'] },
+    ],
+  };
+  assert.deepEqual(ttsArticleParts(a, card), ['Il primo paragrafo vero.', 'Le sanzioni', 'Multe agli alpinisti.']);
+  assert.deepEqual(ttsArticleParts({ title: 'T', tldr: ['a', 'b'], sections: [] }), ['a', 'b']);
+  assert.deepEqual(ttsArticleParts({ title: 'T', sections: [{ heading: 'Contesto', paragraphs: ['- non è un elenco iniziale ora'] }] }), ['Contesto', '- non è un elenco iniziale ora']);
 });

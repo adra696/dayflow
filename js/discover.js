@@ -1617,12 +1617,27 @@ function setFeedTtsCloudVoice(name) {
 }
 
 // ── Ascolta: testo → parti → pezzi ──
-// Parti = sottotitoli e paragrafi: si parte dal corpo dell'articolo, senza titolo né "In breve"
-// (solo se il corpo è vuoto si leggono i punti in breve).
-function ttsArticleParts(a) {
-  const clean = l => l.map(x => String(x || '').replace(/\s+/g, ' ').trim()).filter(Boolean);
-  const body = clean((a.sections || []).flatMap(s => [s.heading, ...(s.paragraphs || [])]));
-  return body.length ? body : clean(a.tldr || []);
+// Parti = sottotitoli e paragrafi: si parte dal corpo dell'articolo, senza titolo, "In breve" né
+// riassunto della card. Si scartano anche, in testa al corpo, un sottotitolo uguale al titolo, una
+// sezione "In breve / Riassunto / In sintesi", elenchi puntati o numerati e un paragrafo che ripete il
+// riassunto della card (articoli scritti dal modello in formato diverso). Corpo vuoto → punti in breve.
+const TTS_SUMMARY_HEAD = /^(in breve|in 30 secondi|in sintesi|riassunto|sommario|punti chiave|tl;?dr)\b/i;
+function ttsArticleParts(a, card) {
+  const norm = x => String(x || '').replace(/\s+/g, ' ').trim();
+  const key = x => norm(x).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+  const skip = new Set([key(a.title), key(card && card.title), key(card && card.summary)].filter(Boolean));
+  const body = [];
+  (a.sections || []).forEach(s => {
+    const head = norm(s.heading);
+    const paras = (s.paragraphs || []).map(norm).filter(Boolean);
+    if (!body.length && head && TTS_SUMMARY_HEAD.test(head)) return; // sezione riassunto in testa
+    if (head && !(body.length === 0 && skip.has(key(head)))) body.push(head);
+    paras.forEach(p => {
+      if (!body.length && (/^(\d+[.)]|[-•*])\s/.test(p) || skip.has(key(p)))) return;
+      body.push(p);
+    });
+  });
+  return body.length ? body : (a.tldr || []).map(norm).filter(Boolean);
 }
 // Velocità di lettura (1 = normale): voce del cloud via playbackRate (tono invariato), dispositivo via rate
 const TTS_RATE = 1.3;
@@ -1671,7 +1686,7 @@ function startArticleSpeech() {
   const c = FEED.card, a = c && c.fullArticle;
   if (!a) return;
   stopArticleSpeech(false);
-  const parts = ttsArticleParts(a);
+  const parts = ttsArticleParts(a, c);
   if (!parts.length) return;
   const cloudOk = ttsEngine() === 'cloud' && !(TTSC.skipUntil > Date.now());
   if (cloudOk) startCloudSpeech(c, parts);
@@ -2403,5 +2418,5 @@ export {
   // voce del cloud (Ascolta)
   stopArticleSpeech, setFeedTtsEngine, setFeedTtsCloudVoice, testFeedTtsCloud, refreshTtsCloudVoices,
   // test
-  parseArticleText, articleFromBlocks, applyFeedSettingsOps, ttsSplit, ttsChunks
+  parseArticleText, articleFromBlocks, applyFeedSettingsOps, ttsSplit, ttsChunks, ttsArticleParts
 };
