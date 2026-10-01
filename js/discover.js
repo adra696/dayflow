@@ -1625,7 +1625,7 @@ function ttsArticleParts(a) {
   return body.length ? body : clean(a.tldr || []);
 }
 // Velocità di lettura (1 = normale): voce del cloud via playbackRate (tono invariato), dispositivo via rate
-const TTS_RATE = 1.15;
+const TTS_RATE = 1.3;
 function ttsApplyRate(el) { try { el.preservesPitch = true; el.defaultPlaybackRate = TTS_RATE; el.playbackRate = TTS_RATE; } catch (e) { } }
 // Un testo lungo diviso in pezzi ≤ max caratteri ai confini di frase (una frase più lunga di max
 // si taglia a una virgola o a uno spazio). Il cloud rifiuta i pezzi oltre 1500 caratteri.
