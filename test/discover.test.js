@@ -1,7 +1,10 @@
 import './setup.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseArticleText, articleFromBlocks, applyFeedSettingsOps, normalizeTopic, ttsSplit, ttsChunks, ttsArticleParts } from '../js/discover.js';
+import { parseArticleText, articleFromBlocks } from '../js/discover-article.js';
+import { applyFeedSettingsOps } from '../js/discover-cloud.js';
+import { normalizeTopic } from '../js/discover-state.js';
+import { ttsSplit, ttsChunks, ttsArticleParts } from '../js/discover-tts.js';
 import { feedSourceCount } from '../js/feedrank.js';
 
 test('parseArticleText: 3 punti "In breve" dopo il titolo, poi le sezioni', () => {

@@ -1166,11 +1166,16 @@ textarea:focus-visible {
   color: var(--text);
   font-family: var(--mono);
   font-size: 13px;
-  padding: 13px 15px;
+  /* a destra spazio per la freccia: il testo lungo finisce in "…" invece di passarci sotto */
+  padding: 13px 40px 13px 15px;
   border-radius: var(--r-sm);
   outline: none;
   cursor: pointer;
   appearance: none;
+  -webkit-appearance: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a1a1aa' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
   background-repeat: no-repeat;
   background-position: right 12px center;
@@ -1588,7 +1593,9 @@ textarea:focus-visible {
   z-index: 115
 }
 
-.settings-sheet {
+/* .fsheet.settings-sheet: più specifico di .fsheet (screens.css, caricato dopo), altrimenti su mobile
+   restava un bottom sheet all'88% invece dello schermo pieno */
+.fsheet.settings-sheet {
   height: 100%;
   border-radius: 0;
   border-top: none;
@@ -1597,26 +1604,272 @@ textarea:focus-visible {
 
 .settings-sheet .fsheet-body {
   position: relative;
-  padding-bottom: calc(28px + env(safe-area-inset-bottom))
+  padding: 4px 16px calc(28px + env(safe-area-inset-bottom))
 }
 
-.settings-sec {
-  margin-bottom: 26px
+/* Menu + sotto-pagina (stile iOS): due pagine sovrapposte, la sotto-pagina entra da destra.
+   La pagina nascosta diventa visibility:hidden a fine animazione (e inert dal JS). */
+.settings-pages {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  overflow: clip
 }
 
-.settings-sec:last-child {
+.settings-page {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-1);
+  transition: transform .28s var(--ease-out), visibility 0s
+}
+
+.settings-sub {
+  transform: translateX(100%);
+  visibility: hidden;
+  box-shadow: -10px 0 30px rgba(0, 0, 0, 0.35);
+  transition: transform .28s var(--ease-out), visibility 0s .28s
+}
+
+.settings-pages.sub-open .settings-sub {
+  transform: none;
+  visibility: visible;
+  transition: transform .28s var(--ease-out), visibility 0s
+}
+
+.settings-pages.sub-open .settings-root {
+  transform: translateX(-28%);
+  visibility: hidden;
+  transition: transform .28s var(--ease-out), visibility 0s .28s
+}
+
+.settings-pages.no-anim .settings-page {
+  transition: none !important
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-page {
+    transition: none !important
+  }
+}
+
+.settings-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 56px;
+  padding: 6px 16px 0 10px;
+  flex-shrink: 0
+}
+
+.settings-root .settings-head {
+  justify-content: flex-end
+}
+
+.settings-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 44px;
+  padding: 0 10px 0 4px;
+  background: none;
+  border: none;
+  border-radius: var(--r-sm);
+  color: var(--accent);
+  font-family: var(--sans);
+  font-size: 16px;
+  cursor: pointer
+}
+
+.settings-back-chev {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round
+}
+
+.settings-back:active {
+  opacity: .6
+}
+
+.settings-h1 {
+  font-family: var(--sans);
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -.01em;
+  color: var(--text);
+  margin: 0 4px 20px
+}
+
+.settings-h1:empty {
+  display: none
+}
+
+/* Gruppo: titolo piccolo + scheda arrotondata con filetti tra le righe + nota sotto */
+.settings-gtitle {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text3);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  margin: 0 4px 8px
+}
+
+.settings-card {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  margin-bottom: 24px
+}
+
+.settings-card + .settings-gfoot {
+  margin: -16px 4px 24px
+}
+
+.settings-card > .settings-row {
+  padding: 14px 16px;
+  border-bottom: none
+}
+
+.settings-card > .settings-row:not(:first-child) {
+  box-shadow: inset 0 1px 0 var(--border2)
+}
+
+.settings-card > .settings-row > :last-child {
   margin-bottom: 0
 }
 
-.settings-sec-title {
+/* Riga di navigazione (menu e "Gestisci argomenti"): icona, etichetta, valore breve, chevron */
+.settings-nav {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 52px;
+  padding: 10px 14px;
+  background: none;
+  border: none;
+  border-radius: 0;
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 15px;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  position: relative;
+  transition: background .15s ease
+}
+
+.settings-nav:active {
+  background: var(--surface-3)
+}
+
+@media (hover: hover) {
+  .settings-nav:hover {
+    background: var(--surface-3)
+  }
+}
+
+.settings-nav:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--accent)
+}
+
+/* filetto tra righe di navigazione, rientrato fino al testo (come iOS) */
+.settings-card > .settings-nav:not(:first-child)::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 56px;
+  right: 0;
+  height: 1px;
+  background: var(--border2);
+  pointer-events: none
+}
+
+.settings-nav-ico {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 16px;
+  background: var(--surface-3);
+  border: 1px solid var(--border)
+}
+
+.settings-nav-lbl {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column
+}
+
+.settings-nav-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis
+}
+
+.settings-nav-sub {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text3);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis
+}
+
+.settings-nav-val {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex-shrink: 1;
+  min-width: 0;
+  max-width: 48%;
   font-family: var(--mono);
   font-size: 12px;
-  font-weight: 500;
-  color: var(--text);
-  letter-spacing: .08em;
-  text-transform: uppercase;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--border2)
+  color: var(--text3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis
+}
+
+.settings-nav-val:empty {
+  display: none
+}
+
+.settings-nav-chev {
+  flex-shrink: 0;
+  color: var(--text3);
+  font-size: 22px;
+  line-height: 1;
+  margin-top: -2px
+}
+
+.settings-nav.danger {
+  justify-content: center;
+  color: var(--red);
+  font-weight: 500
+}
+
+.settings-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap
 }
 
 .settings-val .sync-dot {
@@ -1688,6 +1941,11 @@ textarea:focus-visible {
 
 .settings-sheet .form-btns .btn-del {
   flex: 1
+}
+
+/* controlli a "scheda" (opzioni modello) dentro una scheda di gruppo: un tono più scuro */
+.settings-card .topic-row {
+  background: var(--surface-1)
 }
 
 /* Voce Impostazioni nella sidebar: solo desktop (su mobile la bottom nav resta a 4 colonne) */

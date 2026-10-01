@@ -13,25 +13,31 @@ import { setAuthHooks, switchTab, doLogin, doSignup, doLogout, doResetPwd } from
 import { renderPlan, openModal, closeModal, overlayClick, openImpegniModal } from './plan.js';
 import { renderOggi, renderHOggiList, updateOggiStats } from './oggi.js';
 import { CAL, ensureEventi, renderCalendario, renderCalStrip, renderCalDay, calShiftWeek, calGoToday, openEventoModal } from './calendario.js';
+import { FEED, FEED_TOPICS_LS, setDiscoverHooks, normalizeTopic } from './discover-state.js';
+import { feedSourceClick, voteFeedCard, feedVoteAction, toggleFollowFeedStory, unfollowFeedStory } from './discover-cloud.js';
+import { toggleArticleSpeech, stopArticleSpeech } from './discover-tts.js';
 import {
-  FEED, FEED_TOPICS_LS, setDiscoverHooks, normalizeTopic, renderDiscover,
-  addFeedTopic, clearFeedCache, clearFeedPrefs, clearFeedSeen, closeFeedSheet, expandArticle, feedSheetOverlayClick, feedSourceClick, fetchGeminiModels,
-  generateFeed, loadMoreFeed, openFeedChat, openFeedSheet, regenerateFeed, removeFeedKey, removeFeedTopic, saveFeedKey, sendFeedChat,
-  setFeedModel, setFeedModelFromInput, setFeedTopic, shareFeedCard, switchFeedSheet, toggleFeedKeyVis, toggleFeedSaved,
-  voteFeedCard, feedVoteAction, toggleFollowFeedStory, unfollowFeedStory, toggleArticleSpeech,
-  editFeedTopic, cancelFeedTopicEdit, saveFeedTopicEdit, createFeedTopicFromPhrase,
-  setFeedArea, saveFeedProfile, regenFeedProfile, removeFeedPref, setFeedTtsVoice, testFeedTtsVoice, refreshTtsVoices,
-  stopArticleSpeech, setFeedTtsEngine, setFeedTtsCloudVoice, testFeedTtsCloud, refreshTtsCloudVoices
-} from './discover.js';
-import { openSettings, closeSettings, settingsOverlayClick, settingsGo, renderSettingsSync, settingsSyncNow } from './settings.js';
+  setArticleHooks, articleToolsInner, closeFeedSheet, expandArticle, feedSheetOverlayClick, openFeedChat, openFeedSheet, sendFeedChat, switchFeedSheet
+} from './discover-article.js';
+import { renderDiscover, generateFeed, loadMoreFeed, regenerateFeed, setFeedTopic, shareFeedCard, toggleFeedSaved } from './discover.js';
+import {
+  renderFeedTopicsSheet, addFeedTopic, removeFeedTopic, editFeedTopic, cancelFeedTopicEdit, saveFeedTopicEdit, createFeedTopicFromPhrase
+} from './discover-topics.js';
+import {
+  renderFeedSettings, renderTtsSettings, clearFeedCache, clearFeedPrefs, clearFeedSeen, fetchGeminiModels, removeFeedKey, saveFeedKey, toggleFeedKeyVis,
+  setFeedModel, setFeedModelFromInput, setFeedArea, saveFeedProfile, regenFeedProfile, removeFeedPref,
+  setFeedTtsVoice, testFeedTtsVoice, refreshTtsVoices, setFeedTtsEngine, setFeedTtsCloudVoice, testFeedTtsCloud, refreshTtsCloudVoices
+} from './discover-settings.js';
+import { openSettings, closeSettings, settingsOverlayClick, settingsGo, settingsOpenPage, settingsBack, renderSettingsSync, settingsSyncNow } from './settings.js';
 
 // ── HOOK (dipendenze verso l'alto) ─────────────────────────
-// state.js, sync.js, auth.js e discover.js chiamano funzioni di moduli che non possono importare
-// (ciclo). Le registriamo qui, prima di qualunque bootstrap: i moduli sono già tutti valutati.
+// state.js, sync.js, auth.js, discover-state.js e discover-article.js chiamano funzioni di moduli che
+// non possono importare (ciclo). Le registriamo qui, prima di qualunque bootstrap: i moduli sono già tutti valutati.
 setStateHooks({ ensureEventi, loadWindowForDate, renderPlan, renderOggi, renderDiscover, renderHOggiList });
 setSyncHooks({ FEED, FEED_TOPICS_LS, ensureEventi, normalizeTopic, renderCalDay, renderCalStrip, renderCalendario, renderDiscover, renderHOggiList, renderOggi, renderPlan, renderSettingsSync, updateOggiStats });
 setAuthHooks({ initApp, closeAppDialog });
-setDiscoverHooks({ openSettings });
+setDiscoverHooks({ renderFeedSettings, renderTtsSettings, articleToolsInner });
+setArticleHooks({ openSettings, renderFeedTopicsSheet });
 
 async function initApp(user) {
   if (curUser && curUser.id === user.id) return;
@@ -218,13 +224,14 @@ async function requestLogout() {
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     if (DLG.open) { if (!DLG.busy) { e.preventDefault(); closeAppDialog(false); } return; }
-    if (SETTINGS.open) { e.preventDefault(); closeSettings(); }
+    // Impostazioni: da una sotto-pagina Esc torna al menu, dal menu chiude
+    if (SETTINGS.open) { e.preventDefault(); if (SETTINGS.page) settingsBack(); else closeSettings(); }
     return;
   }
   if (e.key !== 'Tab') return;
   const root = DLG.open ? document.querySelector('#app-dlg .app-dlg') : SETTINGS.open ? document.querySelector('#settings-panel .settings-sheet') : null;
   if (!root) return;
-  const f = [...root.querySelectorAll('button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')].filter(el => el.offsetParent !== null);
+  const f = [...root.querySelectorAll('button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')].filter(el => el.offsetParent !== null && !el.closest('[inert]'));
   if (!f.length) { e.preventDefault(); return; }
   const first = f[0], last = f[f.length - 1];
   if (!root.contains(document.activeElement)) { e.preventDefault(); first.focus(); }
@@ -280,77 +287,79 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
 
 // Ponte per gli handler inline (onclick="..." in index.html e nei template HTML dei moduli): resta finché esistono
 Object.assign(window, {
-  addFeedTopic,           // discover.js
+  addFeedTopic,           // discover-topics.js
   appDialogOverlayClick,  // app.js
   CAL,                    // calendario.js (FAB: openEventoModal(CAL.date))
   calGoToday,             // calendario.js
   calShiftWeek,           // calendario.js
-  cancelFeedTopicEdit,    // discover.js
-  clearFeedCache,         // discover.js
-  clearFeedPrefs,         // discover.js
-  clearFeedSeen,          // discover.js
+  cancelFeedTopicEdit,    // discover-topics.js
+  clearFeedCache,         // discover-settings.js
+  clearFeedPrefs,         // discover-settings.js
+  clearFeedSeen,          // discover-settings.js
   closeAppDialog,         // app.js
-  closeFeedSheet,         // discover.js
+  closeFeedSheet,         // discover-article.js
   closeModal,             // plan.js
   closeSettings,          // settings.js
   confirmAppDialog,       // app.js
-  createFeedTopicFromPhrase, // discover.js
+  createFeedTopicFromPhrase, // discover-topics.js
   doLogin,                // auth.js
   doResetPwd,             // auth.js
   doSignup,               // auth.js
-  editFeedTopic,          // discover.js
-  expandArticle,          // discover.js
+  editFeedTopic,          // discover-topics.js
+  expandArticle,          // discover-article.js
   exportBackup,           // state.js
-  feedSheetOverlayClick,  // discover.js
-  feedSourceClick,        // discover.js
-  feedVoteAction,         // discover.js
-  fetchGeminiModels,      // discover.js
+  feedSheetOverlayClick,  // discover-article.js
+  feedSourceClick,        // discover-cloud.js
+  feedVoteAction,         // discover-cloud.js
+  fetchGeminiModels,      // discover-settings.js
   generateFeed,           // discover.js
   goScreen,               // app.js
   loadMoreFeed,           // discover.js
   offsetDate,             // utils.js (frecce data: setSelectedDate(offsetDate(...)))
   openEventoModal,        // calendario.js
-  openFeedChat,           // discover.js
-  openFeedSheet,          // discover.js
+  openFeedChat,           // discover-article.js
+  openFeedSheet,          // discover-article.js
   openImpegniModal,       // plan.js
   openModal,              // plan.js
   openSettings,           // settings.js
   overlayClick,           // plan.js
   regenerateFeed,         // discover.js
-  regenFeedProfile,       // discover.js
-  refreshTtsVoices,       // discover.js
-  refreshTtsCloudVoices,  // discover.js
-  removeFeedKey,          // discover.js
-  removeFeedPref,         // discover.js
-  removeFeedTopic,        // discover.js
+  regenFeedProfile,       // discover-settings.js
+  refreshTtsVoices,       // discover-settings.js
+  refreshTtsCloudVoices,  // discover-settings.js
+  removeFeedKey,          // discover-settings.js
+  removeFeedPref,         // discover-settings.js
+  removeFeedTopic,        // discover-topics.js
   requestLogout,          // app.js
-  saveFeedKey,            // discover.js
-  saveFeedProfile,        // discover.js
-  saveFeedTopicEdit,      // discover.js
-  sendFeedChat,           // discover.js
-  setFeedArea,            // discover.js
-  setFeedModel,           // discover.js
-  setFeedModelFromInput,  // discover.js
+  saveFeedKey,            // discover-settings.js
+  saveFeedProfile,        // discover-settings.js
+  saveFeedTopicEdit,      // discover-topics.js
+  sendFeedChat,           // discover-article.js
+  setFeedArea,            // discover-settings.js
+  setFeedModel,           // discover-settings.js
+  setFeedModelFromInput,  // discover-settings.js
   setFeedTopic,           // discover.js
-  setFeedTtsVoice,        // discover.js
-  setFeedTtsCloudVoice,   // discover.js
-  setFeedTtsEngine,       // discover.js
+  setFeedTtsVoice,        // discover-settings.js
+  setFeedTtsCloudVoice,   // discover-settings.js
+  setFeedTtsEngine,       // discover-settings.js
   setSelectedDate,        // state.js
+  settingsBack,           // settings.js
   settingsGo,             // settings.js
+  settingsOpenPage,       // settings.js
   settingsOverlayClick,   // settings.js
   settingsSyncNow,        // settings.js
-  testFeedTtsVoice,       // discover.js
-  stopArticleSpeech,      // discover.js
-  testFeedTtsCloud,       // discover.js
+  testFeedTtsVoice,       // discover-settings.js
+  stopArticleSpeech,      // discover-tts.js
+  testFeedTtsCloud,       // discover-settings.js
   shareFeedCard,          // discover.js
-  switchFeedSheet,        // discover.js
+  switchFeedSheet,        // discover-article.js
   switchTab,              // auth.js
-  toggleArticleSpeech,    // discover.js
-  toggleFeedKeyVis,       // discover.js
+  toggleArticleSpeech,    // discover-tts.js
+  toggleFeedKeyVis,       // discover-settings.js
   toggleFeedSaved,        // discover.js
-  toggleFollowFeedStory,  // discover.js
+  toggleFollowFeedStory,  // discover-cloud.js
   toggleFocusMode,        // state.js
   toggleSidebar,          // state.js
-  unfollowFeedStory,      // discover.js
-  voteFeedCard,           // discover.js
+  unfollowFeedStory,      // discover-cloud.js
+  voteFeedCard,           // discover-cloud.js
 });

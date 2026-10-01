@@ -37,7 +37,14 @@
   <link rel="modulepreload" href="js/oggi.js">
   <link rel="modulepreload" href="js/calendario.js">
   <link rel="modulepreload" href="js/feedrank.js">
+  <link rel="modulepreload" href="js/discover-state.js">
+  <link rel="modulepreload" href="js/discover-gemini.js">
+  <link rel="modulepreload" href="js/discover-cloud.js">
+  <link rel="modulepreload" href="js/discover-tts.js">
+  <link rel="modulepreload" href="js/discover-article.js">
   <link rel="modulepreload" href="js/discover.js">
+  <link rel="modulepreload" href="js/discover-topics.js">
+  <link rel="modulepreload" href="js/discover-settings.js">
   <link rel="modulepreload" href="js/settings.js">
   <link rel="modulepreload" href="js/app.js">
   <script type="module" src="js/app.js"></script>
@@ -294,14 +301,31 @@
       </div>
     </div>
 
-    <!-- IMPOSTAZIONI globali: schermo pieno su mobile, sheet centrato su desktop -->
+    <!-- IMPOSTAZIONI globali: schermo pieno su mobile, sheet centrato su desktop.
+         Menu (pagina radice) + sotto-pagina che entra da destra (stile iOS), vedi js/settings.js -->
     <div class="fsheet-overlay settings-overlay" id="settings-panel" onclick="settingsOverlayClick(event)">
       <div class="fsheet settings-sheet" role="dialog" aria-modal="true" aria-labelledby="settings-title">
-        <div class="fsheet-head">
-          <span class="fsheet-title" id="settings-title">Impostazioni</span>
-          <button class="modal-close" onclick="closeSettings()" aria-label="Chiudi impostazioni">×</button>
+        <div class="settings-pages" id="settings-pages">
+          <div class="settings-page settings-root" id="settings-root">
+            <div class="settings-head">
+              <button class="modal-close" onclick="closeSettings()" aria-label="Chiudi impostazioni">×</button>
+            </div>
+            <div class="fsheet-body" id="settings-body">
+              <h2 class="settings-h1" id="settings-title">Impostazioni</h2>
+              <div id="settings-root-list"></div>
+            </div>
+          </div>
+          <div class="settings-page settings-sub" id="settings-sub" inert aria-hidden="true">
+            <div class="settings-head">
+              <button class="settings-back" id="settings-back" type="button" onclick="settingsBack()"><svg class="settings-back-chev" viewBox="0 0 24 24" aria-hidden="true"><polyline points="15 5 8 12 15 19" /></svg>Impostazioni</button>
+              <button class="modal-close" onclick="closeSettings()" aria-label="Chiudi impostazioni">×</button>
+            </div>
+            <div class="fsheet-body" id="settings-sub-body">
+              <h2 class="settings-h1" id="settings-sub-title"></h2>
+              <div id="settings-pg-wrap"></div>
+            </div>
+          </div>
         </div>
-        <div class="fsheet-body" id="settings-body"></div>
       </div>
     </div>
 

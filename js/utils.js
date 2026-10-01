@@ -83,8 +83,13 @@ function withTimeout(promise, ms) {
 }
 
 function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
+// Gruppo delle sotto-pagine di Impostazioni (stile iOS): titolo piccolo, scheda arrotondata con le righe
+// (.settings-row / .settings-nav) separate da un filetto, nota sotto. title e foot sono HTML fidato.
+function settingsGroupHTML(title, rows, foot) {
+  return `${title ? `<h3 class="settings-gtitle">${title}</h3>` : ''}<div class="settings-card">${rows}</div>${foot ? `<div class="feed-hint settings-gfoot">${foot}</div>` : ''}`;
+}
 
 export {
   todayStr, offsetDate, fmtHeaderDate, renderDateNavHeader, p2, uid, pctColor, heatColor, fmtDate, weekDays,
-  setSS, shootConfetti, showToast, withTimeout, plural
+  setSS, shootConfetti, showToast, withTimeout, plural, settingsGroupHTML
 };

@@ -1,4 +1,4 @@
-const CACHE = 'dayflow-v29';
+const CACHE = 'dayflow-v30';
 const STATIC = [
   './',
   './index.html',
@@ -18,7 +18,14 @@ const STATIC = [
   './js/oggi.js',
   './js/calendario.js',
   './js/feedrank.js',
+  './js/discover-state.js',
+  './js/discover-gemini.js',
+  './js/discover-cloud.js',
+  './js/discover-tts.js',
+  './js/discover-article.js',
   './js/discover.js',
+  './js/discover-topics.js',
+  './js/discover-settings.js',
   './js/settings.js',
   './js/app.js',
 ];
