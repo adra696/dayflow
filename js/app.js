@@ -1,4 +1,4 @@
-import { todayStr, offsetDate, setSS, withTimeout } from './utils.js';
+import { todayStr, offsetDate, setSS, withTimeout, showToast } from './utils.js';
 import {
   S, sb, SK, curUser, curScreen, selectedDate, isProgrammaticScroll, SETTINGS, DLG,
   setCurUser, setCurScreen, setSelectedDateOnly, setIsProgrammaticScroll, setStateHooks,
@@ -286,9 +286,22 @@ document.addEventListener('keydown', e => {
 })();
 
 // ── SERVICE WORKER (solo HTTPS) ────────────────────────────
+// Il browser controlla sw.js solo a un caricamento completo della pagina: una PWA che torna dal
+// multitasking non lo fa, quindi al ritorno in primo piano chiediamo noi un controllo (max ogni 10 min).
+// Quando una versione nuova prende il controllo, questa pagina gira ancora il codice vecchio: lo diciamo.
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  const hadController = !!navigator.serviceWorker.controller; // false al primo avvio: nessun avviso
+  let swReg = null, swChecked = Date.now();
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('sw.js').catch(() => {});
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => { swReg = r; }).catch(() => {});
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible' || !swReg || Date.now() - swChecked < 600000) return;
+    swChecked = Date.now();
+    swReg.update().catch(() => {});
+  });
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (hadController) showToast('Aggiornamento scaricato: chiudi e riapri DayFlow per usarlo', 'info', 6000);
   });
 }
 

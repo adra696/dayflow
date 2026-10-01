@@ -1,4 +1,4 @@
-const CACHE = 'dayflow-v35';
+const CACHE = 'dayflow-v36';
 const STATIC = [
   './',
   './index.html',
@@ -34,8 +34,10 @@ const STATIC = [
 self.addEventListener('install', e => {
   e.waitUntil(
     caches.open(CACHE).then(c =>
-      // addAll fails silently per singolo asset mancante
-      Promise.allSettled(STATIC.map(url => c.add(url)))
+      // cache: 'reload' = sempre dalla rete, mai dalla cache HTTP del browser: GitHub Pages manda
+      // max-age=600, e due release a pochi minuti di distanza riempivano la cache nuova con i file vecchi.
+      // allSettled: un asset mancante non blocca l'installazione
+      Promise.allSettled(STATIC.map(url => c.add(new Request(url, { cache: 'reload' }))))
     )
   );
   self.skipWaiting();
