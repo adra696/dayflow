@@ -211,11 +211,24 @@
           </div>
           <div class="cal-strip-days" id="cal-strip-days"></div>
         </div>
-        <div class="cal-allday" id="cal-allday"></div>
+        <div class="cal-allday" id="cal-allday">
+          <div class="cal-ad-view">
+            <div class="cal-ad-track" id="cal-ad-track">
+              <div class="cal-ad-page prev" inert></div>
+              <div class="cal-ad-page" id="cal-ad-cur"></div>
+              <div class="cal-ad-page next" inert></div>
+            </div>
+          </div>
+        </div>
         <div class="cal-scroll" id="cal-scroll">
           <div class="cal-body" id="cal-body">
-            <div class="cal-canvas" id="cal-canvas"></div>
-            <div class="cal-now" id="cal-now"></div>
+            <div class="cal-pager">
+              <div class="cal-track" id="cal-track">
+                <div class="cal-page prev" inert><div class="cal-canvas"></div><div class="cal-now"></div></div>
+                <div class="cal-page" id="cal-page-cur"><div class="cal-canvas" id="cal-canvas"></div><div class="cal-now" id="cal-now"></div></div>
+                <div class="cal-page next" inert><div class="cal-canvas"></div><div class="cal-now"></div></div>
+              </div>
+            </div>
           </div>
         </div>
         <button class="cal-fab" onclick="openEventoModal(CAL.date)" aria-label="Nuovo evento"><svg viewBox="0 0 24 24">

@@ -1090,11 +1090,9 @@ textarea:focus-visible {
 }
 
 .modal-title {
-  font-family: var(--mono);
-  font-size: 12px;
-  letter-spacing: .08em;
-  text-transform: uppercase;
-  font-weight: 500
+  font-family: var(--sans);
+  font-size: var(--fs-body);
+  font-weight: 600
 }
 
 .modal-close {
@@ -1261,13 +1259,12 @@ textarea:focus-visible {
   color: #0a0a0b;
   border: none;
   border-radius: var(--r-sm);
-  padding: 13px;
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: .08em;
-  text-transform: uppercase;
-  cursor: pointer;
+  padding: 12px 14px;
+  font-family: var(--sans);
+  font-size: var(--fs-body);
   font-weight: 500;
+  line-height: 1.25;
+  cursor: pointer;
   transition: all .15s
 }
 
@@ -1286,11 +1283,11 @@ textarea:focus-visible {
   color: var(--text2);
   border: 1px solid var(--border2);
   border-radius: var(--r-sm);
-  padding: 13px;
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: .08em;
-  text-transform: uppercase;
+  padding: 12px 14px;
+  font-family: var(--sans);
+  font-size: var(--fs-body);
+  font-weight: 500;
+  line-height: 1.25;
   cursor: pointer;
   transition: all .15s
 }
@@ -1310,17 +1307,33 @@ textarea:focus-visible {
   color: var(--red);
   border: 1px solid rgba(239, 68, 68, 0.2);
   border-radius: var(--r-sm);
-  padding: 13px;
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: .08em;
-  text-transform: uppercase;
+  padding: 12px 14px;
+  font-family: var(--sans);
+  font-size: var(--fs-body);
+  font-weight: 500;
+  line-height: 1.25;
   cursor: pointer;
   transition: all .15s
 }
 
 .btn-del:hover {
   background: rgba(239, 68, 68, 0.2)
+}
+
+/* Campi negli sheet (Impostazioni, articolo/chat/argomenti): contenuto → sans, etichette senza maiuscolo */
+.fsheet .form-select {
+  font-family: var(--sans);
+  font-size: var(--fs-body)
+}
+
+.fsheet .form-label {
+  font-family: var(--sans);
+  font-size: var(--fs-small);
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text2);
+  margin-bottom: 6px
 }
 
 .hmanage-row {
@@ -1384,10 +1397,9 @@ textarea:focus-visible {
   border: none;
   border-bottom: 1px solid var(--border);
   color: var(--text);
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: .08em;
-  text-transform: uppercase;
+  font-family: var(--sans);
+  font-size: var(--fs-body);
+  font-weight: 500;
   width: 100%;
   transition: all .15s
 }
@@ -1645,12 +1657,45 @@ textarea:focus-visible {
   transition: transform .28s var(--ease-out), visibility 0s .28s
 }
 
-.settings-pages.no-anim .settings-page {
+/* Ombreggiatura del menu sotto la sotto-pagina (creata dal JS tra le due pagine) */
+.settings-dim {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.3);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .28s var(--ease-out)
+}
+
+.settings-pages.sub-open .settings-dim {
+  opacity: 1
+}
+
+.settings-pages.no-anim .settings-page,
+.settings-pages.no-anim .settings-dim {
   transition: none !important
 }
 
+/* Swipe indietro dal bordo (js/settings.js): .swiping mentre il dito trascina (posizioni inline via rAF),
+   .swipe-settle durante l'animazione di rilascio (transizione inline). Il menu resta visibile sotto. */
+.settings-pages.swiping .settings-page,
+.settings-pages.swiping .settings-dim {
+  transition: none !important
+}
+
+.settings-pages.swiping .settings-page,
+.settings-pages.swipe-settle .settings-page {
+  will-change: transform
+}
+
+.settings-pages.swiping .settings-root,
+.settings-pages.swipe-settle .settings-root {
+  visibility: visible
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .settings-page {
+  .settings-page,
+  .settings-dim {
     transition: none !important
   }
 }
@@ -1713,13 +1758,11 @@ textarea:focus-visible {
 
 /* Gruppo: titolo piccolo + scheda arrotondata con filetti tra le righe + nota sotto */
 .settings-gtitle {
-  font-family: var(--mono);
-  font-size: 11px;
+  font-family: var(--sans);
+  font-size: var(--fs-small);
   font-weight: 500;
   color: var(--text3);
-  letter-spacing: .08em;
-  text-transform: uppercase;
-  margin: 0 4px 8px
+  margin: 0 16px 8px
 }
 
 .settings-card {
@@ -1731,7 +1774,7 @@ textarea:focus-visible {
 }
 
 .settings-card + .settings-gfoot {
-  margin: -16px 4px 24px
+  margin: -16px 16px 24px
 }
 
 .settings-card > .settings-row {
@@ -1821,10 +1864,10 @@ textarea:focus-visible {
 }
 
 .settings-nav-sub {
-  font-family: var(--mono);
-  font-size: 11px;
+  font-family: var(--sans);
+  font-size: var(--fs-small);
   color: var(--text3);
-  margin-top: 2px;
+  margin-top: 1px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis
@@ -1837,8 +1880,9 @@ textarea:focus-visible {
   flex-shrink: 1;
   min-width: 0;
   max-width: 48%;
-  font-family: var(--mono);
-  font-size: 12px;
+  font-family: var(--sans);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
   color: var(--text3);
   white-space: nowrap;
   overflow: hidden;
@@ -1891,7 +1935,8 @@ textarea:focus-visible {
 }
 
 .settings-inline-txt {
-  font-size: 14px;
+  font-size: var(--fs-body);
+  line-height: 1.35;
   color: var(--text)
 }
 
@@ -1983,11 +2028,10 @@ textarea:focus-visible {
 }
 
 .app-dlg-title {
-  font-family: var(--mono);
-  font-size: 12px;
-  font-weight: 500;
-  letter-spacing: .08em;
-  text-transform: uppercase;
+  font-family: var(--sans);
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -.01em;
   color: var(--text);
   margin-bottom: 10px
 }

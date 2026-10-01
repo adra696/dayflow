@@ -34,6 +34,13 @@
   --accent-ring: 0 0 0 3px rgba(139, 140, 248, 0.25);
   --mono: 'DM Mono', monospace;
   --sans: 'DM Sans', sans-serif;
+  /* Scala tipografica: DM Sans per il contenuto, DM Mono solo per cornice e dati */
+  --fs-read: 16px;   /* lettura: riassunto card, paragrafi articolo */
+  --lh-read: 1.65;
+  --fs-body: 15px;   /* testo d'interfaccia, bottoni (= .hname di Oggi) */
+  --lh-body: 1.5;
+  --fs-small: 13px;  /* note, spiegazioni, meta */
+  --lh-small: 1.45;
   --glass-blur: blur(16px);
   --r-sm: 8px;
   --r-md: 12px;
@@ -61,7 +68,25 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   /* niente zoom da doppio tap, pinch-zoom consentito */
-  touch-action: manipulation
+  touch-action: manipulation;
+  /* come un'app: il tocco prolungato non seleziona testo e non apre il menu Copia/Cerca */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none
+}
+
+/* eccezioni: dove si scrive e dove si legge un testo da poter copiare (articolo e chat di Discover) */
+input,
+textarea,
+[contenteditable],
+.article h2,
+.article h3,
+.article p,
+.art-tldr li,
+.chat-msg {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default
 }
 
 /* iOS Safari zooma sul focus se il campo ha font < 16px: su mobile tutti i campi a 16px */

@@ -185,14 +185,14 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 7px 12px;
+  padding: 6px 13px;
   border-radius: 999px;
   background: var(--surface-2);
   border: 1px solid var(--border2);
   color: var(--text2);
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: .04em;
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
   transition: background .15s ease, border-color .15s ease, color .15s ease, transform .12s ease
@@ -260,9 +260,8 @@
   border: 1px solid var(--border2);
   box-shadow: var(--shadow-card);
   color: var(--text2);
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: .04em
+  font-family: var(--sans);
+  font-size: var(--fs-small)
 }
 
 .feed-ptr-pill svg {
@@ -371,14 +370,16 @@
 .feed-title {
   font-size: 22px;
   font-weight: 600;
-  letter-spacing: -.02em;
-  line-height: 1.25;
-  color: var(--text)
+  letter-spacing: -.018em;
+  line-height: 1.22;
+  color: var(--text);
+  text-wrap: balance
 }
 
 .feed-summary {
-  font-size: 15px;
-  line-height: 1.6;
+  font-size: var(--fs-read);
+  line-height: 1.55;
+  text-wrap: pretty;
   color: var(--text2);
   flex: 1;
   min-height: 0;
@@ -391,27 +392,29 @@
 }
 
 .feed-summary p + p {
-  margin-top: 12px
+  margin-top: 16px
 }
 
+/* "Perché conta": blocco a sé con filetto del colore argomento, etichetta su una riga propria */
 .feed-why {
   font-size: 14px;
-  line-height: 1.55;
-  color: var(--text3)
+  line-height: 1.5;
+  color: var(--text2);
+  padding-left: 12px;
+  border-left: 2px solid color-mix(in srgb, var(--tc, var(--accent)) 55%, transparent)
 }
 
 .feed-why b {
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: .06em;
-  text-transform: uppercase;
+  display: block;
+  font-size: var(--fs-small);
+  font-weight: 600;
   color: var(--tc, var(--accent));
-  margin-right: 4px
+  margin-bottom: 2px
 }
 
 a.feed-src {
   color: var(--text2);
+  font-weight: 500;
   text-decoration: none;
   border-bottom: 1px solid var(--border2);
   padding: 10px 0 1px;
@@ -429,10 +432,10 @@ a.feed-src:hover {
   row-gap: 4px;
   align-items: center;
   gap: 8px;
-  font-family: var(--mono);
-  font-size: 11px;
+  font-family: var(--sans);
+  font-size: var(--fs-small);
   color: var(--text3);
-  letter-spacing: .03em
+  font-variant-numeric: tabular-nums
 }
 
 /* Fase 4 — riga in cima alla card: argomento, "↻ Aggiornamento", voti 👍/👎 */
@@ -580,10 +583,10 @@ a.feed-src:hover {
   gap: 6px;
   padding: 12px 10px;
   border-radius: 10px;
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: .06em;
-  text-transform: uppercase;
+  font-family: var(--sans);
+  font-size: var(--fs-body);
+  font-weight: 500;
+  white-space: nowrap;
   cursor: pointer;
   transition: transform .12s ease, background .15s ease, border-color .15s ease, box-shadow .15s ease;
   border: 1px solid transparent
@@ -755,10 +758,7 @@ a.feed-src:hover {
 }
 
 .feed-link {
-  font-family: var(--mono);
-  font-size: 11px;
   color: var(--accent);
-  letter-spacing: .03em;
   text-decoration: none;
   border-bottom: 1px solid rgba(139, 140, 248, 0.35);
   padding-bottom: 1px
@@ -769,19 +769,14 @@ a.feed-src:hover {
 }
 
 .feed-hint {
-  font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--fs-small);
   color: var(--text3);
-  letter-spacing: .03em;
-  line-height: 1.5
+  line-height: var(--lh-small)
 }
 
 .feed-disclaimer {
-  font-family: var(--mono);
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text3);
-  letter-spacing: .05em;
-  text-transform: uppercase;
   margin-top: 8px
 }
 
@@ -796,9 +791,7 @@ a.feed-src:hover {
   background: rgba(245, 158, 11, 0.08);
   border: 1px solid rgba(245, 158, 11, 0.25);
   color: var(--orange);
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: .04em;
+  font-size: var(--fs-small);
   flex-shrink: 0
 }
 
@@ -808,8 +801,8 @@ a.feed-src:hover {
   color: var(--orange);
   border-radius: 7px;
   padding: 5px 10px;
-  font-family: var(--mono);
-  font-size: 11px;
+  font-family: var(--sans);
+  font-size: var(--fs-small);
   cursor: pointer
 }
 
@@ -893,11 +886,9 @@ a.feed-src:hover {
 }
 
 .fsheet-title {
-  font-family: var(--mono);
-  font-size: 12px;
-  letter-spacing: .08em;
-  text-transform: uppercase;
-  color: var(--text2);
+  font-size: var(--fs-body);
+  font-weight: 600;
+  color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -921,10 +912,9 @@ a.feed-src:hover {
   border: none;
   border-radius: 6px;
   color: var(--text3);
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: .06em;
-  text-transform: uppercase;
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 500;
   padding: 8px 0;
   cursor: pointer;
   transition: all .15s
@@ -966,7 +956,7 @@ a.feed-src:hover {
 .fsheet-foot .form-input {
   flex: 1;
   padding: 11px 14px;
-  font-size: 14px;
+  font-size: var(--fs-body);
   border-radius: 10px
 }
 
@@ -1011,8 +1001,9 @@ a.feed-src:hover {
   font-size: 22px;
   font-weight: 600;
   letter-spacing: -.02em;
-  line-height: 1.25;
-  margin-bottom: 6px
+  line-height: 1.22;
+  text-wrap: balance;
+  margin-bottom: 8px
 }
 
 .article .feed-meta {
@@ -1020,18 +1011,20 @@ a.feed-src:hover {
 }
 
 .article h3 {
-  font-size: 15px;
+  font-size: 18px;
   font-weight: 600;
   letter-spacing: -.01em;
-  margin: 22px 0 8px;
+  line-height: 1.3;
+  margin: 30px 0 8px;
   color: var(--text)
 }
 
 .article p {
-  font-size: 15px;
-  line-height: 1.65;
+  font-size: var(--fs-read);
+  line-height: var(--lh-read);
   color: var(--text2);
-  margin-bottom: 12px
+  margin-bottom: 16px;
+  text-wrap: pretty
 }
 
 /* Articolo in streaming: cursore discreto sull'ultimo blocco */
@@ -1113,10 +1106,8 @@ a.feed-src:hover {
 }
 
 .art-tldr-h {
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: .08em;
-  text-transform: uppercase;
+  font-size: var(--fs-small);
+  font-weight: 600;
   color: var(--accent);
   margin-bottom: 8px
 }
@@ -1130,8 +1121,8 @@ a.feed-src:hover {
 }
 
 .art-tldr li {
-  font-size: 14px;
-  line-height: 1.5;
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
   color: var(--text)
 }
 
@@ -1141,14 +1132,12 @@ a.feed-src:hover {
   align-items: center;
   gap: 4px 12px;
   margin: -6px 0 18px;
-  font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--fs-small);
   color: var(--text3)
 }
 
 .art-srcs-h {
-  letter-spacing: .08em;
-  text-transform: uppercase
+  font-weight: 500
 }
 
 .art-srcs a {
@@ -1171,11 +1160,9 @@ a.feed-src:hover {
 }
 
 .chat-ctx {
-  font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--fs-small);
   color: var(--text3);
-  letter-spacing: .03em;
-  line-height: 1.5;
+  line-height: var(--lh-small);
   padding: 10px 12px;
   border-radius: 10px;
   background: var(--surface-2);
@@ -1187,8 +1174,8 @@ a.feed-src:hover {
   max-width: 88%;
   padding: 11px 14px;
   border-radius: 14px;
-  font-size: 14px;
-  line-height: 1.55;
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
   white-space: pre-wrap;
   word-break: break-word;
   animation: slideUp .25s var(--ease-out) both
@@ -1323,19 +1310,25 @@ a.feed-src:hover {
 }
 
 .settings-lbl {
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--text3);
-  letter-spacing: .08em;
-  text-transform: uppercase;
-  margin-bottom: 8px
+  font-size: var(--fs-body);
+  font-weight: 500;
+  color: var(--text);
+  line-height: 1.35;
+  margin-bottom: 6px
 }
 
 .settings-val {
-  font-family: var(--mono);
-  font-size: 13px;
+  font-size: 14px;
+  line-height: var(--lh-small);
   color: var(--text2);
-  margin-bottom: 10px
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 12px
+}
+
+/* la versione è un dato: mono */
+#settings-pg-info .settings-val {
+  font-family: var(--mono);
+  font-size: 13px
 }
 
 /* Argomenti — fase 4: modifica (✎) ed editor */
@@ -1344,10 +1337,9 @@ a.feed-src:hover {
 }
 
 .topic-row .t-sub {
-  font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--fs-small);
   color: var(--text3);
-  line-height: 1.45;
+  line-height: 1.4;
   margin-top: 3px;
   overflow-wrap: anywhere
 }
@@ -1414,9 +1406,14 @@ textarea.feed-profile {
 
 /* Impostazioni Discover — preferenze e storie seguite */
 .pref-h {
-  font-size: 13px;
-  color: var(--text2);
-  margin: 10px 0 4px
+  font-size: var(--fs-small);
+  font-weight: 500;
+  color: var(--text3);
+  margin: 12px 0 2px
+}
+
+.pref-h:first-child {
+  margin-top: 0
 }
 
 .pref-row {
@@ -1434,7 +1431,8 @@ textarea.feed-profile {
 .pref-txt {
   flex: 1;
   min-width: 0;
-  font-size: 14px;
+  font-size: var(--fs-body);
+  line-height: 1.4;
   color: var(--text);
   overflow-wrap: anywhere
 }
@@ -1467,7 +1465,7 @@ textarea.feed-profile {
 }
 
 .follow-title {
-  font-size: 14px;
+  font-size: var(--fs-body);
   color: var(--text);
   line-height: 1.4;
   margin-bottom: 2px
@@ -1476,7 +1474,8 @@ textarea.feed-profile {
 .btn-sec.follow-stop {
   flex: none;
   min-height: 44px;
-  padding: 10px 12px
+  padding: 10px 12px;
+  font-size: 14px
 }
 
 /* Selettore modello Gemini: riusa .topic-row come opzione */
@@ -1500,12 +1499,12 @@ textarea.feed-profile {
 
 .model-opt .t-name {
   min-width: 0;
-  font-size: 14px
+  font-size: var(--fs-body)
 }
 
 .model-opt .model-id {
-  font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--fs-small);
+  line-height: 1.4;
   color: var(--text3);
   margin-top: 2px;
   overflow-wrap: anywhere
@@ -1603,28 +1602,27 @@ textarea.feed-profile {
   grid-template-columns: repeat(7, 1fr)
 }
 
-/* Viewport + track a 3 pagine (settimana prec / corrente / succ) */
+/* Viewport + track a 3 pagine (settimana prec / corrente / succ): la corrente nel flusso,
+   le laterali absolute a ∓100%; a riposo nessun transform, il drag/slide usa translate3d in px (calendario.js) */
 .cal-strip-days {
   overflow: hidden
 }
 
 .cal-strip-track {
-  display: flex;
-  transform: translateX(-100%);
+  position: relative;
   will-change: transform
 }
 
-.cal-strip-track.anim {
-  transition: transform .32s var(--ease-out)
+.cal-strip-page.prev,
+.cal-strip-page.next {
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%
 }
 
-.cal-strip-page {
-  flex: 0 0 100%;
-  min-width: 0
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .cal-strip-track.anim { transition: none }
+.cal-strip-page.next {
+  left: 100%
 }
 
 .cal-dlbl {
@@ -1693,20 +1691,52 @@ textarea.feed-profile {
   background: var(--text2)
 }
 
-/* Fascia tutto il giorno */
+/* Fascia tutto il giorno: pager a 3 pagine che si muove insieme alla timeline (swipe giorno) */
 .cal-allday {
   display: none;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 8px 10px 8px 46px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+  touch-action: pan-y pinch-zoom
+}
+
+.cal-allday.show {
+  display: block
+}
+
+.cal-ad-view {
+  margin-left: 40px;
+  overflow: hidden
+}
+
+/* Le 3 pagine nella stessa cella della griglia: l'altezza della fascia è quella della pagina più alta
+   (i chip del giorno vicino si vedono durante lo swipe e al cambio giorno la timeline non salta) */
+.cal-ad-track {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr)
+}
+
+.cal-ad-page {
+  grid-area: 1 / 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 6px;
+  padding: 8px 10px 8px 6px;
   max-height: 84px;
   overflow-y: auto
 }
 
-.cal-allday.show {
-  display: flex
+.cal-ad-page.prev {
+  transform: translateX(-100%)
+}
+
+.cal-ad-page.next {
+  transform: translateX(100%)
+}
+
+.cal-track.moving,
+.cal-ad-track.moving {
+  will-change: transform
 }
 
 .cal-chip {
@@ -1774,9 +1804,43 @@ textarea.feed-profile {
   pointer-events: none
 }
 
+/* Pager giorno: parte a 40px (il pallino della linea "ora" resta visibile), griglia ed etichette restano ferme */
+.cal-pager {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 40px;
+  right: 0;
+  overflow: hidden
+}
+
+.cal-track {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0
+}
+
+.cal-page {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 100%
+}
+
+.cal-page.prev {
+  left: -100%
+}
+
+.cal-page.next {
+  left: 100%
+}
+
 .cal-canvas {
   position: absolute;
-  left: 46px;
+  left: 6px;
   right: 10px;
   top: 0;
   bottom: 0
@@ -1832,7 +1896,7 @@ textarea.feed-profile {
 
 .cal-now {
   position: absolute;
-  left: 40px;
+  left: 0;
   right: 0;
   height: 0;
   border-top: 1px solid var(--red);
@@ -1928,10 +1992,9 @@ textarea.feed-profile {
 
 .ev-seg-btn {
   flex: 1;
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: .08em;
-  text-transform: uppercase;
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 500;
   color: var(--text3);
   background: var(--surface-2);
   border: 1px solid var(--border2);

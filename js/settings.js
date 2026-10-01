@@ -78,29 +78,34 @@ function showSettingsPage(id, anim) {
   settingsSetSub(true, anim);
   const back = $id('settings-back'); if (back) back.focus({ preventScroll: true });
 }
-// "‹ Impostazioni", Esc, swipe dal bordo sinistro: torna al menu, sulla riga di partenza
-function settingsBack() {
+// "‹ Impostazioni", Esc, swipe dal bordo sinistro: torna al menu, sulla riga di partenza.
+// anim=false dallo swipe: le pagine sono già nella posizione finale, si cambia solo lo stato.
+function settingsBack(anim = true) {
   if (!SETTINGS.open || !SETTINGS.page) return;
   const from = SETTINGS.page;
   SETTINGS.page = null;
   renderSettingsRoot(); // valori a destra delle righe (focus, motore voce…) aggiornati
-  settingsSetSub(false, true);
+  settingsSetSub(false, anim !== false);
   const body = $id('settings-body');
   if (body) body.scrollTop = SETTINGS.rootScroll || 0;
   const row = document.querySelector(`#settings-root-list [data-page="${from}"]`);
   if (row) row.focus({ preventScroll: true });
 }
-// Mostra la sotto-pagina (sub=true) o il menu; la pagina nascosta diventa inert + aria-hidden
+// Mostra la sotto-pagina (sub=true) o il menu; la pagina nascosta diventa inert + aria-hidden.
+// Annulla sempre uno swipe in corso e ne toglie gli stili inline (con no-anim attivo, se anim=false,
+// così la fine di uno swipe confermato non fa scatti).
 function settingsSetSub(sub, anim) {
   const pages = $id('settings-pages'), root = $id('settings-root'), subEl = $id('settings-sub');
   if (!pages || !root || !subEl) return;
   if (!anim) pages.classList.add('no-anim');
+  settingsSwipeReset();
   pages.classList.toggle('sub-open', sub);
   root.toggleAttribute('inert', sub);
   subEl.toggleAttribute('inert', !sub);
   if (sub) { root.setAttribute('aria-hidden', 'true'); subEl.removeAttribute('aria-hidden'); }
   else { subEl.setAttribute('aria-hidden', 'true'); root.removeAttribute('aria-hidden'); }
   if (!anim) { void pages.offsetWidth; pages.classList.remove('no-anim'); }
+  else SW.animUntil = performance.now() + SW_MS + 40; // niente swipe durante la slide
 }
 
 // Contenitori delle sotto-pagine: costruiti una volta (per utente), così una bozza (profilo dei gusti)
@@ -114,27 +119,142 @@ function ensureSettingsPages() {
     : id === 'ascolta' ? '<div id="settings-tts-body"></div>' : ''}</div>`).join('');
   settingsInitEdgeSwipe();
 }
-// Swipe dal bordo sinistro della sotto-pagina (touch) = indietro. Niente trascinamento animato:
-// basta un gesto orizzontale deciso che parte entro 24px dal bordo.
+// ── Swipe indietro dal bordo sinistro della sotto-pagina (solo touch, stile iOS) ──
+// Parte entro SW_EDGE px dal bordo; la direzione si decide dopo SW_LOCK px. Orizzontale verso destra →
+// la sotto-pagina segue il dito 1:1, il menu sotto scorre da -28% a 0 (parallasse, come la slide CSS) e
+// l'ombreggiatura #settings-dim sfuma. Verticale (o verso sinistra) → il gesto viene lasciato allo scroll
+// nativo. touchmove non passivo, ma preventDefault solo dopo il blocco orizzontale.
+// Rilascio: indietro se oltre SW_COMMIT della larghezza (senza tornare indietro veloce) o se la velocità
+// verso destra supera SW_VEL px/ms; altrimenti ritorno. L'animazione parte dalla posizione corrente,
+// stessa curva della slide (var(--ease-out)), durata SW_MS scalata sulla distanza che resta.
+// prefers-reduced-motion: niente inseguimento, al rilascio indietro o niente, all'istante.
+// Ignorato durante le slide, con due dita, se parte su range/select/textarea o in un elemento che
+// scorre in orizzontale.
+const SW_EDGE = 28, SW_LOCK = 6, SW_COMMIT = .35, SW_VEL = .4, SW_PARALLAX = .28, SW_MS = 280;
+const SW = { drag: null, raf: 0, anim: null, animUntil: 0 };
+
 function settingsInitEdgeSwipe() {
-  const subEl = $id('settings-sub');
-  if (!subEl || subEl.dataset.swipe) return;
+  const pages = $id('settings-pages'), subEl = $id('settings-sub');
+  if (!pages || !subEl || subEl.dataset.swipe) return;
   subEl.dataset.swipe = '1';
-  let st = null;
+  if (!$id('settings-dim')) {
+    const dim = document.createElement('div');
+    dim.className = 'settings-dim'; dim.id = 'settings-dim'; dim.setAttribute('aria-hidden', 'true');
+    pages.insertBefore(dim, subEl); // sopra il menu, sotto la sotto-pagina
+  }
   subEl.addEventListener('touchstart', e => {
-    st = null;
-    if (e.touches.length !== 1 || !SETTINGS.page) return;
-    const x = e.touches[0].clientX - subEl.getBoundingClientRect().left;
-    if (x <= 24) st = { x: e.touches[0].clientX, y: e.touches[0].clientY, t: Date.now() };
+    if (SW.drag) { settingsSwipeEnd(true); return; } // secondo dito: annulla
+    if (e.touches.length !== 1 || !SETTINGS.open || !SETTINGS.page || SW.anim || performance.now() < SW.animUntil) return;
+    const t = e.touches[0], r = subEl.getBoundingClientRect();
+    if (t.clientX - r.left > SW_EDGE || settingsSwipeBlocked(e.target, subEl)) return;
+    const body = $id('settings-sub-body'), now = performance.now();
+    SW.drag = { id: t.identifier, x0: t.clientX, y0: t.clientY, w: r.width || 1, dx: 0, lock: null,
+      lastX: t.clientX, lastT: now, v: 0, scroll: body ? body.scrollTop : 0, reduce: false };
   }, { passive: true });
+  subEl.addEventListener('touchmove', e => {
+    const d = SW.drag; if (!d) return;
+    const t = settingsTouch(e.touches, d.id); if (!t) return;
+    const dx = t.clientX - d.x0, dy = t.clientY - d.y0;
+    if (d.lock === null) {
+      if (Math.abs(dx) < SW_LOCK && Math.abs(dy) < SW_LOCK) return;
+      const body = $id('settings-sub-body');
+      const scrolled = body && body.scrollTop !== d.scroll; // lo scroll nativo è già partito
+      if (dx <= 0 || dx <= Math.abs(dy) || scrolled) { SW.drag = null; return; }
+      d.lock = 'x';
+      settingsSwipeBegin(d);
+    }
+    if (e.cancelable) e.preventDefault();
+    d.dx = Math.max(0, Math.min(d.w, dx));
+    const now = performance.now(), dt = now - d.lastT;
+    if (dt > 0) { d.v = .8 * ((t.clientX - d.lastX) / dt) + .2 * d.v; d.lastX = t.clientX; d.lastT = now; }
+    if (!d.reduce && !SW.raf) SW.raf = requestAnimationFrame(settingsSwipeFrame);
+  }, { passive: false });
   subEl.addEventListener('touchend', e => {
-    if (!st) return;
-    const p = e.changedTouches[0];
-    const dx = p.clientX - st.x, dy = Math.abs(p.clientY - st.y);
-    st = null;
-    if (dx > 70 && dy < dx * 0.6) settingsBack();
+    if (SW.drag && settingsTouch(e.changedTouches, SW.drag.id)) settingsSwipeEnd(false);
   }, { passive: true });
-  subEl.addEventListener('touchcancel', () => { st = null; }, { passive: true });
+  subEl.addEventListener('touchcancel', () => { if (SW.drag) settingsSwipeEnd(true); }, { passive: true });
+}
+function settingsTouch(list, id) {
+  for (let i = 0; i < list.length; i++) if (list[i].identifier === id) return list[i];
+  return null;
+}
+function settingsSwipeBlocked(el, stop) {
+  for (; el && el !== stop && el.nodeType === 1; el = el.parentElement) {
+    if (el.matches('input[type="range"], select, textarea')) return true;
+    if (el.scrollWidth > el.clientWidth + 1) {
+      const ox = getComputedStyle(el).overflowX;
+      if (ox === 'auto' || ox === 'scroll') return true;
+    }
+  }
+  return false;
+}
+// Blocco orizzontale: menu aggiornato e visibile sotto, transizioni CSS spente (classe .swiping)
+function settingsSwipeBegin(d) {
+  const pages = $id('settings-pages');
+  d.reduce = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+  if (d.reduce || !pages) return;
+  renderSettingsRoot();
+  const body = $id('settings-body'); if (body) body.scrollTop = SETTINGS.rootScroll || 0;
+  pages.classList.add('swiping');
+  settingsSwipePaint(0, d.w);
+}
+function settingsSwipeFrame() {
+  SW.raf = 0;
+  const d = SW.drag;
+  if (d && d.lock === 'x') settingsSwipePaint(d.dx, d.w);
+}
+// dx = spostamento della sotto-pagina (0…w)
+function settingsSwipePaint(dx, w) {
+  const root = $id('settings-root'), subEl = $id('settings-sub'), dim = $id('settings-dim');
+  const p = dx / w;
+  if (subEl) subEl.style.transform = `translate3d(${dx}px,0,0)`;
+  if (root) root.style.transform = `translate3d(${-SW_PARALLAX * w * (1 - p)}px,0,0)`;
+  if (dim) dim.style.opacity = String(1 - p);
+}
+function settingsSwipeEnd(cancelled) {
+  const d = SW.drag;
+  SW.drag = null;
+  if (SW.raf) { cancelAnimationFrame(SW.raf); SW.raf = 0; }
+  if (!d || d.lock !== 'x') return;
+  const v = performance.now() - d.lastT > 100 ? 0 : d.v; // dito fermo prima del rilascio = niente flick
+  const commit = !cancelled && (v > SW_VEL || (d.dx > d.w * SW_COMMIT && v > -SW_VEL / 2));
+  if (d.reduce) { if (commit) settingsBack(false); return; }
+  settingsSwipeSettle(d, commit);
+}
+// Completa (commit) o annulla lo swipe animando dalla posizione corrente
+function settingsSwipeSettle(d, commit) {
+  const pages = $id('settings-pages'), root = $id('settings-root'), subEl = $id('settings-sub'), dim = $id('settings-dim');
+  if (!pages || !root || !subEl) { if (commit) settingsBack(false); else settingsSwipeReset(); return; }
+  settingsSwipePaint(d.dx, d.w);
+  pages.classList.remove('swiping');
+  pages.classList.add('swipe-settle');
+  void subEl.offsetWidth; // la transizione deve partire dalla posizione appena dipinta
+  const ms = Math.round(Math.max(150, SW_MS * (commit ? d.w - d.dx : d.dx) / d.w));
+  root.style.transition = subEl.style.transition = `transform ${ms}ms var(--ease-out)`;
+  if (dim) dim.style.transition = `opacity ${ms}ms var(--ease-out)`;
+  settingsSwipePaint(commit ? d.w : 0, d.w);
+  const a = { timer: 0, off: null };
+  const fin = () => {
+    if (SW.anim !== a) return;
+    a.off(); clearTimeout(a.timer); SW.anim = null;
+    if (commit) settingsBack(false); else settingsSwipeReset();
+  };
+  const onEnd = e => { if (e.target === subEl && e.propertyName === 'transform') fin(); };
+  subEl.addEventListener('transitionend', onEnd);
+  a.off = () => subEl.removeEventListener('transitionend', onEnd);
+  a.timer = setTimeout(fin, ms + 80); // fallback se transitionend non arriva (dx già a destinazione…)
+  SW.anim = a;
+}
+// Toglie ogni traccia dello swipe (stato, rAF, animazione di rilascio, stili inline, classi)
+function settingsSwipeReset() {
+  SW.drag = null;
+  if (SW.raf) { cancelAnimationFrame(SW.raf); SW.raf = 0; }
+  if (SW.anim) { const a = SW.anim; SW.anim = null; a.off(); clearTimeout(a.timer); }
+  const pages = $id('settings-pages');
+  if (pages) pages.classList.remove('swiping', 'swipe-settle');
+  ['settings-root', 'settings-sub', 'settings-dim'].forEach(id => {
+    const el = $id(id); if (el) { el.style.transform = ''; el.style.transition = ''; el.style.opacity = ''; }
+  });
 }
 
 // ── Menu (pagina radice) ──
