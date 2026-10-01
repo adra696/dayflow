@@ -15,7 +15,11 @@
   --surface-1: #111113;
   --surface-2: #18181b;
   --surface-3: #1f1f23;
-  --bg2: rgba(17, 17, 19, 0.92);
+  /* stesse superfici in r, g, b per le trasparenze: rgba(var(--glass-rgb), .9) */
+  --glass-rgb: 17, 17, 19;   /* barre e intestazioni in vetro */
+  --tint-rgb: 24, 24, 27;    /* riquadri leggeri */
+  --hover-rgb: 39, 39, 42;   /* hover delle righe */
+  --bg2: rgba(var(--glass-rgb), 0.92);
   --bg3: #1f1f23;
   /* Bordi: hairline chiari a bassa opacità, mai grigi opachi */
   --border: rgba(255, 255, 255, 0.06);
@@ -30,8 +34,9 @@
   --orange: #f59e0b;
   --yellow: #eab308;
   --accent: #8b8cf8;
-  --accent-soft: rgba(139, 140, 248, 0.14);
-  --accent-ring: 0 0 0 3px rgba(139, 140, 248, 0.25);
+  --accent-rgb: 139, 140, 248; /* = --accent, per rgba(var(--accent-rgb), α) */
+  --accent-soft: rgba(var(--accent-rgb), 0.14);
+  --accent-ring: 0 0 0 3px rgba(var(--accent-rgb), 0.25);
   --mono: 'DM Mono', monospace;
   --sans: 'DM Sans', sans-serif;
   /* Scala tipografica: DM Sans per il contenuto, DM Mono solo per cornice e dati */
@@ -50,6 +55,56 @@
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.25)
 }
 
+/* ── TEMI (Impostazioni → Aspetto, js/theme.js) ──
+   data-theme e data-accent su <html>, messi da uno script inline in <head> prima del primo paint.
+   Senza attributo (o con un valore sconosciuto) vale :root = Grafite + Viola. Ogni tema ridefinisce le
+   superfici e il testo; bordi (bianco a bassa opacità) e colori di stato restano condivisi.
+   I valori esadecimali di sfondo/superficie sono ripetuti in THEMES (js/theme.js) per le anteprime
+   e per <meta name="theme-color">: vanno cambiati insieme. */
+:root[data-theme="mezzanotte"] {
+  --bg: #0a0e1a;
+  --surface-1: #10162a;
+  --surface-2: #161d35;
+  --surface-3: #1d2541;
+  --bg3: #1d2541;
+  --glass-rgb: 16, 22, 42;
+  --tint-rgb: 22, 29, 53;
+  --hover-rgb: 34, 44, 76;
+  --text: #eef1fb;
+  --text2: #c5cbe0;
+  --text3: #8890ab
+}
+
+:root[data-theme="nero"] {
+  --bg: #000000;
+  --surface-1: #0b0b0c;
+  --surface-2: #131315;
+  --surface-3: #1b1b1e;
+  --bg3: #1b1b1e;
+  --glass-rgb: 8, 8, 9;
+  --tint-rgb: 19, 19, 21;
+  --hover-rgb: 32, 32, 36
+}
+
+:root[data-theme="moka"] {
+  --bg: #0e0c0a;
+  --surface-1: #161310;
+  --surface-2: #1e1a16;
+  --surface-3: #27221d;
+  --bg3: #27221d;
+  --glass-rgb: 22, 19, 16;
+  --tint-rgb: 30, 26, 22;
+  --hover-rgb: 48, 42, 35;
+  --text: #f6f1ea;
+  --text2: #d5ccc0;
+  --text3: #9b9083
+}
+
+:root[data-accent="blu"] { --accent: #60a5fa; --accent-rgb: 96, 165, 250 }
+:root[data-accent="turchese"] { --accent: #2dd4bf; --accent-rgb: 45, 212, 191 }
+:root[data-accent="rosa"] { --accent: #f472b6; --accent-rgb: 244, 114, 182 }
+:root[data-accent="ambra"] { --accent: #fbbf24; --accent-rgb: 251, 191, 36 }
+
 html,
 body {
   height: 100%;
@@ -64,7 +119,7 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  background: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(139, 140, 248, 0.08) 0%, transparent 60%), var(--bg);
+  background: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(var(--accent-rgb), 0.08) 0%, transparent 60%), var(--bg);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   /* niente zoom da doppio tap, pinch-zoom consentito */

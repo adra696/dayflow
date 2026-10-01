@@ -1,4 +1,4 @@
-const CACHE = 'dayflow-v32';
+const CACHE = 'dayflow-v33';
 const STATIC = [
   './',
   './index.html',
@@ -26,6 +26,7 @@ const STATIC = [
   './js/discover.js',
   './js/discover-topics.js',
   './js/discover-settings.js',
+  './js/theme.js',
   './js/settings.js',
   './js/app.js',
 ];
